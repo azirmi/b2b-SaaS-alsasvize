@@ -1,0 +1,79 @@
+# =============================================================================
+#  B2B SaaS Visa Management System — Local Development Infrastructure
+# =============================================================================
+#  This compose file is for LOCAL DEVELOPMENT ONLY.
+#  It runs the two stateful infrastructure services the backend depends on:
+#    1. PostgreSQL  -> primary relational database (accessed via Prisma ORM)
+#    2. MinIO       -> S3-compatible object storage (passports, documents)
+#
+#  The NestJS backend and Next.js frontend are NOT part of this file. They are
+#  built and deployed as independent containers in production (Coolify/Docker).
+#  Run with:  docker compose up -d
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — relational database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: visa_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: visa_admin
+      POSTGRES_PASSWORD: visa_local_password
+      POSTGRES_DB: visa_management
+    ports:
+      # host:container. Host port is 5433 to avoid colliding with another local
+      # Postgres already bound to 5432. The container still listens on 5432.
+      - "5433:5432"
+    volumes:
+      # Named volume keeps data across container restarts/rebuilds
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U visa_admin -d visa_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - visa_network
+
+  # ---------------------------------------------------------------------------
+  # MinIO — S3-compatible object storage
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: visa_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio_admin
+      MINIO_ROOT_PASSWORD: minio_local_password
+    ports:
+      - "9000:9000"   # S3 API endpoint (used by the backend AWS S3 SDK)
+      - "9001:9001"   # Web console (http://localhost:9001)
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - visa_network
+
+# -----------------------------------------------------------------------------
+# Named volumes — persist data on the host (the VPS) independently of containers
+# -----------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+
+# -----------------------------------------------------------------------------
+# Dedicated bridge network for the infrastructure services
+# -----------------------------------------------------------------------------
+networks:
+  visa_network:
+    driver: bridge

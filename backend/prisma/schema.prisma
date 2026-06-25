@@ -1,0 +1,192 @@
+// Prisma schema for the B2B SaaS Visa Management System.
+// Docs: https://pris.ly/d/prisma-schema
+//
+// Translated from the project ER diagram:
+//   USERS, STAFF, VISA_APPLICATIONS, DOCUMENTS, AUDIT_LOGS
+//
+// Notes for Prisma 7:
+//  - The new `prisma-client` generator emits plain TypeScript into `output`.
+//  - We target Node.js + CommonJS so it compiles cleanly with NestJS (tsc).
+//  - A driver adapter (@prisma/adapter-pg) is required at runtime.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  runtime             = "nodejs"
+  moduleFormat        = "cjs"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+//  ENUMS
+// ============================================================================
+
+/// Platform-wide user roles.
+enum Role {
+  ADMIN
+  SALES
+  DOC
+  SEC
+  CUSTOMER
+}
+
+/// Internal staff departments (each maps to a work pool).
+enum Department {
+  SALES
+  DOC
+  SEC
+}
+
+/// Lifecycle stage of a visa application as it moves pool -> process
+/// through each department, plus terminal/admin-controlled states.
+enum VisaStage {
+  SALES_POOL
+  SALES_PROCESS
+  DOC_POOL
+  DOC_PROCESS
+  SEC_POOL
+  SEC_PROCESS
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+/// Category of an uploaded document.
+enum FileType {
+  PASSPORT
+  BANK_STATEMENT
+  INTENT_LETTER
+  CONSULATE_FORM
+  OTHER
+}
+
+/// OCR / AI extraction status for a document (null = not queued for OCR).
+enum OcrStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+// ============================================================================
+//  MODELS
+// ============================================================================
+
+/// Every account on the platform (admins, staff and customers).
+model User {
+  id       String  @id @default(uuid()) @db.Uuid
+  email    String  @unique
+  password String // bcrypt hash of the user's password
+  fullName String
+  role     Role
+  isActive Boolean @default(true) // Soft delete flag (Aktif/Pasif)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One-to-One: a user account may have a single staff profile.
+  staffProfile Staff?
+
+  // One-to-Many: visa applications owned by this user as the customer.
+  applications VisaApplication[]
+
+  // One-to-Many: documents uploaded by this user.
+  uploadedDocuments Document[]
+
+  // One-to-Many: audit-log entries performed by this user.
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+/// Operational profile for internal personnel (sales, doc, secretary).
+model Staff {
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String     @unique @db.Uuid
+  department  Department
+  isAvailable Boolean    @default(true) // In pool (true) / busy (false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One-to-One back-relation to the owning user account.
+  user User @relation(fields: [userId], references: [id])
+
+  // One-to-Many: applications this staff member is assigned to, per role.
+  salesApplications VisaApplication[] @relation("VisaSalesStaff")
+  docApplications   VisaApplication[] @relation("VisaDocStaff")
+  secApplications   VisaApplication[] @relation("VisaSecStaff")
+
+  @@map("staff")
+}
+
+/// A customer's visa request that flows through the sales -> doc -> sec stages.
+model VisaApplication {
+  id           String    @id @default(uuid()) @db.Uuid
+  customerId   String    @db.Uuid
+  currentStage VisaStage @default(SALES_POOL)
+
+  // Nullable assignments: empty while the application waits in a pool.
+  assignedSalesId String? @db.Uuid
+  assignedDocId   String? @db.Uuid
+  assignedSecId   String? @db.Uuid
+
+  // Stamped by business logic on each stage transition (SLA / delay tracking).
+  stageUpdatedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Many-to-One: the customer who owns this application.
+  customer User @relation(fields: [customerId], references: [id])
+
+  // Many-to-One (nullable): the assigned staff member for each department.
+  assignedSales Staff? @relation("VisaSalesStaff", fields: [assignedSalesId], references: [id])
+  assignedDoc   Staff? @relation("VisaDocStaff", fields: [assignedDocId], references: [id])
+  assignedSec   Staff? @relation("VisaSecStaff", fields: [assignedSecId], references: [id])
+
+  // One-to-Many children.
+  documents Document[]
+  auditLogs AuditLog[]
+
+  @@map("visa_applications")
+}
+
+/// A file attached to an application and stored in MinIO/S3.
+model Document {
+  id            String     @id @default(uuid()) @db.Uuid
+  applicationId String     @db.Uuid
+  uploadedById  String     @db.Uuid
+  fileType      FileType
+  fileUrl       String // MinIO / S3 object key (presigned URLs are generated on demand)
+  isApproved    Boolean    @default(false) // Document approval (Dosyacı Onayı)
+  ocrStatus     OcrStatus? // null until queued for the future OCR microservice
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Many-to-One relations.
+  application VisaApplication @relation(fields: [applicationId], references: [id])
+  uploadedBy  User            @relation(fields: [uploadedById], references: [id])
+
+  @@map("documents")
+}
+
+/// Immutable audit trail of every meaningful action on an application.
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  applicationId String   @db.Uuid
+  performedById String   @db.Uuid
+  actionType    String // e.g. CLAIMED, APPROVED, PAUSED
+  details       Json // Snapshot of the old & new state
+  createdAt     DateTime @default(now())
+
+  // Many-to-One relations.
+  application VisaApplication @relation(fields: [applicationId], references: [id])
+  performedBy User            @relation(fields: [performedById], references: [id])
+
+  @@map("audit_logs")
+}
