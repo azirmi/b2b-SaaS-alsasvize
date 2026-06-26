@@ -16,7 +16,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '../generated/prisma/enums';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { PauseApplicationDto } from './dto/pause-application.dto';
 import { ReassignApplicationDto } from './dto/reassign-application.dto';
+import { ResumeApplicationDto } from './dto/resume-application.dto';
 import { TransitionStageDto } from './dto/transition-stage.dto';
 import { VisaApplicationsService } from './visa-applications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
@@ -35,6 +37,13 @@ export class VisaApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.create(dto, user);
+  }
+
+  /** Customer-facing: list all applications belonging to the authenticated customer. */
+  @Get('mine')
+  @Roles(Role.CUSTOMER)
+  getMyApplications(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getMyApplications(user);
   }
 
   /** Role-filtered work pool. */
@@ -73,6 +82,28 @@ export class VisaApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.transitionStage(id, dto, user);
+  }
+
+  /** Pause an in-flight application (stops SLA clock). Staff and admin only. */
+  @Patch(':id/pause')
+  @Roles(Role.ADMIN, Role.SALES, Role.DOC, Role.SEC)
+  pause(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PauseApplicationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.pause(id, dto, user);
+  }
+
+  /** Resume a paused application back to its pre-pause stage (restarts SLA clock). */
+  @Patch(':id/resume')
+  @Roles(Role.ADMIN, Role.SALES, Role.DOC, Role.SEC)
+  resume(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ResumeApplicationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.resume(id, dto, user);
   }
 
   /** God-Mode: force-reassign an application to another staff member (admin only). */

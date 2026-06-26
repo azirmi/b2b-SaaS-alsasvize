@@ -72,7 +72,7 @@ export class AuditLogsService {
 
     const applications = await this.prisma.visaApplication.findMany({
       where: {
-        currentStage: { notIn: [VisaStage.COMPLETED, VisaStage.CANCELLED] },
+        currentStage: { notIn: [VisaStage.COMPLETED, VisaStage.CANCELLED, VisaStage.PAUSED] },
         stageUpdatedAt: { lt: cutoff },
       },
       select: {

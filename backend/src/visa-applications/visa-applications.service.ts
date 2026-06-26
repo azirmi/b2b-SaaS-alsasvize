@@ -10,7 +10,9 @@ import { Prisma } from '../generated/prisma/client';
 import { Department, Role, VisaStage } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { PauseApplicationDto } from './dto/pause-application.dto';
 import { ReassignApplicationDto } from './dto/reassign-application.dto';
+import { ResumeApplicationDto } from './dto/resume-application.dto';
 import { TransitionStageDto } from './dto/transition-stage.dto';
 
 type AssignmentField = 'assignedSalesId' | 'assignedDocId' | 'assignedSecId';
@@ -375,6 +377,170 @@ export class VisaApplicationsService {
 
       return updated;
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Task 1: Customer-Facing Application List
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns all applications owned by the calling customer.
+   * Throws 403 if a non-CUSTOMER user calls this endpoint.
+   */
+  async getMyApplications(actor: AuthenticatedUser) {
+    if (actor.role !== Role.CUSTOMER) {
+      throw new ForbiddenException(
+        'This endpoint is exclusively for customers',
+      );
+    }
+
+    return this.prisma.visaApplication.findMany({
+      where: { customerId: actor.userId },
+      include: APPLICATION_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Task 2: Pause Application Logic
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Pauses an in-flight application so it doesn't breach SLA metrics while
+   * waiting for external factors (e.g. consulate). The previous stage is
+   * persisted in the PAUSED audit entry's `details.previousStage` so it can
+   * be restored on resume — no schema migration required.
+   */
+  async pause(id: string, dto: PauseApplicationDto, actor: AuthenticatedUser) {
+    /** Terminal + already-paused stages that cannot be paused. */
+    const NON_PAUSABLE: VisaStage[] = [
+      VisaStage.COMPLETED,
+      VisaStage.CANCELLED,
+      VisaStage.PAUSED,
+    ];
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const application = await tx.visaApplication.findUnique({
+          where: { id },
+          select: { currentStage: true },
+        });
+        if (!application) {
+          throw new NotFoundException(`Application ${id} not found`);
+        }
+        if (NON_PAUSABLE.includes(application.currentStage)) {
+          throw new ConflictException(
+            `Application in ${application.currentStage} cannot be paused`,
+          );
+        }
+
+        const updated = await tx.visaApplication.update({
+          where: { id, currentStage: application.currentStage },
+          data: { currentStage: VisaStage.PAUSED, stageUpdatedAt: new Date() },
+          include: APPLICATION_INCLUDE,
+        });
+
+        await tx.auditLog.create({
+          data: {
+            application: { connect: { id } },
+            performedBy: { connect: { id: actor.userId } },
+            actionType: 'PAUSED',
+            details: {
+              previousStage: application.currentStage,
+              newStage: VisaStage.PAUSED,
+              performedByUserId: actor.userId,
+              ...(dto.reason ? { reason: dto.reason } : {}),
+            },
+          },
+        });
+
+        return updated;
+      });
+    } catch (error) {
+      throw this.translateRaceError(
+        error,
+        'Application state changed concurrently; please retry',
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Task 3: Resume Application Logic
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Resumes a PAUSED application back to the stage it was in before the pause.
+   * The original stage is read from the most recent PAUSED audit-log entry's
+   * `details.previousStage`. Resets `stageUpdatedAt` to restart the SLA clock.
+   */
+  async resume(
+    id: string,
+    dto: ResumeApplicationDto,
+    actor: AuthenticatedUser,
+  ) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const application = await tx.visaApplication.findUnique({
+          where: { id },
+          select: { currentStage: true },
+        });
+        if (!application) {
+          throw new NotFoundException(`Application ${id} not found`);
+        }
+        if (application.currentStage !== VisaStage.PAUSED) {
+          throw new ConflictException(
+            `Application is in ${application.currentStage}, not PAUSED`,
+          );
+        }
+
+        // Find the most recent PAUSED audit entry to recover the previous stage.
+        const pausedLog = await tx.auditLog.findFirst({
+          where: { applicationId: id, actionType: 'PAUSED' },
+          orderBy: { createdAt: 'desc' },
+          select: { details: true },
+        });
+        if (!pausedLog) {
+          throw new ConflictException(
+            'Cannot determine the pre-pause stage: no PAUSED audit entry found',
+          );
+        }
+
+        const details = pausedLog.details as Record<string, unknown>;
+        const previousStage = details?.previousStage as VisaStage | undefined;
+        if (!previousStage || !Object.values(VisaStage).includes(previousStage)) {
+          throw new ConflictException(
+            'Cannot determine the pre-pause stage: PAUSED audit entry is malformed',
+          );
+        }
+
+        const updated = await tx.visaApplication.update({
+          where: { id, currentStage: VisaStage.PAUSED },
+          data: { currentStage: previousStage, stageUpdatedAt: new Date() },
+          include: APPLICATION_INCLUDE,
+        });
+
+        await tx.auditLog.create({
+          data: {
+            application: { connect: { id } },
+            performedBy: { connect: { id: actor.userId } },
+            actionType: 'RESUMED',
+            details: {
+              previousStage: VisaStage.PAUSED,
+              newStage: previousStage,
+              performedByUserId: actor.userId,
+              ...(dto.note ? { note: dto.note } : {}),
+            },
+          },
+        });
+
+        return updated;
+      });
+    } catch (error) {
+      throw this.translateRaceError(
+        error,
+        'Application state changed concurrently; please retry',
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
