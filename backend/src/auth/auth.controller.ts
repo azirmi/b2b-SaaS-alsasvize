@@ -14,6 +14,7 @@ import { ACCESS_TOKEN_COOKIE, ACCESS_TOKEN_MAX_AGE_MS } from './auth.constants';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { AuthenticatedUser } from './interfaces/jwt-payload.interface';
 
@@ -23,6 +24,16 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly config: ConfigService,
   ) {}
+
+  /**
+   * Public self-registration for customers.
+   * No guards — this route is intentionally unauthenticated.
+   * Role is hardcoded to CUSTOMER in the service layer.
+   */
+  @Post('register')
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
+  }
 
   /**
    * Validates credentials and sets the JWT as an HTTP-only cookie.
