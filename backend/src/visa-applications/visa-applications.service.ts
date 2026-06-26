@@ -66,6 +66,16 @@ const APPLICATION_INCLUDE = {
   customer: { select: { id: true, email: true, fullName: true } },
 } satisfies Prisma.VisaApplicationInclude;
 
+/** Full detail include for GET /applications/:id (passwords omitted everywhere). */
+const APPLICATION_DETAIL_INCLUDE = {
+  customer: { omit: { password: true } },
+  assignedSales: { include: { user: { omit: { password: true } } } },
+  assignedDoc: { include: { user: { omit: { password: true } } } },
+  assignedSec: { include: { user: { omit: { password: true } } } },
+  documents: true,
+  auditLogs: { orderBy: { createdAt: 'desc' } },
+} satisfies Prisma.VisaApplicationInclude;
+
 @Injectable()
 export class VisaApplicationsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -103,6 +113,23 @@ export class VisaApplicationsService {
       include: APPLICATION_INCLUDE,
       orderBy: { stageUpdatedAt: 'asc' }, // longest-waiting first
     });
+  }
+
+  /**
+   * Full application detail with customer, assigned staff (passwords omitted),
+   * documents and audit logs (newest first). Visibility is enforced per record.
+   */
+  async findOne(id: string, actor: AuthenticatedUser) {
+    const application = await this.prisma.visaApplication.findUnique({
+      where: { id },
+      include: APPLICATION_DETAIL_INCLUDE,
+    });
+    if (!application) {
+      throw new NotFoundException(`Application ${id} not found`);
+    }
+
+    await this.assertCanView(application, actor);
+    return application;
   }
 
   /**
@@ -394,6 +421,50 @@ export class VisaApplicationsService {
       default:
         throw new ForbiddenException('Your role does not have a work pool');
     }
+  }
+
+  /**
+   * Enforces detail-view access: ADMIN (any), CUSTOMER (own only), staff
+   * (assigned to it, or it is sitting unassigned in their departmental pool).
+   */
+  private async assertCanView(
+    application: {
+      customerId: string;
+      currentStage: VisaStage;
+      assignedSalesId: string | null;
+      assignedDocId: string | null;
+      assignedSecId: string | null;
+    },
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    if (actor.role === Role.ADMIN) {
+      return;
+    }
+
+    if (actor.role === Role.CUSTOMER) {
+      if (application.customerId !== actor.userId) {
+        throw new ForbiddenException('You can only view your own applications');
+      }
+      return;
+    }
+
+    // Staff: visible if assigned to them, or sitting in their department pool.
+    const staff = await this.prisma.staff.findUnique({
+      where: { userId: actor.userId },
+      select: { id: true, department: true },
+    });
+    if (!staff) {
+      throw new ForbiddenException(
+        'You are not allowed to view this application',
+      );
+    }
+    const config = CLAIM_CONFIG[staff.department];
+    const assignedToMe = application[config.assignmentField] === staff.id;
+    const inMyPool = application.currentStage === config.poolStage;
+    if (assignedToMe || inMyPool) {
+      return;
+    }
+    throw new ForbiddenException('You are not allowed to view this application');
   }
 
   /** Builds the atomic claim where/data for a given department (no dynamic keys). */

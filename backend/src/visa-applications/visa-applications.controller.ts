@@ -44,6 +44,15 @@ export class VisaApplicationsController {
     return this.service.getPool(user);
   }
 
+  /** Full application detail. Per-record access is enforced in the service. */
+  @Get(':id')
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.findOne(id, user);
+  }
+
   /** Claim an application from the caller's pool. */
   @Post(':id/claim')
   @Roles(Role.SALES, Role.DOC, Role.SEC, Role.ADMIN)
