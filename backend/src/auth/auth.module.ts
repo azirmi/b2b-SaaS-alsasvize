@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { DocumentsModule } from '../documents/documents.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -24,6 +25,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
         },
       }),
     }),
+    // Needed for StorageService (direct upload during onboarding).
+    DocumentsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

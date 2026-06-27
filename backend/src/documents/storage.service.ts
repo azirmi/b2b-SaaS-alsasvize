@@ -76,6 +76,25 @@ export class StorageService implements OnModuleInit {
     );
   }
 
+  /**
+   * Uploads a file buffer directly to the object store.
+   * Used when the file flows through the API server (e.g. multipart onboarding).
+   */
+  async uploadBuffer(
+    key: string,
+    buffer: Buffer,
+    contentType?: string,
+  ): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+      }),
+    );
+  }
+
   /** Creates the bucket if it does not already exist (idempotent, startup-safe). */
   private async ensureBucket(): Promise<void> {
     try {
