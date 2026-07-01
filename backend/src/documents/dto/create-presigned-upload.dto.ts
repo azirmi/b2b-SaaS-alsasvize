@@ -1,4 +1,10 @@
-import { IsEnum, IsNotEmpty, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import { FileType } from '../../generated/prisma/enums';
 
 /** Payload for `POST /documents/presigned-url`. */

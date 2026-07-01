@@ -9,7 +9,12 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import { StorageService } from '../documents/storage.service';
-import { FileType, OcrStatus, Role, VisaStage } from '../generated/prisma/enums';
+import {
+  FileType,
+  OcrStatus,
+  Role,
+  VisaStage,
+} from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';

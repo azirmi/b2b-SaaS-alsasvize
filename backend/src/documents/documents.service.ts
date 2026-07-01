@@ -49,7 +49,8 @@ export class DocumentsService {
         // Smart auto-approve: trust staff/admin, gate customers.
         isApproved: !isCustomer,
         // Future-proofing: queue passports for OCR extraction.
-        ocrStatus: dto.fileType === FileType.PASSPORT ? OcrStatus.PENDING : null,
+        ocrStatus:
+          dto.fileType === FileType.PASSPORT ? OcrStatus.PENDING : null,
       },
       select: { id: true, fileType: true, isApproved: true, ocrStatus: true },
     });

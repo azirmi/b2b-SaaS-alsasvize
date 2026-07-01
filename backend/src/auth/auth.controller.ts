@@ -69,7 +69,11 @@ export class AuthController {
         'password must be between 8 and 72 characters',
       );
     }
-    if (!fullName || typeof fullName !== 'string' || fullName.trim().length === 0) {
+    if (
+      !fullName ||
+      typeof fullName !== 'string' ||
+      fullName.trim().length === 0
+    ) {
       throw new BadRequestException('fullName is required');
     }
     if (!passport) {

@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
+import { EventsGateway } from '../events/events.gateway';
 import { Prisma } from '../generated/prisma/client';
 import { Department, Role, VisaStage } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -80,7 +81,10 @@ const APPLICATION_DETAIL_INCLUDE = {
 
 @Injectable()
 export class VisaApplicationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventsGateway,
+  ) {}
 
   /**
    * Creates an application in SALES_POOL together with its first audit-log
@@ -150,7 +154,7 @@ export class VisaApplicationsService {
     const config = CLAIM_CONFIG[staff.department];
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const claimed = await this.prisma.$transaction(async (tx) => {
         const application = await tx.visaApplication.findUnique({
           where: { id },
           select: {
@@ -196,6 +200,20 @@ export class VisaApplicationsService {
 
         return updated;
       });
+
+      // Broadcast only after the transaction (mutation + audit) has committed,
+      // so clients never observe a claim that later rolled back.
+      this.events.emitApplicationClaimed({
+        applicationId: claimed.id,
+        previousStage: config.poolStage,
+        newStage: config.processStage,
+        department: staff.department,
+        claimedByUserId: actor.userId,
+        assignedStaffId: staff.id,
+        at: new Date().toISOString(),
+      });
+
+      return claimed;
     } catch (error) {
       throw this.translateRaceError(
         error,
@@ -214,7 +232,10 @@ export class VisaApplicationsService {
     actor: AuthenticatedUser,
   ) {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      let previousStage!: VisaStage;
+      let nextStage!: VisaStage;
+
+      const transitioned = await this.prisma.$transaction(async (tx) => {
         const application = await tx.visaApplication.findUnique({
           where: { id },
           select: {
@@ -234,6 +255,9 @@ export class VisaApplicationsService {
             `Application in ${application.currentStage} cannot be moved to a next stage`,
           );
         }
+
+        previousStage = application.currentStage;
+        nextStage = transition.next;
 
         // Only the staff currently handling the stage (or an admin) may advance it.
         if (actor.role !== Role.ADMIN) {
@@ -282,6 +306,17 @@ export class VisaApplicationsService {
 
         return updated;
       });
+
+      // Broadcast only after the transaction (mutation + audit) has committed.
+      this.events.emitStageChanged({
+        applicationId: transitioned.id,
+        previousStage,
+        newStage: nextStage,
+        performedByUserId: actor.userId,
+        at: new Date().toISOString(),
+      });
+
+      return transitioned;
     } catch (error) {
       throw this.translateRaceError(
         error,
@@ -507,7 +542,10 @@ export class VisaApplicationsService {
 
         const details = pausedLog.details as Record<string, unknown>;
         const previousStage = details?.previousStage as VisaStage | undefined;
-        if (!previousStage || !Object.values(VisaStage).includes(previousStage)) {
+        if (
+          !previousStage ||
+          !Object.values(VisaStage).includes(previousStage)
+        ) {
           throw new ConflictException(
             'Cannot determine the pre-pause stage: PAUSED audit entry is malformed',
           );
@@ -630,7 +668,9 @@ export class VisaApplicationsService {
     if (assignedToMe || inMyPool) {
       return;
     }
-    throw new ForbiddenException('You are not allowed to view this application');
+    throw new ForbiddenException(
+      'You are not allowed to view this application',
+    );
   }
 
   /** Builds the atomic claim where/data for a given department (no dynamic keys). */
