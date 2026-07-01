@@ -9,6 +9,20 @@ async function bootstrap() {
   // Parse cookies so the JWT can be read from an HTTP-only cookie.
   app.use(cookieParser());
 
+  // Allow the browser app to call the API with credentials (the HTTP-only auth
+  // cookie). Origins come from CORS_ORIGIN (comma-separated) in production; local
+  // dev falls back to the Next.js app on :3000.
+  const corsOrigins = process.env.CORS_ORIGIN?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin:
+      corsOrigins && corsOrigins.length > 0
+        ? corsOrigins
+        : 'http://localhost:3000',
+    credentials: true,
+  });
+
   // Validate and strip unknown properties from incoming DTOs at the boundary.
   app.useGlobalPipes(
     new ValidationPipe({
