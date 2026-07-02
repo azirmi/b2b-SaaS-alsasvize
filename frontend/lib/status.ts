@@ -1,4 +1,4 @@
-import { VisaStage } from './enums';
+import { FileType, VisaStage } from './enums';
 
 /** Semantic intents — the ONLY place accent color is allowed. The canvas stays monochrome. */
 export type Intent = 'success' | 'danger' | 'warning' | 'info' | 'neutral';
@@ -48,3 +48,30 @@ export const STAGE_FLOW: VisaStage[] = [
   VisaStage.SEC_PROCESS,
   VisaStage.COMPLETED,
 ];
+
+/** Forward stage-advance action, keyed by the active *_PROCESS stage. */
+export const STAGE_ADVANCE: Partial<
+  Record<VisaStage, { label: string; next: VisaStage }>
+> = {
+  [VisaStage.SALES_PROCESS]: {
+    label: 'Send to Documents',
+    next: VisaStage.DOC_POOL,
+  },
+  [VisaStage.DOC_PROCESS]: {
+    label: 'Send to Secretary',
+    next: VisaStage.SEC_POOL,
+  },
+  [VisaStage.SEC_PROCESS]: {
+    label: 'Mark completed',
+    next: VisaStage.COMPLETED,
+  },
+};
+
+/** Human labels for document categories. */
+export const FILE_TYPE_LABEL: Record<FileType, string> = {
+  PASSPORT: 'Passport',
+  BANK_STATEMENT: 'Bank statement',
+  INTENT_LETTER: 'Intent letter',
+  CONSULATE_FORM: 'Consulate form',
+  OTHER: 'Other',
+};

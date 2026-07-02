@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 
+import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { RealtimeBridge } from "@/components/dashboard/realtime-bridge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,10 +25,13 @@ export default async function DashboardLayout({
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-3">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" aria-hidden />
-            <span className="text-sm font-semibold tracking-tight">Alsasvize</span>
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" aria-hidden />
+              <span className="text-sm font-semibold tracking-tight">Alsasvize</span>
+            </Link>
+            {isStaff ? <DashboardNav /> : null}
+          </div>
 
           <div className="flex items-center gap-3">
             <RealtimeBridge enabled={isStaff} />

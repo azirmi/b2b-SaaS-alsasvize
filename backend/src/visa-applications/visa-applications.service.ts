@@ -15,6 +15,7 @@ import { PauseApplicationDto } from './dto/pause-application.dto';
 import { ReassignApplicationDto } from './dto/reassign-application.dto';
 import { ResumeApplicationDto } from './dto/resume-application.dto';
 import { TransitionStageDto } from './dto/transition-stage.dto';
+import { UpdateApplicationCrmDto } from './dto/update-application-crm.dto';
 
 type AssignmentField = 'assignedSalesId' | 'assignedDocId' | 'assignedSecId';
 
@@ -69,6 +70,12 @@ const APPLICATION_INCLUDE = {
   customer: { select: { id: true, email: true, fullName: true } },
 } satisfies Prisma.VisaApplicationInclude;
 
+/** Workspace list include — customer plus a document count for at-a-glance triage. */
+const ASSIGNED_INCLUDE = {
+  customer: { select: { id: true, email: true, fullName: true } },
+  _count: { select: { documents: true } },
+} satisfies Prisma.VisaApplicationInclude;
+
 /** Full detail include for GET /applications/:id (passwords omitted everywhere). */
 const APPLICATION_DETAIL_INCLUDE = {
   customer: { omit: { password: true } },
@@ -118,6 +125,47 @@ export class VisaApplicationsService {
       where: this.poolWhere(actor.role),
       include: APPLICATION_INCLUDE,
       orderBy: { stageUpdatedAt: 'asc' }, // longest-waiting first
+    });
+  }
+
+  /**
+   * Staff workspace: the applications the caller is actively working — assigned
+   * to them and sitting in their department's *_PROCESS stage. Admins see every
+   * in-flight *_PROCESS application across all departments.
+   */
+  async getAssigned(actor: AuthenticatedUser) {
+    if (actor.role === Role.ADMIN) {
+      return this.prisma.visaApplication.findMany({
+        where: {
+          currentStage: {
+            in: [
+              VisaStage.SALES_PROCESS,
+              VisaStage.DOC_PROCESS,
+              VisaStage.SEC_PROCESS,
+            ],
+          },
+        },
+        include: ASSIGNED_INCLUDE,
+        orderBy: { stageUpdatedAt: 'asc' },
+      });
+    }
+
+    const staff = await this.prisma.staff.findUnique({
+      where: { userId: actor.userId },
+      select: { id: true, department: true },
+    });
+    if (!staff) {
+      throw new ForbiddenException('Only staff members have a workspace');
+    }
+    const config = CLAIM_CONFIG[staff.department];
+
+    return this.prisma.visaApplication.findMany({
+      where: {
+        currentStage: config.processStage,
+        ...this.assignmentWhere(staff.department, staff.id),
+      },
+      include: ASSIGNED_INCLUDE,
+      orderBy: { stageUpdatedAt: 'asc' },
     });
   }
 
@@ -243,6 +291,7 @@ export class VisaApplicationsService {
             assignedSalesId: true,
             assignedDocId: true,
             assignedSecId: true,
+            metadata: true,
           },
         });
         if (!application) {
@@ -268,6 +317,16 @@ export class VisaApplicationsService {
           if (!staff || application[transition.ownerField] !== staff.id) {
             throw new ForbiddenException(
               'You are not assigned to this application at its current stage',
+            );
+          }
+        }
+
+        // Gating rule: Sales must complete the CRM data entry before the
+        // application can be handed off to the Documents pool.
+        if (application.currentStage === VisaStage.SALES_PROCESS) {
+          if (!this.isCrmComplete(application.metadata)) {
+            throw new ConflictException(
+              'Complete the CRM data entry before sending to Documents',
             );
           }
         }
@@ -585,6 +644,118 @@ export class VisaApplicationsService {
   //  Helpers
   // ---------------------------------------------------------------------------
 
+  /**
+   * Persists the Sales CRM data entry into the application's `metadata.crm`
+   * (atomic mutation + CRM_UPDATED audit). Editable by the assigned sales owner
+   * while the app is in SALES_PROCESS, or by an admin at any time.
+   */
+  async updateCrm(
+    id: string,
+    dto: UpdateApplicationCrmDto,
+    actor: AuthenticatedUser,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.visaApplication.findUnique({
+        where: { id },
+        select: {
+          currentStage: true,
+          assignedSalesId: true,
+          metadata: true,
+        },
+      });
+      if (!before) {
+        throw new NotFoundException(`Application ${id} not found`);
+      }
+
+      // Authorization: admin (any time) or the assigned sales owner in-process.
+      if (actor.role !== Role.ADMIN) {
+        const staff = await tx.staff.findUnique({
+          where: { userId: actor.userId },
+          select: { id: true, department: true },
+        });
+        if (
+          !staff ||
+          staff.department !== Department.SALES ||
+          before.assignedSalesId !== staff.id
+        ) {
+          throw new ForbiddenException(
+            'Only the assigned sales owner can edit this CRM record',
+          );
+        }
+        if (before.currentStage !== VisaStage.SALES_PROCESS) {
+          throw new ConflictException(
+            'CRM data can only be edited while the application is in Sales processing',
+          );
+        }
+      }
+
+      const existing =
+        before.metadata &&
+        typeof before.metadata === 'object' &&
+        !Array.isArray(before.metadata)
+          ? (before.metadata as Prisma.JsonObject)
+          : {};
+
+      const crm = {
+        firstName: dto.firstName.trim(),
+        lastName: dto.lastName.trim(),
+        passportId: dto.passportId.trim(),
+        targetCountry: dto.targetCountry.trim(),
+        totalCost: dto.totalCost,
+        currency: dto.currency.trim().toUpperCase(),
+        updatedBy: actor.userId,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const updated = await tx.visaApplication.update({
+        where: { id },
+        data: { metadata: { ...existing, crm } },
+        include: APPLICATION_DETAIL_INCLUDE,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          application: { connect: { id } },
+          performedBy: { connect: { id: actor.userId } },
+          actionType: 'CRM_UPDATED',
+          details: {
+            before: existing.crm ?? null,
+            after: crm,
+          },
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  /**
+   * True when `metadata.crm` holds a complete Sales record: non-empty applicant
+   * details, target country and currency, plus a positive invoice total.
+   */
+  private isCrmComplete(metadata: Prisma.JsonValue | null | undefined): boolean {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return false;
+    }
+    const crm = (metadata as Record<string, unknown>).crm;
+    if (!crm || typeof crm !== 'object' || Array.isArray(crm)) {
+      return false;
+    }
+    const record = crm as Record<string, unknown>;
+    const filled = (value: unknown): boolean =>
+      typeof value === 'string' && value.trim().length > 0;
+    return (
+      filled(record.firstName) &&
+      filled(record.lastName) &&
+      filled(record.passportId) &&
+      filled(record.targetCountry) &&
+      filled(record.currency) &&
+      typeof record.totalCost === 'number' &&
+      Number.isFinite(record.totalCost) &&
+      record.totalCost > 0
+    );
+  }
+
   /** Resolves the customer id, enforcing that staff target a real active customer. */
   private async resolveCustomerId(
     dto: CreateApplicationDto,
@@ -710,6 +881,23 @@ export class VisaApplicationsService {
     department: Department,
     staffId: string,
   ): Prisma.VisaApplicationUncheckedUpdateInput {
+    switch (department) {
+      case Department.SALES:
+        return { assignedSalesId: staffId };
+      case Department.DOC:
+        return { assignedDocId: staffId };
+      case Department.SEC:
+        return { assignedSecId: staffId };
+      default:
+        throw new BadRequestException('Unsupported department');
+    }
+  }
+
+  /** Maps a department to its assignment-column filter (no dynamic keys). */
+  private assignmentWhere(
+    department: Department,
+    staffId: string,
+  ): Prisma.VisaApplicationWhereInput {
     switch (department) {
       case Department.SALES:
         return { assignedSalesId: staffId };

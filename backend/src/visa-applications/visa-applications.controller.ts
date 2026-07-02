@@ -20,6 +20,7 @@ import { PauseApplicationDto } from './dto/pause-application.dto';
 import { ReassignApplicationDto } from './dto/reassign-application.dto';
 import { ResumeApplicationDto } from './dto/resume-application.dto';
 import { TransitionStageDto } from './dto/transition-stage.dto';
+import { UpdateApplicationCrmDto } from './dto/update-application-crm.dto';
 import { VisaApplicationsService } from './visa-applications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 
@@ -53,6 +54,13 @@ export class VisaApplicationsController {
     return this.service.getPool(user);
   }
 
+  /** Staff workspace: applications assigned to the caller in their active stage. */
+  @Get('assigned')
+  @Roles(Role.SALES, Role.DOC, Role.SEC, Role.ADMIN)
+  getAssigned(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getAssigned(user);
+  }
+
   /** Full application detail. Per-record access is enforced in the service. */
   @Get(':id')
   findOne(
@@ -82,6 +90,17 @@ export class VisaApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.transitionStage(id, dto, user);
+  }
+
+  /** Save the Sales CRM data entry (applicant details, target country, invoice). */
+  @Patch(':id')
+  @Roles(Role.SALES, Role.ADMIN)
+  updateCrm(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateApplicationCrmDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateCrm(id, dto, user);
   }
 
   /** Pause an in-flight application (stops SLA clock). Staff and admin only. */

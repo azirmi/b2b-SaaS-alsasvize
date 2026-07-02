@@ -137,6 +137,10 @@ model VisaApplication {
   // Stamped by business logic on each stage transition (SLA / delay tracking).
   stageUpdatedAt DateTime @default(now())
 
+  // Free-form structured data captured by staff (e.g. the Sales CRM data entry:
+  // applicant details, target country and invoice totals) stored under `crm`.
+  metadata Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

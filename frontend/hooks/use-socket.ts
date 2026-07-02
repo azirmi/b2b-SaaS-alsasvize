@@ -44,8 +44,10 @@ export function useSocket(
     }
 
     const socket: Socket = io(`${API_BASE_URL}/events`, {
+      // Send the first-party auth cookie on the cross-origin handshake. The
+      // default polling->websocket upgrade is used deliberately: the credentialed
+      // polling handshake reliably carries the cookie, then upgrades to a socket.
       withCredentials: true,
-      transports: ["websocket"],
     });
 
     const onConnect = () => setConnected(true);
