@@ -1,5 +1,6 @@
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
@@ -73,6 +74,13 @@ export class StorageService implements OnModuleInit {
       this.client,
       new GetObjectCommand({ Bucket: this.bucket, Key: key }),
       { expiresIn: DOWNLOAD_URL_TTL_SECONDS },
+    );
+  }
+
+  /** Deletes an object from the store (used when a document row is removed). */
+  async deleteObject(key: string): Promise<void> {
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
     );
   }
 

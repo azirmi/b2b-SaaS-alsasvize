@@ -66,6 +66,7 @@ export interface DocumentRecord {
   fileType: FileType;
   fileUrl: string;
   isApproved: boolean;
+  rejectionReason: string | null;
   ocrStatus: OcrStatus | null;
   createdAt: string;
   updatedAt: string;
@@ -135,6 +136,51 @@ export interface ApplicationMetadata {
 export interface CrmActionState {
   ok?: boolean;
   error?: string;
+}
+
+/** A staff member the admin can reassign an application to (from `GET /users`). */
+export interface StaffOption {
+  staffId: string;
+  fullName: string;
+  department: Department;
+}
+
+/** A single stage's application count (admin analytics). */
+export interface StageCount {
+  stage: VisaStage;
+  count: number;
+}
+
+/** Per-staff productivity metrics (admin analytics). */
+export interface StaffPerformance {
+  staffId: string;
+  userId: string;
+  fullName: string;
+  department: Department;
+  claimed: number;
+  processed: number;
+}
+
+/** Payload from `GET /admin/stats`. */
+export interface AdminStats {
+  totalApplications: number;
+  byStage: StageCount[];
+  staffPerformance: StaffPerformance[];
+  avgProcessingMs: number;
+  completedCount: number;
+}
+
+/** Minimal assigned-staff projection embedded in the admin global table. */
+export interface AssignedStaffLite {
+  id: string;
+  user: { fullName: string };
+}
+
+/** Row shape from `GET /applications/all` for the admin global table. */
+export interface AdminApplicationRow extends AssignedApplication {
+  assignedSales: AssignedStaffLite | null;
+  assignedDoc: AssignedStaffLite | null;
+  assignedSec: AssignedStaffLite | null;
 }
 
 /** Outcome of requesting a presigned document upload; the client then PUTs the file. */

@@ -5,10 +5,12 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
+import { EmailService } from '../email/email.service';
 import { Prisma } from '../generated/prisma/client';
 import { FileType, OcrStatus, Role } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePresignedUploadDto } from './dto/create-presigned-upload.dto';
+import { RejectDocumentDto } from './dto/reject-document.dto';
 import { StorageService } from './storage.service';
 
 @Injectable()
@@ -16,6 +18,7 @@ export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly email: EmailService,
   ) {}
 
   /**
@@ -29,7 +32,12 @@ export class DocumentsService {
   ) {
     const application = await this.prisma.visaApplication.findUnique({
       where: { id: dto.applicationId },
-      select: { id: true, customerId: true, assignedDocId: true },
+      select: {
+        id: true,
+        customerId: true,
+        assignedDocId: true,
+        assignedSecId: true,
+      },
     });
     if (!application) {
       throw new NotFoundException(`Application ${dto.applicationId} not found`);
@@ -92,18 +100,108 @@ export class DocumentsService {
     return { url, expiresIn: this.storage.downloadTtlSeconds };
   }
 
-  /** Marks a document approved (DOC/ADMIN only — enforced at the controller). */
-  async approve(id: string) {
+  /** Approves a document (DOC/ADMIN), clearing any prior rejection — audited. */
+  async approve(id: string, actor: AuthenticatedUser) {
+    const { updated } = await this.reviewDocument(
+      id,
+      actor,
+      { isApproved: true, rejectionReason: null },
+      'DOCUMENT_APPROVED',
+    );
+    return updated;
+  }
+
+  /**
+   * Rejects a document with a reason so the customer is prompted to re-upload a
+   * replacement (DOC/ADMIN only) — audited, then emails the customer.
+   */
+  async reject(id: string, dto: RejectDocumentDto, actor: AuthenticatedUser) {
+    const reason = dto.reason.trim();
+    const { updated, before } = await this.reviewDocument(
+      id,
+      actor,
+      { isApproved: false, rejectionReason: reason },
+      'DOCUMENT_REJECTED',
+      reason,
+    );
+
+    // Fire-and-forget after commit: an SMTP hiccup must never fail the request.
+    void this.email.sendDocumentRejected({
+      to: before.application.customer.email,
+      customerName: before.application.customer.fullName,
+      fileType: before.fileType,
+      reason,
+      currentStage: before.application.currentStage,
+      applicationId: updated.applicationId,
+    });
+
+    return updated;
+  }
+
+  /**
+   * Shared review mutation: flips approval/rejection and writes the matching
+   * audit entry inside a single transaction (actor from the JWT, before/after
+   * snapshot), translating a missing row to 404.
+   */
+  private async reviewDocument(
+    id: string,
+    actor: AuthenticatedUser,
+    data: { isApproved: boolean; rejectionReason: string | null },
+    actionType: 'DOCUMENT_APPROVED' | 'DOCUMENT_REJECTED',
+    reason?: string,
+  ) {
     try {
-      return await this.prisma.document.update({
-        where: { id },
-        data: { isApproved: true },
-        select: {
-          id: true,
-          applicationId: true,
-          fileType: true,
-          isApproved: true,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const before = await tx.document.findUnique({
+          where: { id },
+          select: {
+            applicationId: true,
+            fileType: true,
+            isApproved: true,
+            rejectionReason: true,
+            application: {
+              select: {
+                currentStage: true,
+                customer: { select: { email: true, fullName: true } },
+              },
+            },
+          },
+        });
+        if (!before) {
+          throw new NotFoundException(`Document ${id} not found`);
+        }
+
+        const updated = await tx.document.update({
+          where: { id },
+          data,
+          select: {
+            id: true,
+            applicationId: true,
+            fileType: true,
+            isApproved: true,
+            rejectionReason: true,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            application: { connect: { id: before.applicationId } },
+            performedBy: { connect: { id: actor.userId } },
+            actionType,
+            details: {
+              documentId: id,
+              fileType: before.fileType,
+              before: {
+                isApproved: before.isApproved,
+                rejectionReason: before.rejectionReason,
+              },
+              after: data,
+              ...(reason ? { reason } : {}),
+            },
+          },
+        });
+
+        return { updated, before };
       });
     } catch (error) {
       if (
@@ -120,8 +218,73 @@ export class DocumentsService {
   //  Helpers
   // ---------------------------------------------------------------------------
 
+  /**
+   * Deletes a document (its owner customer, or an admin). Removes the row and
+   * writes a DOCUMENT_DELETED audit entry in one transaction, then best-effort
+   * deletes the stored object.
+   */
+  async remove(id: string, actor: AuthenticatedUser) {
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const document = await tx.document.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          fileUrl: true,
+          fileType: true,
+          isApproved: true,
+          rejectionReason: true,
+          applicationId: true,
+          application: { select: { customerId: true } },
+        },
+      });
+      if (!document) {
+        throw new NotFoundException(`Document ${id} not found`);
+      }
+
+      // Customers may only delete their own documents; admins may delete any.
+      if (actor.role !== Role.ADMIN) {
+        if (
+          actor.role !== Role.CUSTOMER ||
+          document.application.customerId !== actor.userId
+        ) {
+          throw new ForbiddenException(
+            'You can only delete your own documents',
+          );
+        }
+      }
+
+      await tx.document.delete({ where: { id } });
+
+      await tx.auditLog.create({
+        data: {
+          application: { connect: { id: document.applicationId } },
+          performedBy: { connect: { id: actor.userId } },
+          actionType: 'DOCUMENT_DELETED',
+          details: {
+            documentId: id,
+            fileType: document.fileType,
+            fileUrl: document.fileUrl,
+            wasApproved: document.isApproved,
+            wasRejected: Boolean(document.rejectionReason),
+          },
+        },
+      });
+
+      return { fileUrl: document.fileUrl };
+    });
+
+    // Best-effort object cleanup — never fail the request if storage lags.
+    await this.storage.deleteObject(deleted.fileUrl).catch(() => undefined);
+
+    return { id, deleted: true };
+  }
+
   private async assertCanUpload(
-    application: { customerId: string; assignedDocId: string | null },
+    application: {
+      customerId: string;
+      assignedDocId: string | null;
+      assignedSecId: string | null;
+    },
     actor: AuthenticatedUser,
   ): Promise<void> {
     if (actor.role === Role.ADMIN) {
@@ -141,6 +304,18 @@ export class DocumentsService {
         select: { id: true },
       });
       if (!staff || application.assignedDocId !== staff.id) {
+        throw new ForbiddenException(
+          'You can only upload documents to applications assigned to you',
+        );
+      }
+      return;
+    }
+    if (actor.role === Role.SEC) {
+      const staff = await this.prisma.staff.findUnique({
+        where: { userId: actor.userId },
+        select: { id: true },
+      });
+      if (!staff || application.assignedSecId !== staff.id) {
         throw new ForbiddenException(
           'You can only upload documents to applications assigned to you',
         );

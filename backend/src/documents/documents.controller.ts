@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -15,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '../generated/prisma/enums';
 import { DocumentsService } from './documents.service';
 import { CreatePresignedUploadDto } from './dto/create-presigned-upload.dto';
+import { RejectDocumentDto } from './dto/reject-document.dto';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 
 // Every route requires a valid JWT cookie AND a matching role.
@@ -25,7 +29,7 @@ export class DocumentsController {
 
   /** Request a presigned upload URL and create the document record. */
   @Post('presigned-url')
-  @Roles(Role.CUSTOMER, Role.DOC, Role.ADMIN)
+  @Roles(Role.CUSTOMER, Role.DOC, Role.SEC, Role.ADMIN)
   createUploadUrl(
     @Body() dto: CreatePresignedUploadDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -46,7 +50,32 @@ export class DocumentsController {
   /** Approve a document (Doc staff / admin only). */
   @Patch(':id/approve')
   @Roles(Role.DOC, Role.ADMIN)
-  approve(@Param('id', ParseUUIDPipe) id: string) {
-    return this.documentsService.approve(id);
+  approve(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.documentsService.approve(id, user);
+  }
+
+  /** Reject a document with a reason (Doc staff / admin only). */
+  @Patch(':id/reject')
+  @Roles(Role.DOC, Role.ADMIN)
+  reject(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectDocumentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.documentsService.reject(id, dto, user);
+  }
+
+  /** Delete a document (its owner customer, or an admin). */
+  @Delete(':id')
+  @Roles(Role.CUSTOMER, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.documentsService.remove(id, user);
   }
 }

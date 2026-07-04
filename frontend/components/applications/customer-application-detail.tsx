@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ArrowLeft, FileText } from "lucide-react";
 
 import { DocumentUploader } from "@/components/documents/document-uploader";
+import { DeleteDocumentButton } from "@/components/documents/delete-document-button";
 import { StageBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -65,6 +65,7 @@ export async function CustomerApplicationDetail({
   applicationId: string;
 }) {
   let detail: VisaApplicationDetail | null = null;
+  let missing = false;
   let forbidden = false;
   let loadError = false;
   try {
@@ -72,16 +73,28 @@ export async function CustomerApplicationDetail({
       `/applications/${applicationId}`,
     );
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 404 || error.status === 400)) {
-      notFound();
-    }
-    if (error instanceof ApiError && error.status === 403) {
+    if (
+      error instanceof ApiError &&
+      (error.status === 404 || error.status === 400)
+    ) {
+      // Stale/removed application or malformed id — render an in-shell notice
+      // rather than hard-calling notFound() and dropping the dashboard chrome.
+      missing = true;
+    } else if (error instanceof ApiError && error.status === 403) {
       forbidden = true;
     } else {
       loadError = true;
     }
   }
 
+  if (missing) {
+    return (
+      <Notice
+        title="Application not found"
+        body="This application no longer exists or the link is out of date. Head back to your dashboard to see your current applications."
+      />
+    );
+  }
   if (forbidden) {
     return (
       <Notice
@@ -199,10 +212,16 @@ export async function CustomerApplicationDetail({
                             "rounded-md text-[11px]",
                             document.isApproved
                               ? INTENT_CLASSES.success
-                              : INTENT_CLASSES.warning,
+                              : document.rejectionReason
+                                ? INTENT_CLASSES.danger
+                                : INTENT_CLASSES.warning,
                           )}
                         >
-                          {document.isApproved ? "Approved" : "Pending review"}
+                          {document.isApproved
+                            ? "Approved"
+                            : document.rejectionReason
+                              ? "Rejected"
+                              : "Pending review"}
                         </Badge>
                         {ocr ? (
                           <Badge
@@ -219,22 +238,33 @@ export async function CustomerApplicationDetail({
                       <div className="text-xs text-muted-foreground">
                         Uploaded {timeAgo(document.createdAt)} ago
                       </div>
+                      {document.rejectionReason ? (
+                        <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">
+                          Rejected: {document.rejectionReason} — please upload a
+                          new file above.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
-                  {url ? (
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                    >
-                      View
-                    </a>
-                  ) : (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      Unavailable
-                    </span>
-                  )}
+                  <div className="flex shrink-0 items-center gap-3">
+                    {url ? (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                      >
+                        View
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Unavailable
+                      </span>
+                    )}
+                    {!document.isApproved ? (
+                      <DeleteDocumentButton documentId={document.id} />
+                    ) : null}
+                  </div>
                 </li>
               );
             })}

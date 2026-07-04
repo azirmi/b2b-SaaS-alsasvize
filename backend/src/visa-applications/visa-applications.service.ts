@@ -6,11 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
+import { EmailService } from '../email/email.service';
 import { EventsGateway } from '../events/events.gateway';
 import { Prisma } from '../generated/prisma/client';
 import { Department, Role, VisaStage } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { ForceStageDto } from './dto/force-stage.dto';
 import { PauseApplicationDto } from './dto/pause-application.dto';
 import { ReassignApplicationDto } from './dto/reassign-application.dto';
 import { ResumeApplicationDto } from './dto/resume-application.dto';
@@ -76,6 +78,15 @@ const ASSIGNED_INCLUDE = {
   _count: { select: { documents: true } },
 } satisfies Prisma.VisaApplicationInclude;
 
+/** Admin global-table include — customer, current assignees and a document count. */
+const ADMIN_LIST_INCLUDE = {
+  customer: { select: { id: true, email: true, fullName: true } },
+  assignedSales: { select: { id: true, user: { select: { fullName: true } } } },
+  assignedDoc: { select: { id: true, user: { select: { fullName: true } } } },
+  assignedSec: { select: { id: true, user: { select: { fullName: true } } } },
+  _count: { select: { documents: true } },
+} satisfies Prisma.VisaApplicationInclude;
+
 /** Full detail include for GET /applications/:id (passwords omitted everywhere). */
 const APPLICATION_DETAIL_INCLUDE = {
   customer: { omit: { password: true } },
@@ -91,6 +102,7 @@ export class VisaApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
+    private readonly email: EmailService,
   ) {}
 
   /**
@@ -166,6 +178,14 @@ export class VisaApplicationsService {
       },
       include: ASSIGNED_INCLUDE,
       orderBy: { stageUpdatedAt: 'asc' },
+    });
+  }
+
+  /** God-Mode: every application across all stages/departments (admin only). */
+  getAll() {
+    return this.prisma.visaApplication.findMany({
+      include: ADMIN_LIST_INCLUDE,
+      orderBy: { updatedAt: 'desc' },
     });
   }
 
@@ -331,14 +351,24 @@ export class VisaApplicationsService {
           }
         }
 
-        // Gating rule: every document must be approved before leaving DOC_PROCESS.
+        // Gating rule: EVERY uploaded document must be approved before the file
+        // can leave DOC_PROCESS. Any pending or rejected file blocks the advance
+        // (the customer deletes/replaces rejected files, staff approves them).
         if (application.currentStage === VisaStage.DOC_PROCESS) {
-          const pendingDocuments = await tx.document.count({
-            where: { applicationId: id, isApproved: false },
-          });
-          if (pendingDocuments > 0) {
+          const [totalDocuments, unapprovedDocuments] = await Promise.all([
+            tx.document.count({ where: { applicationId: id } }),
+            tx.document.count({
+              where: { applicationId: id, isApproved: false },
+            }),
+          ]);
+          if (totalDocuments === 0) {
             throw new ConflictException(
-              `Cannot advance: ${pendingDocuments} document(s) are pending approval`,
+              'At least one approved document is required before sending to Secretary',
+            );
+          }
+          if (unapprovedDocuments > 0) {
+            throw new ConflictException(
+              `Cannot advance: ${unapprovedDocuments} document(s) are not approved`,
             );
           }
         }
@@ -373,6 +403,16 @@ export class VisaApplicationsService {
         newStage: nextStage,
         performedByUserId: actor.userId,
         at: new Date().toISOString(),
+      });
+
+      // Fire-and-forget after commit: notify the customer of the milestone
+      // (Document Review, Processing, and especially Completed).
+      void this.email.sendStageAdvanced({
+        to: transitioned.customer.email,
+        customerName: transitioned.customer.fullName,
+        previousStage,
+        newStage: nextStage,
+        applicationId: transitioned.id,
       });
 
       return transitioned;
@@ -471,6 +511,55 @@ export class VisaApplicationsService {
 
       return updated;
     });
+  }
+
+  /**
+   * God-Mode: force an application into any stage (admin only), bypassing the
+   * normal gates for a stuck file. Atomic mutation + FORCE_STAGE_CHANGED audit,
+   * then a post-commit stageChanged broadcast.
+   */
+  async forceStage(id: string, dto: ForceStageDto, actor: AuthenticatedUser) {
+    let previousStage!: VisaStage;
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const before = await tx.visaApplication.findUnique({
+        where: { id },
+        select: { currentStage: true },
+      });
+      if (!before) {
+        throw new NotFoundException(`Application ${id} not found`);
+      }
+      previousStage = before.currentStage;
+
+      const app = await tx.visaApplication.update({
+        where: { id },
+        data: { currentStage: dto.stage, stageUpdatedAt: new Date() },
+        include: APPLICATION_INCLUDE,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          application: { connect: { id } },
+          performedBy: { connect: { id: actor.userId } },
+          actionType: 'FORCE_STAGE_CHANGED',
+          details: {
+            previousStage: before.currentStage,
+            newStage: dto.stage,
+          },
+        },
+      });
+
+      return app;
+    });
+
+    this.events.emitStageChanged({
+      applicationId: id,
+      previousStage,
+      newStage: dto.stage,
+      performedByUserId: actor.userId,
+      at: new Date().toISOString(),
+    });
+
+    return updated;
   }
 
   // ---------------------------------------------------------------------------
@@ -693,7 +782,7 @@ export class VisaApplicationsService {
         before.metadata &&
         typeof before.metadata === 'object' &&
         !Array.isArray(before.metadata)
-          ? (before.metadata as Prisma.JsonObject)
+          ? before.metadata
           : {};
 
       const crm = {
@@ -733,7 +822,9 @@ export class VisaApplicationsService {
    * True when `metadata.crm` holds a complete Sales record: non-empty applicant
    * details, target country and currency, plus a positive invoice total.
    */
-  private isCrmComplete(metadata: Prisma.JsonValue | null | undefined): boolean {
+  private isCrmComplete(
+    metadata: Prisma.JsonValue | null | undefined,
+  ): boolean {
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
       return false;
     }

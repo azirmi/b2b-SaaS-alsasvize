@@ -39,10 +39,16 @@ function humanSize(bytes: number): string {
  * bytes straight to storage. On success the page is refreshed to show the new
  * pending document.
  */
-export function DocumentUploader({ applicationId }: { applicationId: string }) {
+export function DocumentUploader({
+  applicationId,
+  defaultType = FileType.PASSPORT,
+}: {
+  applicationId: string;
+  defaultType?: FileType;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [fileType, setFileType] = useState<FileType>(FileType.PASSPORT);
+  const [fileType, setFileType] = useState<FileType>(defaultType);
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
+import type { Department, VisaStage } from "@/lib/enums";
 import type { ActionResult, CrmActionState } from "@/lib/types";
 
 /** Guards the path param before it is interpolated into the API URL. */
@@ -73,6 +74,51 @@ export async function resumeApplication(id: string): Promise<ActionResult> {
     id,
     (applicationId) => serverApi.patch(`/applications/${applicationId}/resume`),
     "Unable to resume the application. Please retry.",
+  );
+}
+
+/** God-Mode: force-reassign an application's department slot to another staff member. */
+export async function reassignApplication(
+  id: string,
+  department: Department,
+  newStaffId: string,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(newStaffId)) {
+    return { ok: false, error: "Invalid staff reference." };
+  }
+  return runApplicationMutation(
+    id,
+    (applicationId) =>
+      serverApi.patch(`/applications/${applicationId}/reassign`, {
+        department,
+        newStaffId,
+      }),
+    "Unable to reassign the application. Please retry.",
+  );
+}
+
+/** God-Mode: force an application into any stage (bypasses the normal gates). */
+export async function forceStage(
+  id: string,
+  stage: VisaStage,
+): Promise<ActionResult> {
+  return runApplicationMutation(
+    id,
+    (applicationId) =>
+      serverApi.patch(`/applications/${applicationId}/force-stage`, { stage }),
+    "Unable to change the stage. Please retry.",
+  );
+}
+
+/** God-Mode: immediately cancel an application. */
+export async function forceCancelApplication(
+  id: string,
+): Promise<ActionResult> {
+  return runApplicationMutation(
+    id,
+    (applicationId) =>
+      serverApi.patch(`/applications/${applicationId}/force-cancel`),
+    "Unable to cancel the application. Please retry.",
   );
 }
 

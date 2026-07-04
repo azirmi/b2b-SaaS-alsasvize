@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '../generated/prisma/enums';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { ForceStageDto } from './dto/force-stage.dto';
 import { PauseApplicationDto } from './dto/pause-application.dto';
 import { ReassignApplicationDto } from './dto/reassign-application.dto';
 import { ResumeApplicationDto } from './dto/resume-application.dto';
@@ -59,6 +60,13 @@ export class VisaApplicationsController {
   @Roles(Role.SALES, Role.DOC, Role.SEC, Role.ADMIN)
   getAssigned(@CurrentUser() user: AuthenticatedUser) {
     return this.service.getAssigned(user);
+  }
+
+  /** God-Mode: every application across all stages (admin only). */
+  @Get('all')
+  @Roles(Role.ADMIN)
+  getAll() {
+    return this.service.getAll();
   }
 
   /** Full application detail. Per-record access is enforced in the service. */
@@ -144,5 +152,16 @@ export class VisaApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.forceCancel(id, user);
+  }
+
+  /** God-Mode: force an application into any stage (admin only). */
+  @Patch(':id/force-stage')
+  @Roles(Role.ADMIN)
+  forceStage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ForceStageDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.forceStage(id, dto, user);
   }
 }

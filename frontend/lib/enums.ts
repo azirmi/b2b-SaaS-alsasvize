@@ -37,6 +37,7 @@ export const FileType = {
   BANK_STATEMENT: 'BANK_STATEMENT',
   INTENT_LETTER: 'INTENT_LETTER',
   CONSULATE_FORM: 'CONSULATE_FORM',
+  VISA_GRANT: 'VISA_GRANT',
   OTHER: 'OTHER',
 } as const;
 export type FileType = (typeof FileType)[keyof typeof FileType];

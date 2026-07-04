@@ -1,18 +1,20 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { ArrowLeft, FileText } from "lucide-react";
 
-import { ApproveDocumentButton } from "@/components/applications/approve-document-button";
+import { AdminActions } from "@/components/applications/admin-actions";
 import { CrmForm } from "@/components/applications/crm-form";
 import { CustomerApplicationDetail } from "@/components/applications/customer-application-detail";
+import { DocumentReviewActions } from "@/components/applications/document-review-actions";
 import { StageActions } from "@/components/applications/stage-actions";
+import { DocumentUploader } from "@/components/documents/document-uploader";
 import { StageBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ApiError } from "@/lib/api";
 import { getSession, serverApi } from "@/lib/api.server";
 import { isCrmComplete } from "@/lib/crm";
-import { Role, VisaStage } from "@/lib/enums";
+import { Department, FileType, Role, VisaStage } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
 import {
   FILE_TYPE_LABEL,
@@ -22,6 +24,7 @@ import {
 } from "@/lib/status";
 import type {
   DownloadUrlResponse,
+  StaffOption,
   StaffProfile,
   VisaApplicationDetail,
 } from "@/lib/types";
@@ -133,21 +136,35 @@ export default async function ApplicationDetailPage({
   }
 
   let detail: VisaApplicationDetail | null = null;
+  let missing = false;
   let forbidden = false;
   let loadError = false;
   try {
     detail = await serverApi.get<VisaApplicationDetail>(`/applications/${id}`);
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 404 || error.status === 400)) {
-      notFound();
-    }
-    if (error instanceof ApiError && error.status === 403) {
+    if (
+      error instanceof ApiError &&
+      (error.status === 404 || error.status === 400)
+    ) {
+      // Stale/removed application or a malformed id: show an in-shell notice
+      // rather than hard-calling notFound(), which drops the dashboard chrome
+      // and makes it look like the route itself is broken.
+      missing = true;
+    } else if (error instanceof ApiError && error.status === 403) {
       forbidden = true;
     } else {
       loadError = true;
     }
   }
 
+  if (missing) {
+    return (
+      <Notice
+        title="Application not found"
+        body="This application no longer exists or the link is out of date. Head back to your workspace to see current applications."
+      />
+    );
+  }
   if (forbidden) {
     return (
       <Notice
@@ -197,8 +214,17 @@ export default async function ApplicationDetailPage({
     detail.assignedDoc?.user.id === session.userId ||
     detail.assignedSec?.user.id === session.userId;
 
-  const pendingDocs = detail.documents.filter((d) => !d.isApproved).length;
-  const advanceBlockedByDocs = stage === VisaStage.DOC_PROCESS && pendingDocs > 0;
+  const pendingDocs = detail.documents.filter(
+    (d) => !d.isApproved && !d.rejectionReason,
+  ).length;
+  const approvedDocs = detail.documents.filter((d) => d.isApproved).length;
+  const rejectedDocs = detail.documents.filter(
+    (d) => !d.isApproved && d.rejectionReason,
+  ).length;
+  const unapprovedDocs = detail.documents.length - approvedDocs;
+  const advanceBlockedByDocs =
+    stage === VisaStage.DOC_PROCESS &&
+    (detail.documents.length === 0 || unapprovedDocs > 0);
 
   const crm = detail.metadata?.crm ?? null;
   const crmComplete = isCrmComplete(crm);
@@ -207,7 +233,8 @@ export default async function ApplicationDetailPage({
   const canEditCrm =
     stage === VisaStage.SALES_PROCESS && (isAdmin || isCurrentStageOwner);
 
-  const canApproveDocs = session.role === Role.DOC || isAdmin;
+  const canReviewDocs =
+    stage === VisaStage.DOC_PROCESS && (session.role === Role.DOC || isAdmin);
   const advanceProp =
     advanceCfg && (isAdmin || isCurrentStageOwner)
       ? {
@@ -216,12 +243,40 @@ export default async function ApplicationDetailPage({
           hint: advanceBlockedByCrm
             ? "Complete and save the CRM data entry before sending to Documents."
             : advanceBlockedByDocs
-              ? `Approve all documents first — ${pendingDocs} pending.`
+              ? detail.documents.length === 0
+                ? "At least one approved document is required before sending to Secretary."
+                : `All documents must be approved — ${unapprovedDocs} still ${unapprovedDocs === 1 ? "needs" : "need"} approval.`
               : undefined,
         }
       : undefined;
   const canPause = PROCESS_STAGES.has(stage) && (isAdmin || isAssignedToMe);
   const canResume = stage === VisaStage.PAUSED && (isAdmin || isAssignedToMe);
+
+  const canIssueVisaGrant =
+    stage === VisaStage.SEC_PROCESS &&
+    (isAdmin || detail.assignedSec?.user.id === session.userId);
+
+  // Admin God-Mode: staff options for the reassign picker.
+  let staffOptions: StaffOption[] = [];
+  if (isAdmin) {
+    try {
+      const users = await serverApi.get<
+        {
+          fullName: string;
+          staffProfile: { id: string; department: Department } | null;
+        }[]
+      >("/users");
+      staffOptions = users
+        .filter((u) => u.staffProfile)
+        .map((u) => ({
+          staffId: u.staffProfile!.id,
+          fullName: u.fullName,
+          department: u.staffProfile!.department,
+        }));
+    } catch {
+      staffOptions = [];
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -317,6 +372,7 @@ export default async function ApplicationDetailPage({
                 {detail.documents.length} file
                 {detail.documents.length === 1 ? "" : "s"}
                 {pendingDocs > 0 ? ` · ${pendingDocs} pending` : ""}
+                {rejectedDocs > 0 ? ` · ${rejectedDocs} rejected` : ""}
               </span>
             </div>
 
@@ -361,10 +417,16 @@ export default async function ApplicationDetailPage({
                                 "rounded-md text-[11px]",
                                 document.isApproved
                                   ? INTENT_CLASSES.success
-                                  : INTENT_CLASSES.warning,
+                                  : document.rejectionReason
+                                    ? INTENT_CLASSES.danger
+                                    : INTENT_CLASSES.warning,
                               )}
                             >
-                              {document.isApproved ? "Approved" : "Pending"}
+                              {document.isApproved
+                                ? "Approved"
+                                : document.rejectionReason
+                                  ? "Rejected"
+                                  : "Pending"}
                             </Badge>
                           </div>
                           {url ? (
@@ -381,9 +443,18 @@ export default async function ApplicationDetailPage({
                               Preview unavailable
                             </span>
                           )}
+                          {document.rejectionReason ? (
+                            <p className="text-xs text-red-600 dark:text-red-400">
+                              {document.rejectionReason}
+                            </p>
+                          ) : null}
                         </div>
-                        {canApproveDocs && !document.isApproved ? (
-                          <ApproveDocumentButton id={document.id} />
+                        {canReviewDocs ? (
+                          <DocumentReviewActions
+                            documentId={document.id}
+                            isApproved={document.isApproved}
+                            isRejected={Boolean(document.rejectionReason)}
+                          />
                         ) : null}
                       </div>
                     </li>
@@ -392,6 +463,21 @@ export default async function ApplicationDetailPage({
               </ul>
             )}
           </section>
+
+          {canIssueVisaGrant ? (
+            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+              <h2 className="text-sm font-medium">Issue visa grant</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Upload the approved visa grant document — the customer will see
+                it in their application.
+              </p>
+              <Separator className="my-4" />
+              <DocumentUploader
+                applicationId={detail.id}
+                defaultType={FileType.VISA_GRANT}
+              />
+            </section>
+          ) : null}
 
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
             <h2 className="text-sm font-medium">Activity</h2>
@@ -454,6 +540,14 @@ export default async function ApplicationDetailPage({
               <AssignmentRow label="Secretary" staff={detail.assignedSec} />
             </div>
           </section>
+
+          {isAdmin ? (
+            <AdminActions
+              applicationId={detail.id}
+              currentStage={stage}
+              staff={staffOptions}
+            />
+          ) : null}
         </div>
       </div>
     </div>

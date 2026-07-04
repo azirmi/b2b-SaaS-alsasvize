@@ -61,6 +61,7 @@ enum FileType {
   BANK_STATEMENT
   INTENT_LETTER
   CONSULATE_FORM
+  VISA_GRANT
   OTHER
 }
 
@@ -167,6 +168,7 @@ model Document {
   fileType      FileType
   fileUrl       String // MinIO / S3 object key (presigned URLs are generated on demand)
   isApproved    Boolean    @default(false) // Document approval (Dosyacı Onayı)
+  rejectionReason String? // Set when DOC staff reject the file; prompts a re-upload
   ocrStatus     OcrStatus? // null until queued for the future OCR microservice
 
   createdAt DateTime @default(now())

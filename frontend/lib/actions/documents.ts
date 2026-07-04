@@ -35,6 +35,58 @@ export async function approveDocument(id: string): Promise<ActionResult> {
 }
 
 /**
+ * Rejects a customer-uploaded document with a reason (DOC staff / admin). The
+ * reason is surfaced to the customer so they can upload a replacement.
+ */
+export async function rejectDocument(
+  id: string,
+  reason: string,
+): Promise<ActionResult> {
+  if (!UUID_RE.test(id)) {
+    return { ok: false, error: "Invalid document reference." };
+  }
+  const trimmed = reason.trim().slice(0, 500);
+  if (!trimmed) {
+    return { ok: false, error: "A rejection reason is required." };
+  }
+
+  try {
+    await serverApi.patch(`/documents/${id}/reject`, { reason: trimmed });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, error: error.message };
+    }
+    return { ok: false, error: "Unable to reject the document. Please retry." };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true };
+}
+
+/**
+ * Deletes a document. The customer may delete only their own files (the API
+ * enforces ownership); admins may delete any. Revalidates so the file drops from
+ * the list; the backend also removes the stored object.
+ */
+export async function deleteDocument(id: string): Promise<ActionResult> {
+  if (!UUID_RE.test(id)) {
+    return { ok: false, error: "Invalid document reference." };
+  }
+
+  try {
+    await serverApi.del(`/documents/${id}`);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, error: error.message };
+    }
+    return { ok: false, error: "Unable to delete the document. Please retry." };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true };
+}
+
+/**
  * Mints a presigned upload URL for a customer document. The backend creates the
  * `Document` record (unapproved, OCR queued for passports) and returns the URL;
  * the client then PUTs the raw bytes straight to storage. Runs server-side so
