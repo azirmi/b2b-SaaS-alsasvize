@@ -7,11 +7,11 @@ import {
   HttpStatus,
   Post,
   Res,
-  UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { ACCESS_TOKEN_COOKIE, ACCESS_TOKEN_MAX_AGE_MS } from './auth.constants';
@@ -21,6 +21,10 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { AuthenticatedUser } from './interfaces/jwt-payload.interface';
+
+/** Upper bound on passports accepted per onboarding (customer + family/friends). */
+const MAX_PASSPORT_FILES = 10;
+
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -39,19 +43,25 @@ export class AuthController {
   /**
    * Full customer auto-onboarding (multipart/form-data).
    *
-   * Accepts `email`, `password`, `fullName` as text fields and a `passport`
-   * file upload. Creates the user, uploads the passport to MinIO, creates the
-   * visa application in SALES_POOL, and links the document — all atomically.
+   * Accepts `email`, `password`, `fullName`, `phone`, `targetCountry`,
+   * `hasAcceptedKVKK`, `hasAcceptedTerms` as text fields and one or more
+   * `passports` file uploads (customer + family/friends). Creates the user,
+   * uploads every passport to MinIO, creates the visa application in
+   * SALES_POOL, and links each document — all atomically.
    *
    * No guards — this route is intentionally public.
    */
   @Post('onboard')
-  @UseInterceptors(FileInterceptor('passport'))
+  @UseInterceptors(FilesInterceptor('passports', MAX_PASSPORT_FILES))
   async onboard(
     @Body('email') email: string,
     @Body('password') password: string,
     @Body('fullName') fullName: string,
-    @UploadedFile() passport: Express.Multer.File,
+    @Body('phone') phone: string,
+    @Body('targetCountry') targetCountry: string,
+    @Body('hasAcceptedKVKK') hasAcceptedKVKK: string,
+    @Body('hasAcceptedTerms') hasAcceptedTerms: string,
+    @UploadedFiles() passports: Express.Multer.File[],
   ) {
     // ── Manual field validation (multipart bodies bypass class-validator) ──
     if (!email || typeof email !== 'string') {
@@ -76,10 +86,37 @@ export class AuthController {
     ) {
       throw new BadRequestException('fullName is required');
     }
-    if (!passport) {
-      throw new BadRequestException('passport file is required');
+    if (!phone || typeof phone !== 'string' || phone.trim().length === 0) {
+      throw new BadRequestException('phone is required');
     }
-    return this.authService.onboard(email, password, fullName.trim(), passport);
+    if (
+      !targetCountry ||
+      typeof targetCountry !== 'string' ||
+      targetCountry.trim().length === 0
+    ) {
+      throw new BadRequestException('targetCountry is required');
+    }
+    // Booleans arrive as strings over multipart — both consents must be "true".
+    if (hasAcceptedKVKK !== 'true') {
+      throw new BadRequestException('KVKK Aydınlatma Metni onayı zorunludur.');
+    }
+    if (hasAcceptedTerms !== 'true') {
+      throw new BadRequestException(
+        'Mesafeli Hizmet Satış Sözleşmesi onayı zorunludur.',
+      );
+    }
+    if (!passports || passports.length === 0) {
+      throw new BadRequestException('At least one passport file is required');
+    }
+
+    return this.authService.onboard(
+      email,
+      password,
+      fullName.trim(),
+      phone.trim(),
+      targetCountry.trim(),
+      passports,
+    );
   }
   /**
    * Validates credentials and sets the JWT as an HTTP-only cookie.

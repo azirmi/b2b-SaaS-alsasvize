@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
 
+import { ApplicationDetailsView } from "@/components/applications/application-details-view";
+import { ApplicationForm } from "@/components/applications/application-form";
 import { DocumentUploader } from "@/components/documents/document-uploader";
 import { DeleteDocumentButton } from "@/components/documents/delete-document-button";
 import { StageBadge } from "@/components/stage-badge";
@@ -159,6 +161,32 @@ export async function CustomerApplicationDetail({
           <div>Opened {timeAgo(detail.createdAt)} ago</div>
         </div>
       </div>
+
+      <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+        <h2 className="text-sm font-medium">Başvuru Formu</h2>
+        {canUpload ? (
+          <>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Başvurunuzu tamamlamak için aşağıdaki formu eksiksiz doldurun.
+              Bu bilgiler ekibimiz tarafından değerlendirilir.
+            </p>
+            <Separator className="my-4" />
+            <ApplicationForm
+              applicationId={detail.id}
+              details={detail.details}
+            />
+          </>
+        ) : detail.details ? (
+          <>
+            <Separator className="my-4" />
+            <ApplicationDetailsView details={detail.details} />
+          </>
+        ) : (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Bu başvuru kapandığı için form artık düzenlenemez.
+          </p>
+        )}
+      </section>
 
       {canUpload ? (
         <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">

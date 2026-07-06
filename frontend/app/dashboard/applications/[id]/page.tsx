@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, FileText } from "lucide-react";
 
 import { AdminActions } from "@/components/applications/admin-actions";
+import { ApplicationDetailsView } from "@/components/applications/application-details-view";
 import { CrmForm } from "@/components/applications/crm-form";
 import { CustomerApplicationDetail } from "@/components/applications/customer-application-detail";
 import { DocumentReviewActions } from "@/components/applications/document-review-actions";
@@ -365,6 +366,17 @@ export default async function ApplicationDetailPage({
             </section>
           ) : null}
 
+          {detail.details ? (
+            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+              <h2 className="text-sm font-medium">Başvuru Formu</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Customer-submitted application form — read-only.
+              </p>
+              <Separator className="my-4" />
+              <ApplicationDetailsView details={detail.details} />
+            </section>
+          ) : null}
+
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-medium">Documents</h2>
@@ -475,6 +487,7 @@ export default async function ApplicationDetailPage({
               <DocumentUploader
                 applicationId={detail.id}
                 defaultType={FileType.VISA_GRANT}
+                allowedTypes={[FileType.VISA_GRANT]}
               />
             </section>
           ) : null}

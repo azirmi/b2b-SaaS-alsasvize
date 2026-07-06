@@ -18,6 +18,7 @@ import { ReassignApplicationDto } from './dto/reassign-application.dto';
 import { ResumeApplicationDto } from './dto/resume-application.dto';
 import { TransitionStageDto } from './dto/transition-stage.dto';
 import { UpdateApplicationCrmDto } from './dto/update-application-crm.dto';
+import { UpsertApplicationDetailsDto } from './dto/upsert-application-details.dto';
 
 type AssignmentField = 'assignedSalesId' | 'assignedDocId' | 'assignedSecId';
 
@@ -94,6 +95,7 @@ const APPLICATION_DETAIL_INCLUDE = {
   assignedDoc: { include: { user: { omit: { password: true } } } },
   assignedSec: { include: { user: { omit: { password: true } } } },
   documents: true,
+  details: true,
   auditLogs: { orderBy: { createdAt: 'desc' } },
 } satisfies Prisma.VisaApplicationInclude;
 
@@ -819,7 +821,107 @@ export class VisaApplicationsService {
   }
 
   /**
+   * Upserts the customer's comprehensive application form ("Başvuru Formu").
+   * Only the owning customer (or an admin) may write it; the form is surfaced
+   * read-only to staff through the application detail response. The write and
+   * its audit-log entry run in a single transaction.
+   */
+  async updateDetails(
+    id: string,
+    dto: UpsertApplicationDetailsDto,
+    actor: AuthenticatedUser,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.visaApplication.findUnique({
+        where: { id },
+        select: { customerId: true, currentStage: true, details: true },
+      });
+      if (!before) {
+        throw new NotFoundException(`Application ${id} not found`);
+      }
+
+      // Authorization: admin (any time) or the owning customer on a live app.
+      if (actor.role !== Role.ADMIN) {
+        if (
+          actor.role !== Role.CUSTOMER ||
+          before.customerId !== actor.userId
+        ) {
+          throw new ForbiddenException(
+            'You can only edit your own application form',
+          );
+        }
+        if (
+          before.currentStage === VisaStage.COMPLETED ||
+          before.currentStage === VisaStage.CANCELLED
+        ) {
+          throw new ConflictException(
+            'This application is closed and its form can no longer be edited',
+          );
+        }
+      }
+
+      const data = {
+        fullName: dto.fullName.trim(),
+        dateOfBirth: dto.dateOfBirth,
+        placeOfBirth: dto.placeOfBirth.trim(),
+        nationality: dto.nationality.trim(),
+        gender: dto.gender.trim(),
+        maritalStatus: dto.maritalStatus.trim(),
+        nationalId: dto.nationalId.trim(),
+        passportNumber: dto.passportNumber.trim(),
+        passportIssueDate: dto.passportIssueDate,
+        passportExpiryDate: dto.passportExpiryDate,
+        phone: dto.phone.trim(),
+        email: dto.email.trim(),
+        homeAddress: dto.homeAddress.trim(),
+        city: dto.city.trim(),
+        countryOfResidence: dto.countryOfResidence.trim(),
+        targetCountry: dto.targetCountry.trim(),
+        visaType: dto.visaType.trim(),
+        purposeOfTravel: dto.purposeOfTravel.trim(),
+        intendedArrivalDate: dto.intendedArrivalDate,
+        intendedDepartureDate: dto.intendedDepartureDate,
+        durationOfStayDays: dto.durationOfStayDays,
+        occupation: dto.occupation.trim(),
+        employerName: dto.employerName.trim(),
+        monthlyIncome: dto.monthlyIncome.trim(),
+        emergencyContactName: dto.emergencyContactName.trim(),
+        emergencyContactPhone: dto.emergencyContactPhone.trim(),
+      };
+
+      await tx.visaApplicationDetails.upsert({
+        where: { applicationId: id },
+        create: { applicationId: id, ...data },
+        update: data,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          application: { connect: { id } },
+          performedBy: { connect: { id: actor.userId } },
+          actionType: before.details ? 'DETAILS_UPDATED' : 'DETAILS_SUBMITTED',
+          details: {
+            // JSON round-trip drops Date instances so the snapshot is JSON-safe.
+            before: before.details
+              ? (JSON.parse(
+                  JSON.stringify(before.details),
+                ) as Prisma.InputJsonValue)
+              : null,
+            after: data,
+          },
+        },
+      });
+
+      return tx.visaApplication.findUniqueOrThrow({
+        where: { id },
+        include: APPLICATION_DETAIL_INCLUDE,
+      });
+    });
+  }
+
+  /**
    * True when `metadata.crm` holds a complete Sales record: non-empty applicant
+
    * details, target country and currency, plus a positive invoice total.
    */
   private isCrmComplete(

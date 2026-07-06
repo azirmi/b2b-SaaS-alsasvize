@@ -146,7 +146,7 @@ export default async function DashboardPage() {
                   <TableHeader>
                     <TableRow className="border-border/40 hover:bg-transparent">
                       <TableHead className="text-xs font-medium text-muted-foreground">
-                        Reference
+                        Başvuru
                       </TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground">
                         Stage
@@ -165,9 +165,9 @@ export default async function DashboardPage() {
                         <TableCell>
                           <Link
                             href={`/dashboard/applications/${application.id}`}
-                            className="font-mono text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                            className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
                           >
-                            {application.id.slice(0, 8)}
+                            Evrak Yükleme
                           </Link>
                         </TableCell>
                         <TableCell>

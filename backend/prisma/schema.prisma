@@ -82,8 +82,14 @@ model User {
   email    String  @unique
   password String // bcrypt hash of the user's password
   fullName String
+  phone         String? // Customer contact number (collected at registration)
+  targetCountry String? // Country the customer intends to apply for a visa to
   role     Role
   isActive Boolean @default(true) // Soft delete flag (Aktif/Pasif)
+
+  // Legal acceptance flags captured during customer self-registration.
+  hasAcceptedKVKK  Boolean @default(false) // KVKK Aydınlatma Metni onayı
+  hasAcceptedTerms Boolean @default(false) // Mesafeli Hizmet Satış Sözleşmesi onayı
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -157,7 +163,64 @@ model VisaApplication {
   documents Document[]
   auditLogs AuditLog[]
 
+  // One-to-One: the comprehensive application form filled in by the customer.
+  details VisaApplicationDetails?
+
   @@map("visa_applications")
+}
+
+/// Comprehensive visa application form ("Başvuru Formu") completed by the
+/// customer. One-to-one with a VisaApplication. DOC staff read it (read-only)
+/// alongside the uploaded documents.
+model VisaApplicationDetails {
+  id            String @id @default(uuid()) @db.Uuid
+  applicationId String @unique @db.Uuid
+
+  // ── Personal information ──────────────────────────────────────────────
+  fullName      String
+  dateOfBirth   String // ISO date (YYYY-MM-DD)
+  placeOfBirth  String
+  nationality   String
+  gender        String
+  maritalStatus String
+  nationalId    String
+
+  // ── Passport ──────────────────────────────────────────────────────────
+  passportNumber     String
+  passportIssueDate  String // ISO date (YYYY-MM-DD)
+  passportExpiryDate String // ISO date (YYYY-MM-DD)
+
+  // ── Contact & address ─────────────────────────────────────────────────
+  phone              String
+  email              String
+  homeAddress        String
+  city               String
+  countryOfResidence String
+
+  // ── Travel ────────────────────────────────────────────────────────────
+  targetCountry         String
+  visaType              String
+  purposeOfTravel       String
+  intendedArrivalDate   String // ISO date (YYYY-MM-DD)
+  intendedDepartureDate String // ISO date (YYYY-MM-DD)
+  durationOfStayDays    Int
+
+  // ── Employment & financial ────────────────────────────────────────────
+  occupation    String
+  employerName  String
+  monthlyIncome String
+
+  // ── Emergency contact ─────────────────────────────────────────────────
+  emergencyContactName  String
+  emergencyContactPhone String
+
+  submittedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  application VisaApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("visa_application_details")
 }
 
 /// A file attached to an application and stored in MinIO/S3.

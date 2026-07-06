@@ -103,6 +103,21 @@ export class StorageService implements OnModuleInit {
     );
   }
 
+  /**
+   * Uploads multiple file buffers in parallel (e.g. a batch of passports for a
+   * customer + their family/friends during onboarding). Rejects if any upload
+   * fails so the caller can abort before touching the database.
+   */
+  async uploadBuffers(
+    files: { key: string; buffer: Buffer; contentType?: string }[],
+  ): Promise<void> {
+    await Promise.all(
+      files.map((file) =>
+        this.uploadBuffer(file.key, file.buffer, file.contentType),
+      ),
+    );
+  }
+
   /** Creates the bucket if it does not already exist (idempotent, startup-safe). */
   private async ensureBucket(): Promise<void> {
     try {

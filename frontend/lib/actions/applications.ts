@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
+import { APPLICATION_FORM_FIELDS } from "@/lib/application-form";
 import type { Department, VisaStage } from "@/lib/enums";
 import type { ActionResult, CrmActionState } from "@/lib/types";
 
@@ -164,6 +165,50 @@ export async function saveCrm(
       return { error: error.message };
     }
     return { error: "Unable to save the CRM data. Please retry." };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true };
+}
+
+/**
+ * Saves the customer's comprehensive application form ("Başvuru Formu") via
+ * `PUT /applications/:id/details`. Every field is required; the backend
+ * re-validates. Bound to the application id for `useActionState`.
+ */
+export async function saveApplicationDetails(
+  id: string,
+  _prev: CrmActionState,
+  formData: FormData,
+): Promise<CrmActionState> {
+  if (!UUID_RE.test(id)) {
+    return { error: "Geçersiz başvuru referansı." };
+  }
+
+  const payload: Record<string, string | number> = {};
+  for (const field of APPLICATION_FORM_FIELDS) {
+    const raw = String(formData.get(field.name) ?? "").trim();
+    if (!raw) {
+      return { error: "Lütfen tüm alanları eksiksiz doldurun." };
+    }
+    if (field.kind === "number") {
+      const value = Number(raw);
+      if (!Number.isInteger(value) || value < 1) {
+        return { error: "Kalış süresi geçerli bir gün sayısı olmalıdır." };
+      }
+      payload[field.name] = value;
+    } else {
+      payload[field.name] = raw;
+    }
+  }
+
+  try {
+    await serverApi.put(`/applications/${id}/details`, payload);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { error: error.message };
+    }
+    return { error: "Form kaydedilemedi. Lütfen tekrar deneyin." };
   }
 
   revalidatePath("/dashboard", "layout");

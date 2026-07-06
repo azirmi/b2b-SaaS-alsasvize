@@ -66,6 +66,10 @@ export class AuthService {
         email: dto.email,
         password: hashedPassword,
         fullName: dto.fullName,
+        phone: dto.phone,
+        targetCountry: dto.targetCountry,
+        hasAcceptedKVKK: dto.hasAcceptedKVKK,
+        hasAcceptedTerms: dto.hasAcceptedTerms,
         role: Role.CUSTOMER, // CRITICAL: hardcoded — never trust client input
       },
       omit: { password: true },
@@ -76,38 +80,43 @@ export class AuthService {
 
   /**
    * Full customer auto-onboarding:
-   *   1. Validate and register the customer (email, password, fullName)
-   *   2. Upload passport photo to MinIO
+   *   1. Validate and register the customer (email, password, fullName, phone,
+   *      targetCountry)
+   *   2. Upload every passport photo (customer + family/friends) to MinIO
    *   3. In a single Prisma $transaction:
-   *      - Create User (role: CUSTOMER)
+   *      - Create User (role: CUSTOMER, legal consent flags set true)
    *      - Create VisaApplication (SALES_POOL)
-   *      - Create Document (PASSPORT, unapproved, ocrStatus: PENDING)
+   *      - Create one Document (PASSPORT, unapproved, ocrStatus: PENDING) per file
    *      - Create AuditLog (CREATED)
    *
-   * SECURITY: Role is hardcoded to CUSTOMER. File type is validated.
+   * SECURITY: Role is hardcoded to CUSTOMER. Every file type is validated.
    *
    * @throws ConflictException when the email is already taken.
-   * @throws BadRequestException when the passport file is missing or invalid.
+   * @throws BadRequestException when a passport file is missing or invalid.
    */
   async onboard(
     email: string,
     password: string,
     fullName: string,
-    passport: Express.Multer.File,
+    phone: string,
+    targetCountry: string,
+    passports: Express.Multer.File[],
   ) {
     // ── File validation ──────────────────────────────────────────────────
-    if (!passport) {
-      throw new BadRequestException('Passport file is required');
+    if (!passports || passports.length === 0) {
+      throw new BadRequestException('At least one passport file is required');
     }
-    if (!ALLOWED_PASSPORT_MIMES.has(passport.mimetype)) {
-      throw new BadRequestException(
-        `Invalid file type "${passport.mimetype}". Allowed: ${[...ALLOWED_PASSPORT_MIMES].join(', ')}`,
-      );
-    }
-    if (passport.size > MAX_PASSPORT_SIZE) {
-      throw new BadRequestException(
-        `Passport file exceeds the maximum size of ${MAX_PASSPORT_SIZE / (1024 * 1024)} MB`,
-      );
+    for (const passport of passports) {
+      if (!ALLOWED_PASSPORT_MIMES.has(passport.mimetype)) {
+        throw new BadRequestException(
+          `Invalid file type "${passport.mimetype}". Allowed: ${[...ALLOWED_PASSPORT_MIMES].join(', ')}`,
+        );
+      }
+      if (passport.size > MAX_PASSPORT_SIZE) {
+        throw new BadRequestException(
+          `Passport file "${passport.originalname}" exceeds the maximum size of ${MAX_PASSPORT_SIZE / (1024 * 1024)} MB`,
+        );
+      }
     }
 
     // ── Duplicate email check ────────────────────────────────────────────
@@ -122,30 +131,32 @@ export class AuthService {
     // ── Hash password ────────────────────────────────────────────────────
     const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
-    // ── Prepare the MinIO object key ─────────────────────────────────────
-    const sanitizedName = this.sanitizeFileName(passport.originalname);
-    // We don't have the applicationId yet, so use a placeholder structure.
-    // The key will be: onboarding/<userUUID>/<uuid>-<filename>
+    // ── Prepare the MinIO object keys ────────────────────────────────────
+    // We don't have the applicationId yet, so key on the user UUID.
+    // Each key: onboarding/<userUUID>/<uuid>-<filename>
     const userUuid = randomUUID();
-    const fileUuid = randomUUID();
-    const objectKey = `onboarding/${userUuid}/${fileUuid}-${sanitizedName}`;
+    const uploads = passports.map((passport) => ({
+      key: `onboarding/${userUuid}/${randomUUID()}-${this.sanitizeFileName(passport.originalname)}`,
+      buffer: passport.buffer,
+      contentType: passport.mimetype,
+    }));
 
     // ── Upload to MinIO (outside transaction — MinIO is not transactional) ─
-    await this.storage.uploadBuffer(
-      objectKey,
-      passport.buffer,
-      passport.mimetype,
-    );
+    await this.storage.uploadBuffers(uploads);
 
     // ── Prisma transaction: create all records atomically ─────────────────
     const result = await this.prisma.$transaction(async (tx) => {
       // 1. Create the customer user
       const user = await tx.user.create({
         data: {
-          id: userUuid, // reuse the UUID we generated for the object key
+          id: userUuid, // reuse the UUID we generated for the object keys
           email,
           password: hashedPassword,
           fullName,
+          phone,
+          targetCountry,
+          hasAcceptedKVKK: true,
+          hasAcceptedTerms: true,
           role: Role.CUSTOMER,
         },
         omit: { password: true },
@@ -159,23 +170,27 @@ export class AuthService {
         },
       });
 
-      // 3. Create the passport document record
-      const document = await tx.document.create({
-        data: {
-          application: { connect: { id: application.id } },
-          uploadedBy: { connect: { id: user.id } },
-          fileType: FileType.PASSPORT,
-          fileUrl: objectKey,
-          isApproved: false, // customer upload — requires staff approval
-          ocrStatus: OcrStatus.PENDING,
-        },
-        select: {
-          id: true,
-          fileType: true,
-          isApproved: true,
-          ocrStatus: true,
-        },
-      });
+      // 3. Create a passport document record per uploaded file
+      const documents = await Promise.all(
+        uploads.map((upload) =>
+          tx.document.create({
+            data: {
+              application: { connect: { id: application.id } },
+              uploadedBy: { connect: { id: user.id } },
+              fileType: FileType.PASSPORT,
+              fileUrl: upload.key,
+              isApproved: false, // customer upload — requires staff approval
+              ocrStatus: OcrStatus.PENDING,
+            },
+            select: {
+              id: true,
+              fileType: true,
+              isApproved: true,
+              ocrStatus: true,
+            },
+          }),
+        ),
+      );
 
       // 4. Create the audit log entry
       await tx.auditLog.create({
@@ -186,12 +201,13 @@ export class AuthService {
           details: {
             method: 'Customer self-onboarded',
             newStage: VisaStage.SALES_POOL,
-            passportDocumentId: document.id,
+            targetCountry,
+            passportDocumentIds: documents.map((doc) => doc.id),
           },
         },
       });
 
-      return { user, application, document };
+      return { user, application, documents };
     });
 
     return {
@@ -201,7 +217,7 @@ export class AuthService {
         currentStage: result.application.currentStage,
         createdAt: result.application.createdAt,
       },
-      document: result.document,
+      documents: result.documents,
     };
   }
 

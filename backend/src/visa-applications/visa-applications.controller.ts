@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -22,6 +23,7 @@ import { ReassignApplicationDto } from './dto/reassign-application.dto';
 import { ResumeApplicationDto } from './dto/resume-application.dto';
 import { TransitionStageDto } from './dto/transition-stage.dto';
 import { UpdateApplicationCrmDto } from './dto/update-application-crm.dto';
+import { UpsertApplicationDetailsDto } from './dto/upsert-application-details.dto';
 import { VisaApplicationsService } from './visa-applications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 
@@ -109,6 +111,17 @@ export class VisaApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.updateCrm(id, dto, user);
+  }
+
+  /** Customer's comprehensive application form ("Başvuru Formu"). Owner/admin write; staff read-only. */
+  @Put(':id/details')
+  @Roles(Role.CUSTOMER, Role.ADMIN)
+  updateDetails(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpsertApplicationDetailsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateDetails(id, dto, user);
   }
 
   /** Pause an in-flight application (stops SLA clock). Staff and admin only. */

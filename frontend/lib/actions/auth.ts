@@ -95,16 +95,30 @@ export async function onboard(
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const fullName = String(formData.get("fullName") ?? "").trim();
-  const passport = formData.get("passport");
+  const phone = String(formData.get("phone") ?? "").trim();
+  const targetCountry = String(formData.get("targetCountry") ?? "").trim();
+  const acceptKvkk = formData.get("acceptKvkk") === "true";
+  const acceptTerms = formData.get("acceptTerms") === "true";
+  const passports = formData
+    .getAll("passports")
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
 
-  if (!email || !password || !fullName) {
-    return { error: "All fields are required." };
+  if (!email || !password || !fullName || !phone || !targetCountry) {
+    return { error: "Tüm alanların doldurulması zorunludur." };
   }
   if (password.length < 8 || password.length > 72) {
-    return { error: "Password must be between 8 and 72 characters." };
+    return { error: "Şifre 8 ile 72 karakter arasında olmalıdır." };
   }
-  if (!(passport instanceof File) || passport.size === 0) {
-    return { error: "A passport file is required." };
+  if (passports.length === 0) {
+    return { error: "En az bir pasaport dosyası yüklemeniz gerekir." };
+  }
+  if (!acceptKvkk) {
+    return { error: "KVKK Aydınlatma Metni onayı zorunludur." };
+  }
+  if (!acceptTerms) {
+    return {
+      error: "Mesafeli Hizmet Satış Sözleşmesi onayı zorunludur.",
+    };
   }
 
   let destination: string;
@@ -113,7 +127,13 @@ export async function onboard(
     payload.set("email", email);
     payload.set("password", password);
     payload.set("fullName", fullName);
-    payload.set("passport", passport);
+    payload.set("phone", phone);
+    payload.set("targetCountry", targetCountry);
+    payload.set("hasAcceptedKVKK", "true");
+    payload.set("hasAcceptedTerms", "true");
+    for (const passport of passports) {
+      payload.append("passports", passport);
+    }
 
     const onboardResponse = await fetch(`${API_BASE_URL}/auth/onboard`, {
       method: "POST",
@@ -123,7 +143,8 @@ export async function onboard(
     if (!onboardResponse.ok) {
       const body = await onboardResponse.json().catch(() => null);
       return {
-        error: messageFrom(body) ?? "Onboarding failed. Review your details.",
+        error:
+          messageFrom(body) ?? "Kayıt tamamlanamadı. Bilgilerinizi kontrol edin.",
       };
     }
 
@@ -139,7 +160,7 @@ export async function onboard(
       (await persistSession(loginResponse.headers.getSetCookie()));
     destination = signedIn ? "/dashboard" : "/login";
   } catch {
-    return { error: "Unable to reach the server. Please try again." };
+    return { error: "Sunucuya ulaşılamıyor. Lütfen tekrar deneyin." };
   }
 
   redirect(destination);

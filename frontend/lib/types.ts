@@ -99,6 +99,7 @@ export interface VisaApplicationDetail {
   assignedDoc: StaffProfile | null;
   assignedSec: StaffProfile | null;
   documents: DocumentRecord[];
+  details: ApplicationDetailsData | null;
   auditLogs: AuditLogEntry[];
 }
 
@@ -130,6 +131,41 @@ export interface CrmData {
 export interface ApplicationMetadata {
   crm?: CrmData;
   [key: string]: unknown;
+}
+
+/**
+ * The customer's comprehensive application form ("Başvuru Formu").
+ * Mirrors the backend `VisaApplicationDetails` model (all fields required).
+ */
+export interface ApplicationDetailsData {
+  fullName: string;
+  dateOfBirth: string;
+  placeOfBirth: string;
+  nationality: string;
+  gender: string;
+  maritalStatus: string;
+  nationalId: string;
+  passportNumber: string;
+  passportIssueDate: string;
+  passportExpiryDate: string;
+  phone: string;
+  email: string;
+  homeAddress: string;
+  city: string;
+  countryOfResidence: string;
+  targetCountry: string;
+  visaType: string;
+  purposeOfTravel: string;
+  intendedArrivalDate: string;
+  intendedDepartureDate: string;
+  durationOfStayDays: number;
+  occupation: string;
+  employerName: string;
+  monthlyIncome: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  submittedAt?: string;
+  updatedAt?: string;
 }
 
 /** Result state for the CRM form's server action (drives inline form feedback). */

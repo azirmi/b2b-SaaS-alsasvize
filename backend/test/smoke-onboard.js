@@ -8,29 +8,34 @@ const crypto = require('node:crypto');
 const BOUNDARY = '----FormBoundary' + crypto.randomUUID().replace(/-/g, '');
 const uniqueEmail = `onboard-${Date.now()}@smoketest.com`;
 
-// Build multipart body
-function buildMultipart(fields, file) {
-  const parts = [];
+// Build multipart body with any number of file parts.
+function buildMultipart(fields, files) {
+  const chunks = [];
 
   for (const [name, value] of Object.entries(fields)) {
-    parts.push(
-      `--${BOUNDARY}\r\n` +
-      `Content-Disposition: form-data; name="${name}"\r\n\r\n` +
-      `${value}\r\n`
+    chunks.push(
+      Buffer.from(
+        `--${BOUNDARY}\r\n` +
+        `Content-Disposition: form-data; name="${name}"\r\n\r\n` +
+        `${value}\r\n`
+      )
     );
   }
 
-  // File part
-  parts.push(
-    `--${BOUNDARY}\r\n` +
-    `Content-Disposition: form-data; name="${file.fieldName}"; filename="${file.fileName}"\r\n` +
-    `Content-Type: ${file.contentType}\r\n\r\n`
-  );
+  for (const file of files) {
+    chunks.push(
+      Buffer.from(
+        `--${BOUNDARY}\r\n` +
+        `Content-Disposition: form-data; name="${file.fieldName}"; filename="${file.fileName}"\r\n` +
+        `Content-Type: ${file.contentType}\r\n\r\n`
+      )
+    );
+    chunks.push(file.buffer);
+    chunks.push(Buffer.from('\r\n'));
+  }
 
-  const header = Buffer.from(parts.join(''));
-  const footer = Buffer.from(`\r\n--${BOUNDARY}--\r\n`);
-
-  return Buffer.concat([header, file.buffer, footer]);
+  chunks.push(Buffer.from(`--${BOUNDARY}--\r\n`));
+  return Buffer.concat(chunks);
 }
 
 // Create a tiny valid JPEG (smallest possible — 2x1 px)
@@ -44,13 +49,25 @@ const body = buildMultipart(
     email: uniqueEmail,
     password: 'SecurePass123!',
     fullName: 'Onboard Test Customer',
+    phone: '+90 555 123 45 67',
+    targetCountry: 'Germany',
+    hasAcceptedKVKK: 'true',
+    hasAcceptedTerms: 'true',
   },
-  {
-    fieldName: 'passport',
-    fileName: 'passport.jpg',
-    contentType: 'image/jpeg',
-    buffer: fakeJpeg,
-  }
+  [
+    {
+      fieldName: 'passports',
+      fileName: 'passport-applicant.jpg',
+      contentType: 'image/jpeg',
+      buffer: fakeJpeg,
+    },
+    {
+      fieldName: 'passports',
+      fileName: 'passport-family.jpg',
+      contentType: 'image/jpeg',
+      buffer: fakeJpeg,
+    },
+  ]
 );
 
 const options = {
@@ -74,13 +91,16 @@ const req = http.request(options, (res) => {
       console.log(JSON.stringify(parsed, null, 2));
 
       // Verify key assertions
+      const documents = parsed.documents ?? [];
+      const firstDoc = documents[0];
       const checks = [
         ['User role is CUSTOMER', parsed.user?.role === 'CUSTOMER'],
         ['Password is NOT in response', !parsed.user?.password],
         ['Application stage is SALES_POOL', parsed.application?.currentStage === 'SALES_POOL'],
-        ['Document fileType is PASSPORT', parsed.document?.fileType === 'PASSPORT'],
-        ['Document isApproved is false', parsed.document?.isApproved === false],
-        ['Document ocrStatus is PENDING', parsed.document?.ocrStatus === 'PENDING'],
+        ['Two passport documents returned', documents.length === 2],
+        ['Document fileType is PASSPORT', firstDoc?.fileType === 'PASSPORT'],
+        ['Document isApproved is false', firstDoc?.isApproved === false],
+        ['Document ocrStatus is PENDING', firstDoc?.ocrStatus === 'PENDING'],
       ];
 
       console.log('\n--- ASSERTIONS ---');
