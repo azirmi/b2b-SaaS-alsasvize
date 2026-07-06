@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, ClipboardList, FileText } from "lucide-react";
 
 import { AdminActions } from "@/components/applications/admin-actions";
 import { ApplicationDetailsView } from "@/components/applications/application-details-view";
@@ -12,9 +12,15 @@ import { DocumentUploader } from "@/components/documents/document-uploader";
 import { StageBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { ApiError } from "@/lib/api";
 import { getSession, serverApi } from "@/lib/api.server";
-import { isCrmComplete } from "@/lib/crm";
+import { isCrmComplete, formatTl, PAYMENT_TYPE_LABEL } from "@/lib/crm";
 import { Department, FileType, Role, VisaStage } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
 import {
@@ -123,17 +129,25 @@ function Notice({ title, body }: { title: string; body: string }) {
 
 export default async function ApplicationDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
 
   const session = await getSession();
   if (!session) {
     redirect("/login");
   }
   if (session.role === Role.CUSTOMER) {
-    return <CustomerApplicationDetail applicationId={id} />;
+    return (
+      <CustomerApplicationDetail
+        applicationId={id}
+        view={query.view === "form" ? "form" : "documents"}
+      />
+    );
   }
 
   let detail: VisaApplicationDetail | null = null;
@@ -227,9 +241,14 @@ export default async function ApplicationDetailPage({
     stage === VisaStage.DOC_PROCESS &&
     (detail.documents.length === 0 || unapprovedDocs > 0);
 
-  const crm = detail.metadata?.crm ?? null;
+  const crm = detail.crmData ?? null;
   const crmComplete = isCrmComplete(crm);
   const advanceBlockedByCrm = stage === VisaStage.SALES_PROCESS && !crmComplete;
+
+  // Read-only context for the CRM form, pulled from the customer's own records.
+  const crmTargetCountry = detail.customer.targetCountry ?? "";
+  const crmPhone = detail.details?.phone ?? detail.customer.phone ?? "";
+  const crmTravelDate = detail.details?.plannedTravelDates ?? "";
   const advanceDisabled = advanceBlockedByDocs || advanceBlockedByCrm;
   const canEditCrm =
     stage === VisaStage.SALES_PROCESS && (isAdmin || isCurrentStageOwner);
@@ -343,40 +362,105 @@ export default async function ApplicationDetailPage({
               {canEditCrm ? (
                 <>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Capture the applicant&rsquo;s details and invoice. Every
-                    field is required before the file can move to Documents.
+                    Satış, ödeme ve dekont bilgilerini girin. Dosya Belgeler
+                    aşamasına geçmeden önce bu alanlar zorunludur.
                   </p>
                   <Separator className="my-4" />
-                  <CrmForm applicationId={detail.id} crm={crm} />
+                  <CrmForm
+                    applicationId={detail.id}
+                    crm={crm}
+                    targetCountry={crmTargetCountry}
+                    phone={crmPhone}
+                    travelDate={crmTravelDate}
+                  />
                 </>
               ) : crm ? (
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                   <CrmField
-                    label="Applicant"
-                    value={`${crm.firstName} ${crm.lastName}`}
+                    label="Satış tarihi"
+                    value={
+                      crm.salesDate
+                        ? new Date(crm.salesDate).toLocaleDateString("tr-TR")
+                        : "—"
+                    }
                   />
-                  <CrmField label="Passport ID" value={crm.passportId} mono />
-                  <CrmField label="Target country" value={crm.targetCountry} />
+                  <CrmField label="İkamet şehri" value={crm.residenceCity} />
                   <CrmField
-                    label="Invoice total"
-                    value={`${crm.currency} ${crm.totalCost.toLocaleString()}`}
+                    label="Ödeme türü"
+                    value={PAYMENT_TYPE_LABEL[crm.paymentType]}
                   />
+                  <CrmField
+                    label="Toplam tutar"
+                    value={formatTl(crm.totalAmount)}
+                  />
+                  {crm.paymentType === "PREPAID" ? (
+                    <>
+                      <CrmField
+                        label="Ön ödeme"
+                        value={formatTl(crm.upfrontPaid)}
+                      />
+                      <CrmField
+                        label="Kalan bakiye"
+                        value={formatTl(
+                          crm.totalAmount - (crm.upfrontPaid ?? 0),
+                        )}
+                      />
+                    </>
+                  ) : null}
+                  {crm.receiptFileId ? (
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Dekont</dt>
+                      <dd className="text-sm">
+                        {urlById.get(crm.receiptFileId) ? (
+                          <a
+                            href={urlById.get(crm.receiptFileId)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                          >
+                            Görüntüle
+                          </a>
+                        ) : (
+                          "Yüklü"
+                        )}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
               ) : null}
             </section>
           ) : null}
 
-          {detail.details ? (
-            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-medium">Başvuru Formu</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Customer-submitted application form — read-only.
-              </p>
-              <Separator className="my-4" />
-              <ApplicationDetailsView details={detail.details} />
-            </section>
-          ) : null}
+          <Tabs defaultValue="form" className="gap-6">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="form">
+                <ClipboardList aria-hidden />
+                Başvuru Formu
+              </TabsTrigger>
+              <TabsTrigger value="documents">
+                <FileText aria-hidden />
+                Evrak Yükleme
+              </TabsTrigger>
+            </TabsList>
 
+          <TabsContent value="form">
+          <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+            <h2 className="text-sm font-medium">Başvuru Formu</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Customer-submitted application form — read-only.
+            </p>
+            <Separator className="my-4" />
+            {detail.details ? (
+              <ApplicationDetailsView details={detail.details} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                The customer has not submitted the application form yet.
+              </p>
+            )}
+          </section>
+          </TabsContent>
+
+          <TabsContent value="documents" className="space-y-6">
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-medium">Documents</h2>
@@ -491,6 +575,8 @@ export default async function ApplicationDetailPage({
               />
             </section>
           ) : null}
+          </TabsContent>
+          </Tabs>
 
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
             <h2 className="text-sm font-medium">Activity</h2>

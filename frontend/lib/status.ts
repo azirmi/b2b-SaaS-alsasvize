@@ -74,5 +74,6 @@ export const FILE_TYPE_LABEL: Record<FileType, string> = {
   INTENT_LETTER: 'Intent letter',
   CONSULATE_FORM: 'Consulate form',
   VISA_GRANT: 'Visa grant',
+  PAYMENT_RECEIPT: 'Payment receipt',
   OTHER: 'Other',
 };

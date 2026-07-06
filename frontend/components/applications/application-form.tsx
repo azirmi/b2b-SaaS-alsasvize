@@ -31,17 +31,23 @@ function Field({
   value: string;
 }) {
   const id = `af-${field.name}`;
+  const required = field.required !== false;
   const common = {
     id,
     name: field.name,
-    required: true,
+    required,
   } as const;
 
   return (
     <div className={field.full ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}>
-      <Label htmlFor={id}>{field.label}</Label>
+      <Label htmlFor={id}>
+        {field.label}
+        {!required ? (
+          <span className="ml-1 text-xs text-muted-foreground">(Opsiyonel)</span>
+        ) : null}
+      </Label>
       {field.kind === "select" ? (
-        <Select name={field.name} defaultValue={value || undefined} required>
+        <Select name={field.name} defaultValue={value || undefined} required={required}>
           <SelectTrigger id={id} className="w-full">
             <SelectValue placeholder="Seçiniz" />
           </SelectTrigger>

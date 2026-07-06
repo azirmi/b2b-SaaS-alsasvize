@@ -29,7 +29,7 @@ export class DocumentsController {
 
   /** Request a presigned upload URL and create the document record. */
   @Post('presigned-url')
-  @Roles(Role.CUSTOMER, Role.DOC, Role.SEC, Role.ADMIN)
+  @Roles(Role.CUSTOMER, Role.SALES, Role.DOC, Role.SEC, Role.ADMIN)
   createUploadUrl(
     @Body() dto: CreatePresignedUploadDto,
     @CurrentUser() user: AuthenticatedUser,

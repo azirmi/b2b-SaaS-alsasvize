@@ -62,6 +62,7 @@ enum FileType {
   INTENT_LETTER
   CONSULATE_FORM
   VISA_GRANT
+  PAYMENT_RECEIPT
   OTHER
 }
 
@@ -127,6 +128,10 @@ model Staff {
   docApplications   VisaApplication[] @relation("VisaDocStaff")
   secApplications   VisaApplication[] @relation("VisaSecStaff")
 
+  // One-to-Many: applications this sales rep processed (historical tracking,
+  // retained even after the file advances past Sales).
+  processedSalesApplications VisaApplication[] @relation("VisaSalesProcessor")
+
   @@map("staff")
 }
 
@@ -140,6 +145,10 @@ model VisaApplication {
   assignedSalesId String? @db.Uuid
   assignedDocId   String? @db.Uuid
   assignedSecId   String? @db.Uuid
+
+  // The sales rep who processed this application. Stamped on the Sales claim and
+  // retained for the life of the file so the rep can track it historically.
+  salesStaffId String? @db.Uuid
 
   // Stamped by business logic on each stage transition (SLA / delay tracking).
   stageUpdatedAt DateTime @default(now())
@@ -159,12 +168,18 @@ model VisaApplication {
   assignedDoc   Staff? @relation("VisaDocStaff", fields: [assignedDocId], references: [id])
   assignedSec   Staff? @relation("VisaSecStaff", fields: [assignedSecId], references: [id])
 
+  // Many-to-One (nullable): the sales rep who processed the file (history).
+  salesStaff Staff? @relation("VisaSalesProcessor", fields: [salesStaffId], references: [id])
+
   // One-to-Many children.
   documents Document[]
   auditLogs AuditLog[]
 
   // One-to-One: the comprehensive application form filled in by the customer.
   details VisaApplicationDetails?
+
+  // One-to-One: the Sales CRM + finance record captured by the sales rep.
+  crmData ApplicationCrmData?
 
   @@map("visa_applications")
 }
@@ -177,42 +192,53 @@ model VisaApplicationDetails {
   applicationId String @unique @db.Uuid
 
   // ── Personal information ──────────────────────────────────────────────
-  fullName      String
-  dateOfBirth   String // ISO date (YYYY-MM-DD)
-  placeOfBirth  String
-  nationality   String
-  gender        String
-  maritalStatus String
-  nationalId    String
+  firstName      String
+  lastName       String
+  maidenSurname  String?
+  nationalId     String
+  dateOfBirth    String // ISO date (YYYY-MM-DD)
+  placeOfBirth   String
+  gender         String
+  maritalStatus  String
+  nationality    String
+
+  // ── Contact information ───────────────────────────────────────────────
+  email             String
+  phone             String
+  registeredAddress String
+
+  // ── Professional & education ──────────────────────────────────────────
+  occupation           String
+  employmentStatus     String
+  employerName         String?
+  employerAddress      String?
+  employerPhone        String?
+  educationInstitution String?
+  educationLevel       String?
 
   // ── Passport ──────────────────────────────────────────────────────────
+  passportType       String
   passportNumber     String
   passportIssueDate  String // ISO date (YYYY-MM-DD)
   passportExpiryDate String // ISO date (YYYY-MM-DD)
+  passportIssuePlace String
+  appointmentLocation String
 
-  // ── Contact & address ─────────────────────────────────────────────────
-  phone              String
-  email              String
-  homeAddress        String
-  city               String
-  countryOfResidence String
+  // ── Visa information ──────────────────────────────────────────────────
+  fingerprintGiven         String
+  fingerprintDate          String?
+  schengenAppliedBefore    String
+  previousSchengenCountries String?
 
-  // ── Travel ────────────────────────────────────────────────────────────
-  targetCountry         String
-  visaType              String
-  purposeOfTravel       String
-  intendedArrivalDate   String // ISO date (YYYY-MM-DD)
-  intendedDepartureDate String // ISO date (YYYY-MM-DD)
-  durationOfStayDays    Int
+  // ── Travel information ────────────────────────────────────────────────
+  purposeOfTravel   String
+  plannedTravelDates String
 
-  // ── Employment & financial ────────────────────────────────────────────
-  occupation    String
-  employerName  String
-  monthlyIncome String
-
-  // ── Emergency contact ─────────────────────────────────────────────────
-  emergencyContactName  String
-  emergencyContactPhone String
+  // ── Sponsor information ───────────────────────────────────────────────
+  sponsorFullName String?
+  sponsorIdentity String?
+  sponsorContact  String?
+  sponsorRelation String?
 
   submittedAt DateTime @default(now())
   createdAt   DateTime @default(now())
@@ -221,6 +247,32 @@ model VisaApplicationDetails {
   application VisaApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@map("visa_application_details")
+}
+
+/// Sales CRM + finance record ("Satış / Finans") captured by the sales rep for
+/// an application. One-to-one with a VisaApplication. Replaces the legacy
+/// `metadata.crm` JSON blob with a structured, queryable model.
+model ApplicationCrmData {
+  id            String @id @default(uuid()) @db.Uuid
+  applicationId String @unique @db.Uuid
+
+  // ── Sales record ──────────────────────────────────────────────────────
+  salesDate     DateTime // Date the sale was closed
+  residenceCity String // Customer's city of residence (İkamet Şehri)
+
+  // ── Finance module ────────────────────────────────────────────────────
+  paymentType String // 'NORMAL' | 'PREPAID' (Ön Ödemeli)
+  totalAmount Float // Total invoice amount in TL
+  upfrontPaid Float? // Amount paid upfront (only for PREPAID)
+  receiptFileId String? @db.Uuid // Uploaded payment receipt (dekont) Document id
+
+  updatedById String?  @db.Uuid // Actor who last saved the record
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  application VisaApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("application_crm_data")
 }
 
 /// A file attached to an application and stored in MinIO/S3.

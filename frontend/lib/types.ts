@@ -43,6 +43,8 @@ export interface CustomerProfile {
   fullName: string;
   role: Role;
   isActive: boolean;
+  phone?: string | null;
+  targetCountry?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -100,6 +102,7 @@ export interface VisaApplicationDetail {
   assignedSec: StaffProfile | null;
   documents: DocumentRecord[];
   details: ApplicationDetailsData | null;
+  crmData: CrmData | null;
   auditLogs: AuditLogEntry[];
 }
 
@@ -115,21 +118,21 @@ export interface ActionResult {
   error?: string;
 }
 
-/** Sales CRM data entry, persisted under `VisaApplication.metadata.crm`. */
+/** Sales CRM + finance record, persisted in `ApplicationCrmData`. */
 export interface CrmData {
-  firstName: string;
-  lastName: string;
-  passportId: string;
-  targetCountry: string;
-  totalCost: number;
-  currency: string;
-  updatedBy?: string;
+  salesDate: string;
+  residenceCity: string;
+  paymentType: "NORMAL" | "PREPAID";
+  totalAmount: number;
+  upfrontPaid: number | null;
+  receiptFileId: string | null;
+  updatedById?: string | null;
+  createdAt?: string;
   updatedAt?: string;
 }
 
-/** Free-form application metadata (the `metadata` JSON column). */
+/** Free-form application metadata (the legacy `metadata` JSON column). */
 export interface ApplicationMetadata {
-  crm?: CrmData;
   [key: string]: unknown;
 }
 
@@ -138,32 +141,48 @@ export interface ApplicationMetadata {
  * Mirrors the backend `VisaApplicationDetails` model (all fields required).
  */
 export interface ApplicationDetailsData {
-  fullName: string;
+  firstName: string;
+  lastName: string;
+  maidenSurname?: string;
+  nationalId: string;
   dateOfBirth: string;
   placeOfBirth: string;
   nationality: string;
   gender: string;
   maritalStatus: string;
-  nationalId: string;
+
+  email: string;
+  phone: string;
+  registeredAddress: string;
+
+  occupation: string;
+  employmentStatus: string;
+  employerName?: string;
+  employerAddress?: string;
+  employerPhone?: string;
+  educationInstitution?: string;
+  educationLevel?: string;
+
+  passportType: string;
   passportNumber: string;
   passportIssueDate: string;
   passportExpiryDate: string;
-  phone: string;
-  email: string;
-  homeAddress: string;
-  city: string;
-  countryOfResidence: string;
-  targetCountry: string;
-  visaType: string;
+  passportIssuePlace: string;
+  appointmentLocation: string;
+
+  fingerprintGiven: string;
+  fingerprintDate?: string;
+  schengenAppliedBefore: string;
+  previousSchengenCountries?: string;
+
   purposeOfTravel: string;
-  intendedArrivalDate: string;
-  intendedDepartureDate: string;
-  durationOfStayDays: number;
-  occupation: string;
-  employerName: string;
-  monthlyIncome: string;
-  emergencyContactName: string;
-  emergencyContactPhone: string;
+  plannedTravelDates: string;
+
+  sponsorFullName?: string;
+  sponsorIdentity?: string;
+  sponsorContact?: string;
+  sponsorRelation?: string;
+
   submittedAt?: string;
   updatedAt?: string;
 }

@@ -80,6 +80,7 @@ const FILE_TYPE_LABEL: Record<FileType, string> = {
   [FileType.INTENT_LETTER]: 'Letter of Intent',
   [FileType.CONSULATE_FORM]: 'Consulate Form',
   [FileType.VISA_GRANT]: 'Visa Grant',
+  [FileType.PAYMENT_RECEIPT]: 'Payment Receipt',
   [FileType.OTHER]: 'Document',
 };
 

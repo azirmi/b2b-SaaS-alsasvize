@@ -63,8 +63,10 @@ function Notice({ title, body }: { title: string; body: string }) {
  */
 export async function CustomerApplicationDetail({
   applicationId,
+  view = "documents",
 }: {
   applicationId: string;
+  view?: "documents" | "form";
 }) {
   let detail: VisaApplicationDetail | null = null;
   let missing = false;
@@ -131,6 +133,7 @@ export async function CustomerApplicationDetail({
   const stage = detail.currentStage;
   const canUpload =
     stage !== VisaStage.COMPLETED && stage !== VisaStage.CANCELLED;
+  const showingForm = view === "form";
 
   return (
     <div className="space-y-6">
@@ -162,45 +165,47 @@ export async function CustomerApplicationDetail({
         </div>
       </div>
 
-      <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-        <h2 className="text-sm font-medium">Başvuru Formu</h2>
-        {canUpload ? (
-          <>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Başvurunuzu tamamlamak için aşağıdaki formu eksiksiz doldurun.
-              Bu bilgiler ekibimiz tarafından değerlendirilir.
-            </p>
-            <Separator className="my-4" />
-            <ApplicationForm
-              applicationId={detail.id}
-              details={detail.details}
-            />
-          </>
-        ) : detail.details ? (
-          <>
-            <Separator className="my-4" />
-            <ApplicationDetailsView details={detail.details} />
-          </>
-        ) : (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Bu başvuru kapandığı için form artık düzenlenemez.
-          </p>
-        )}
-      </section>
-
-      {canUpload ? (
+      {showingForm ? (
         <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-          <h2 className="text-sm font-medium">Upload a document</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Add your passport and any documents our team requests. Files upload
-            securely, straight to storage.
-          </p>
-          <Separator className="my-4" />
-          <DocumentUploader applicationId={detail.id} />
+          <h2 className="text-sm font-medium">Başvuru Formu</h2>
+          {canUpload ? (
+            <>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Schengen başvuru formunu aşağıdaki alandan doldurup kaydedin.
+              </p>
+              <Separator className="my-4" />
+              <ApplicationForm applicationId={detail.id} details={detail.details} />
+            </>
+          ) : detail.details ? (
+            <>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Bu başvuru kapandığı için form düzenlenemez. Kaydedilen bilgiler
+                aşağıda gösteriliyor.
+              </p>
+              <Separator className="my-4" />
+              <ApplicationDetailsView details={detail.details} />
+            </>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Bu başvuru için henüz başvuru formu kaydı bulunmuyor.
+            </p>
+          )}
         </section>
-      ) : null}
+      ) : (
+        <>
+          {canUpload ? (
+            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+              <h2 className="text-sm font-medium">Upload a document</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Add your passport and any documents our team requests. Files
+                upload securely, straight to storage.
+              </p>
+              <Separator className="my-4" />
+              <DocumentUploader applicationId={detail.id} />
+            </section>
+          ) : null}
 
-      <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium">Your documents</h2>
           <span className="text-xs text-muted-foreground tabular-nums">
@@ -298,7 +303,9 @@ export async function CustomerApplicationDetail({
             })}
           </ul>
         )}
-      </section>
+          </section>
+        </>
+      )}
     </div>
   );
 }

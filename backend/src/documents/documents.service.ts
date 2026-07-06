@@ -35,6 +35,7 @@ export class DocumentsService {
       select: {
         id: true,
         customerId: true,
+        assignedSalesId: true,
         assignedDocId: true,
         assignedSecId: true,
       },
@@ -282,6 +283,7 @@ export class DocumentsService {
   private async assertCanUpload(
     application: {
       customerId: string;
+      assignedSalesId: string | null;
       assignedDocId: string | null;
       assignedSecId: string | null;
     },
@@ -294,6 +296,18 @@ export class DocumentsService {
       if (application.customerId !== actor.userId) {
         throw new ForbiddenException(
           'You can only upload documents to your own applications',
+        );
+      }
+      return;
+    }
+    if (actor.role === Role.SALES) {
+      const staff = await this.prisma.staff.findUnique({
+        where: { userId: actor.userId },
+        select: { id: true },
+      });
+      if (!staff || application.assignedSalesId !== staff.id) {
+        throw new ForbiddenException(
+          'You can only upload documents to applications assigned to you',
         );
       }
       return;

@@ -64,6 +64,13 @@ export class VisaApplicationsController {
     return this.service.getAssigned(user);
   }
 
+  /** Sales history: applications this sales rep has processed (read-only tracking). */
+  @Get('sales-history')
+  @Roles(Role.SALES, Role.ADMIN)
+  getSalesHistory(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getSalesHistory(user);
+  }
+
   /** God-Mode: every application across all stages (admin only). */
   @Get('all')
   @Roles(Role.ADMIN)

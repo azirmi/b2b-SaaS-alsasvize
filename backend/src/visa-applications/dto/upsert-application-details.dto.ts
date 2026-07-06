@@ -1,12 +1,11 @@
 import {
+  IsIn,
   IsEmail,
-  IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
-  Max,
   MaxLength,
-  Min,
 } from 'class-validator';
 
 /** ISO calendar date, e.g. 2026-07-06. */
@@ -21,8 +20,23 @@ export class UpsertApplicationDetailsDto {
   // ── Personal information ──────────────────────────────────────────────
   @IsString()
   @IsNotEmpty()
-  @MaxLength(120)
-  fullName!: string;
+  @MaxLength(80)
+  firstName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  lastName!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  maidenSurname?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  nationalId!: string;
 
   @Matches(ISO_DATE, { message: 'dateOfBirth must be a valid date' })
   dateOfBirth!: string;
@@ -47,12 +61,63 @@ export class UpsertApplicationDetailsDto {
   @MaxLength(32)
   maritalStatus!: string;
 
+  // ── Contact & address ─────────────────────────────────────────────────
+  @IsEmail()
+  @MaxLength(160)
+  email!: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(32)
-  nationalId!: string;
+  phone!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  registeredAddress!: string;
+
+  // ── Professional & education ─────────────────────────────────────────
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  occupation!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  employmentStatus!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  employerName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  employerAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  employerPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  educationInstitution?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  educationLevel?: string;
 
   // ── Passport ──────────────────────────────────────────────────────────
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  passportType!: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(64)
@@ -64,82 +129,66 @@ export class UpsertApplicationDetailsDto {
   @Matches(ISO_DATE, { message: 'passportExpiryDate must be a valid date' })
   passportExpiryDate!: string;
 
-  // ── Contact & address ─────────────────────────────────────────────────
   @IsString()
   @IsNotEmpty()
-  @MaxLength(32)
-  phone!: string;
-
-  @IsEmail()
-  @MaxLength(160)
-  email!: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(300)
-  homeAddress!: string;
+  @MaxLength(120)
+  passportIssuePlace!: string;
 
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
-  city!: string;
+  appointmentLocation!: string;
+
+  // ── Visa information ─────────────────────────────────────────────────
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['Evet', 'Hayır'])
+  fingerprintGiven!: string;
+
+  @IsOptional()
+  @Matches(ISO_DATE, { message: 'fingerprintDate must be a valid date' })
+  fingerprintDate?: string;
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(80)
-  countryOfResidence!: string;
+  @IsIn(['Evet', 'Hayır'])
+  schengenAppliedBefore!: string;
 
-  // ── Travel ────────────────────────────────────────────────────────────
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(80)
-  targetCountry!: string;
+  @MaxLength(500)
+  previousSchengenCountries?: string;
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(48)
-  visaType!: string;
+  // ── Travel information ───────────────────────────────────────────────
 
   @IsString()
   @IsNotEmpty()
   @MaxLength(1000)
   purposeOfTravel!: string;
 
-  @Matches(ISO_DATE, { message: 'intendedArrivalDate must be a valid date' })
-  intendedArrivalDate!: string;
-
-  @Matches(ISO_DATE, { message: 'intendedDepartureDate must be a valid date' })
-  intendedDepartureDate!: string;
-
-  @IsInt()
-  @Min(1)
-  @Max(3650)
-  durationOfStayDays!: number;
-
-  // ── Employment & financial ────────────────────────────────────────────
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(120)
-  occupation!: string;
-
   @IsString()
   @IsNotEmpty()
   @MaxLength(160)
-  employerName!: string;
+  plannedTravelDates!: string;
 
+  // ── Sponsor information (optional) ───────────────────────────────────
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(80)
-  monthlyIncome!: string;
-
-  // ── Emergency contact ─────────────────────────────────────────────────
-  @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  emergencyContactName!: string;
+  sponsorFullName?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(32)
-  emergencyContactPhone!: string;
+  @MaxLength(120)
+  sponsorIdentity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  sponsorContact?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  sponsorRelation?: string;
 }

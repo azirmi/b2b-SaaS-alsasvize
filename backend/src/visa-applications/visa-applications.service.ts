@@ -96,6 +96,7 @@ const APPLICATION_DETAIL_INCLUDE = {
   assignedSec: { include: { user: { omit: { password: true } } } },
   documents: true,
   details: true,
+  crmData: true,
   auditLogs: { orderBy: { createdAt: 'desc' } },
 } satisfies Prisma.VisaApplicationInclude;
 
@@ -313,7 +314,7 @@ export class VisaApplicationsService {
             assignedSalesId: true,
             assignedDocId: true,
             assignedSecId: true,
-            metadata: true,
+            crmData: true,
           },
         });
         if (!application) {
@@ -346,7 +347,7 @@ export class VisaApplicationsService {
         // Gating rule: Sales must complete the CRM data entry before the
         // application can be handed off to the Documents pool.
         if (application.currentStage === VisaStage.SALES_PROCESS) {
-          if (!this.isCrmComplete(application.metadata)) {
+          if (!this.isCrmComplete(application.crmData)) {
             throw new ConflictException(
               'Complete the CRM data entry before sending to Documents',
             );
@@ -586,6 +587,35 @@ export class VisaApplicationsService {
     });
   }
 
+  /**
+   * Sales history ("Geçmiş Satışlarım"): every application this sales rep has
+   * processed, regardless of its current pipeline stage. Read-only tracking —
+   * the rep sees where each file is and the customer it belongs to.
+   */
+  async getSalesHistory(actor: AuthenticatedUser) {
+    if (actor.role === Role.ADMIN) {
+      return this.prisma.visaApplication.findMany({
+        where: { salesStaffId: { not: null } },
+        include: ASSIGNED_INCLUDE,
+        orderBy: { updatedAt: 'desc' },
+      });
+    }
+
+    const staff = await this.prisma.staff.findUnique({
+      where: { userId: actor.userId },
+      select: { id: true, department: true },
+    });
+    if (!staff || staff.department !== Department.SALES) {
+      throw new ForbiddenException('Only sales staff have a sales history');
+    }
+
+    return this.prisma.visaApplication.findMany({
+      where: { salesStaffId: staff.id },
+      include: ASSIGNED_INCLUDE,
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
   // ---------------------------------------------------------------------------
   //  Task 2: Pause Application Logic
   // ---------------------------------------------------------------------------
@@ -740,18 +770,39 @@ export class VisaApplicationsService {
    * (atomic mutation + CRM_UPDATED audit). Editable by the assigned sales owner
    * while the app is in SALES_PROCESS, or by an admin at any time.
    */
+  /**
+   * Persists the Sales CRM + finance data entry into a dedicated
+   * `ApplicationCrmData` record (atomic upsert + CRM_UPDATED audit). Editable by
+   * the assigned sales owner while the app is in SALES_PROCESS, or by an admin
+   * at any time. Also stamps the historical `salesStaffId` tracker.
+   */
   async updateCrm(
     id: string,
     dto: UpdateApplicationCrmDto,
     actor: AuthenticatedUser,
   ) {
+    // Finance guard: a prepaid plan needs an upfront amount within the total.
+    if (dto.paymentType === 'PREPAID') {
+      if (typeof dto.upfrontPaid !== 'number') {
+        throw new BadRequestException(
+          'upfrontPaid is required for a prepaid payment',
+        );
+      }
+      if (dto.upfrontPaid > dto.totalAmount) {
+        throw new BadRequestException(
+          'upfrontPaid cannot exceed the total amount',
+        );
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const before = await tx.visaApplication.findUnique({
         where: { id },
         select: {
           currentStage: true,
           assignedSalesId: true,
-          metadata: true,
+          salesStaffId: true,
+          crmData: true,
         },
       });
       if (!before) {
@@ -780,29 +831,43 @@ export class VisaApplicationsService {
         }
       }
 
-      const existing =
-        before.metadata &&
-        typeof before.metadata === 'object' &&
-        !Array.isArray(before.metadata)
-          ? before.metadata
-          : {};
+      // A supplied receipt must be a document on this same application.
+      if (dto.receiptFileId) {
+        const receipt = await tx.document.findUnique({
+          where: { id: dto.receiptFileId },
+          select: { applicationId: true },
+        });
+        if (!receipt || receipt.applicationId !== id) {
+          throw new BadRequestException(
+            'The payment receipt does not belong to this application',
+          );
+        }
+      }
 
-      const crm = {
-        firstName: dto.firstName.trim(),
-        lastName: dto.lastName.trim(),
-        passportId: dto.passportId.trim(),
-        targetCountry: dto.targetCountry.trim(),
-        totalCost: dto.totalCost,
-        currency: dto.currency.trim().toUpperCase(),
-        updatedBy: actor.userId,
-        updatedAt: new Date().toISOString(),
+      const data = {
+        salesDate: new Date(dto.salesDate),
+        residenceCity: dto.residenceCity.trim(),
+        paymentType: dto.paymentType,
+        totalAmount: dto.totalAmount,
+        upfrontPaid:
+          dto.paymentType === 'PREPAID' ? (dto.upfrontPaid ?? 0) : null,
+        receiptFileId: dto.receiptFileId ?? null,
+        updatedById: actor.userId,
       };
 
-      const updated = await tx.visaApplication.update({
-        where: { id },
-        data: { metadata: { ...existing, crm } },
-        include: APPLICATION_DETAIL_INCLUDE,
+      await tx.applicationCrmData.upsert({
+        where: { applicationId: id },
+        create: { applicationId: id, ...data },
+        update: data,
       });
+
+      // Stamp the historical sales-rep tracker if it isn't set yet.
+      if (!before.salesStaffId && before.assignedSalesId) {
+        await tx.visaApplication.update({
+          where: { id },
+          data: { salesStaffId: before.assignedSalesId },
+        });
+      }
 
       await tx.auditLog.create({
         data: {
@@ -810,13 +875,21 @@ export class VisaApplicationsService {
           performedBy: { connect: { id: actor.userId } },
           actionType: 'CRM_UPDATED',
           details: {
-            before: existing.crm ?? null,
-            after: crm,
+            // JSON round-trip keeps the snapshot JSON-safe (drops Date instances).
+            before: before.crmData
+              ? (JSON.parse(
+                  JSON.stringify(before.crmData),
+                ) as Prisma.InputJsonValue)
+              : null,
+            after: { ...data, salesDate: data.salesDate.toISOString() },
           },
         },
       });
 
-      return updated;
+      return tx.visaApplication.findUniqueOrThrow({
+        where: { id },
+        include: APPLICATION_DETAIL_INCLUDE,
+      });
     });
   }
 
@@ -861,32 +934,48 @@ export class VisaApplicationsService {
       }
 
       const data = {
-        fullName: dto.fullName.trim(),
+        firstName: dto.firstName.trim(),
+        lastName: dto.lastName.trim(),
+        maidenSurname: dto.maidenSurname?.trim() || null,
+        nationalId: dto.nationalId.trim(),
         dateOfBirth: dto.dateOfBirth,
         placeOfBirth: dto.placeOfBirth.trim(),
-        nationality: dto.nationality.trim(),
         gender: dto.gender.trim(),
         maritalStatus: dto.maritalStatus.trim(),
-        nationalId: dto.nationalId.trim(),
+        nationality: dto.nationality.trim(),
+
+        email: dto.email.trim(),
+        phone: dto.phone.trim(),
+        registeredAddress: dto.registeredAddress.trim(),
+
+        occupation: dto.occupation.trim(),
+        employmentStatus: dto.employmentStatus.trim(),
+        employerName: dto.employerName?.trim() || null,
+        employerAddress: dto.employerAddress?.trim() || null,
+        employerPhone: dto.employerPhone?.trim() || null,
+        educationInstitution: dto.educationInstitution?.trim() || null,
+        educationLevel: dto.educationLevel?.trim() || null,
+
+        passportType: dto.passportType.trim(),
         passportNumber: dto.passportNumber.trim(),
         passportIssueDate: dto.passportIssueDate,
         passportExpiryDate: dto.passportExpiryDate,
-        phone: dto.phone.trim(),
-        email: dto.email.trim(),
-        homeAddress: dto.homeAddress.trim(),
-        city: dto.city.trim(),
-        countryOfResidence: dto.countryOfResidence.trim(),
-        targetCountry: dto.targetCountry.trim(),
-        visaType: dto.visaType.trim(),
+        passportIssuePlace: dto.passportIssuePlace.trim(),
+        appointmentLocation: dto.appointmentLocation.trim(),
+
+        fingerprintGiven: dto.fingerprintGiven.trim(),
+        fingerprintDate: dto.fingerprintDate ?? null,
+        schengenAppliedBefore: dto.schengenAppliedBefore.trim(),
+        previousSchengenCountries:
+          dto.previousSchengenCountries?.trim() || null,
+
         purposeOfTravel: dto.purposeOfTravel.trim(),
-        intendedArrivalDate: dto.intendedArrivalDate,
-        intendedDepartureDate: dto.intendedDepartureDate,
-        durationOfStayDays: dto.durationOfStayDays,
-        occupation: dto.occupation.trim(),
-        employerName: dto.employerName.trim(),
-        monthlyIncome: dto.monthlyIncome.trim(),
-        emergencyContactName: dto.emergencyContactName.trim(),
-        emergencyContactPhone: dto.emergencyContactPhone.trim(),
+        plannedTravelDates: dto.plannedTravelDates.trim(),
+
+        sponsorFullName: dto.sponsorFullName?.trim() || null,
+        sponsorIdentity: dto.sponsorIdentity?.trim() || null,
+        sponsorContact: dto.sponsorContact?.trim() || null,
+        sponsorRelation: dto.sponsorRelation?.trim() || null,
       };
 
       await tx.visaApplicationDetails.upsert({
@@ -920,33 +1009,47 @@ export class VisaApplicationsService {
   }
 
   /**
-   * True when `metadata.crm` holds a complete Sales record: non-empty applicant
-
-   * details, target country and currency, plus a positive invoice total.
+   * True when the Sales CRM + finance record is complete enough to leave
+   * SALES_PROCESS: a sale date, residence city, a valid payment type and a
+   * positive total — plus a valid upfront amount (0..total) when PREPAID.
    */
   private isCrmComplete(
-    metadata: Prisma.JsonValue | null | undefined,
+    crm:
+      | {
+          salesDate: Date | null;
+          residenceCity: string | null;
+          paymentType: string | null;
+          totalAmount: number | null;
+          upfrontPaid: number | null;
+        }
+      | null
+      | undefined,
   ): boolean {
-    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    if (!crm) {
       return false;
     }
-    const crm = (metadata as Record<string, unknown>).crm;
-    if (!crm || typeof crm !== 'object' || Array.isArray(crm)) {
+    const hasCity =
+      typeof crm.residenceCity === 'string' &&
+      crm.residenceCity.trim().length > 0;
+    const validType =
+      crm.paymentType === 'NORMAL' || crm.paymentType === 'PREPAID';
+    const validTotal =
+      typeof crm.totalAmount === 'number' &&
+      Number.isFinite(crm.totalAmount) &&
+      crm.totalAmount > 0;
+    if (!crm.salesDate || !hasCity || !validType || !validTotal) {
       return false;
     }
-    const record = crm as Record<string, unknown>;
-    const filled = (value: unknown): boolean =>
-      typeof value === 'string' && value.trim().length > 0;
-    return (
-      filled(record.firstName) &&
-      filled(record.lastName) &&
-      filled(record.passportId) &&
-      filled(record.targetCountry) &&
-      filled(record.currency) &&
-      typeof record.totalCost === 'number' &&
-      Number.isFinite(record.totalCost) &&
-      record.totalCost > 0
-    );
+    if (crm.paymentType === 'PREPAID') {
+      return (
+        typeof crm.upfrontPaid === 'number' &&
+        Number.isFinite(crm.upfrontPaid) &&
+        crm.upfrontPaid >= 0 &&
+        typeof crm.totalAmount === 'number' &&
+        crm.upfrontPaid <= crm.totalAmount
+      );
+    }
+    return true;
   }
 
   /** Resolves the customer id, enforcing that staff target a real active customer. */
@@ -1054,7 +1157,12 @@ export class VisaApplicationsService {
       case 'assignedSalesId':
         return {
           where: { id, currentStage: config.poolStage, assignedSalesId: null },
-          data: { ...baseData, assignedSalesId: staffId },
+          data: {
+            ...baseData,
+            assignedSalesId: staffId,
+            // Stamp the historical sales-rep tracker on the initial claim.
+            salesStaffId: staffId,
+          },
         };
       case 'assignedDocId':
         return {

@@ -1,48 +1,55 @@
 import type { CrmData } from "./types";
 
-/** Currencies offered in the Sales CRM invoice. */
-export const CRM_CURRENCIES = ["USD", "EUR", "GBP", "TRY"] as const;
+/** Payment plans offered in the Sales CRM finance module. */
+export const PAYMENT_TYPES = ["NORMAL", "PREPAID"] as const;
+export type PaymentType = (typeof PAYMENT_TYPES)[number];
 
-/** Target countries offered in the Sales CRM (common visa destinations). */
-export const CRM_TARGET_COUNTRIES = [
-  "United States",
-  "United Kingdom",
-  "Canada",
-  "Australia",
-  "Schengen Area",
-  "Germany",
-  "France",
-  "Italy",
-  "Spain",
-  "Netherlands",
-  "Ireland",
-  "Switzerland",
-  "Sweden",
-  "United Arab Emirates",
-  "Japan",
-  "South Korea",
-  "Singapore",
-] as const;
+/** Human labels for the payment plans (Turkish, enterprise copy). */
+export const PAYMENT_TYPE_LABEL: Record<PaymentType, string> = {
+  NORMAL: "Normal",
+  PREPAID: "Ön Ödemeli",
+};
+
+/** Hardcoded currency for the finance module — the platform bills strictly in TL. */
+export const CURRENCY = "TL" as const;
+
+/** Formats an amount as a monochrome TL string, e.g. "45.000 TL". */
+export function formatTl(amount: number | null | undefined): string {
+  if (typeof amount !== "number" || !Number.isFinite(amount)) {
+    return "—";
+  }
+  return `${amount.toLocaleString("tr-TR")} ${CURRENCY}`;
+}
 
 /**
- * Mirrors the backend `isCrmComplete` gate: every applicant field, target
- * country and currency filled, plus a positive invoice total. This is the
- * client-side precondition for enabling "Send to Documents".
+ * Mirrors the backend `isCrmComplete` gate: a sale date, residence city, a valid
+ * payment type and a positive total — plus a valid upfront amount (0..total)
+ * when the plan is prepaid. This is the client-side precondition for enabling
+ * "Send to Documents".
  */
 export function isCrmComplete(crm: CrmData | null | undefined): boolean {
   if (!crm) {
     return false;
   }
-  const filled = (value: unknown): boolean =>
-    typeof value === "string" && value.trim().length > 0;
-  return (
-    filled(crm.firstName) &&
-    filled(crm.lastName) &&
-    filled(crm.passportId) &&
-    filled(crm.targetCountry) &&
-    filled(crm.currency) &&
-    typeof crm.totalCost === "number" &&
-    Number.isFinite(crm.totalCost) &&
-    crm.totalCost > 0
-  );
+  const hasDate = typeof crm.salesDate === "string" && crm.salesDate.length > 0;
+  const hasCity =
+    typeof crm.residenceCity === "string" && crm.residenceCity.trim().length > 0;
+  const validType =
+    crm.paymentType === "NORMAL" || crm.paymentType === "PREPAID";
+  const validTotal =
+    typeof crm.totalAmount === "number" &&
+    Number.isFinite(crm.totalAmount) &&
+    crm.totalAmount > 0;
+  if (!hasDate || !hasCity || !validType || !validTotal) {
+    return false;
+  }
+  if (crm.paymentType === "PREPAID") {
+    return (
+      typeof crm.upfrontPaid === "number" &&
+      Number.isFinite(crm.upfrontPaid) &&
+      crm.upfrontPaid >= 0 &&
+      crm.upfrontPaid <= crm.totalAmount
+    );
+  }
+  return true;
 }

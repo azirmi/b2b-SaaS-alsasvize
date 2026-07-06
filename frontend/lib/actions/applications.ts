@@ -134,37 +134,61 @@ export async function saveCrm(
   formData: FormData,
 ): Promise<CrmActionState> {
   if (!UUID_RE.test(id)) {
-    return { error: "Invalid application reference." };
+    return { error: "Geçersiz başvuru referansı." };
   }
 
-  const firstName = String(formData.get("firstName") ?? "").trim();
-  const lastName = String(formData.get("lastName") ?? "").trim();
-  const passportId = String(formData.get("passportId") ?? "").trim();
-  const targetCountry = String(formData.get("targetCountry") ?? "").trim();
-  const currency = String(formData.get("currency") ?? "").trim().toUpperCase();
-  const totalCost = Number(String(formData.get("totalCost") ?? "").trim());
+  const salesDate = String(formData.get("salesDate") ?? "").trim();
+  const residenceCity = String(formData.get("residenceCity") ?? "").trim();
+  const paymentType = String(formData.get("paymentType") ?? "").trim();
+  const totalAmount = Number(String(formData.get("totalAmount") ?? "").trim());
+  const upfrontRaw = String(formData.get("upfrontPaid") ?? "").trim();
+  const receiptFileId = String(formData.get("receiptFileId") ?? "").trim();
 
-  if (!firstName || !lastName || !passportId || !targetCountry || !currency) {
-    return { error: "All fields are required." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(salesDate)) {
+    return { error: "Geçerli bir satış tarihi seçin." };
   }
-  if (!Number.isFinite(totalCost) || totalCost <= 0) {
-    return { error: "Total cost must be a positive amount." };
+  if (!residenceCity) {
+    return { error: "İkamet şehri gereklidir." };
+  }
+  if (paymentType !== "NORMAL" && paymentType !== "PREPAID") {
+    return { error: "Ödeme türünü seçin." };
+  }
+  if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+    return { error: "Toplam tutar pozitif bir değer olmalıdır." };
+  }
+
+  const payload: Record<string, string | number> = {
+    salesDate,
+    residenceCity,
+    paymentType,
+    totalAmount,
+  };
+
+  if (paymentType === "PREPAID") {
+    const upfrontPaid = Number(upfrontRaw);
+    if (!Number.isFinite(upfrontPaid) || upfrontPaid < 0) {
+      return { error: "Ön ödeme tutarı geçerli olmalıdır." };
+    }
+    if (upfrontPaid > totalAmount) {
+      return { error: "Ön ödeme toplam tutarı aşamaz." };
+    }
+    payload.upfrontPaid = upfrontPaid;
+  }
+
+  if (receiptFileId) {
+    if (!UUID_RE.test(receiptFileId)) {
+      return { error: "Dekont referansı geçersiz." };
+    }
+    payload.receiptFileId = receiptFileId;
   }
 
   try {
-    await serverApi.patch(`/applications/${id}`, {
-      firstName,
-      lastName,
-      passportId,
-      targetCountry,
-      totalCost,
-      currency,
-    });
+    await serverApi.patch(`/applications/${id}`, payload);
   } catch (error) {
     if (error instanceof ApiError) {
       return { error: error.message };
     }
-    return { error: "Unable to save the CRM data. Please retry." };
+    return { error: "CRM verileri kaydedilemedi. Lütfen tekrar deneyin." };
   }
 
   revalidatePath("/dashboard", "layout");
@@ -188,13 +212,17 @@ export async function saveApplicationDetails(
   const payload: Record<string, string | number> = {};
   for (const field of APPLICATION_FORM_FIELDS) {
     const raw = String(formData.get(field.name) ?? "").trim();
-    if (!raw) {
+    const required = field.required !== false;
+    if (!raw && required) {
       return { error: "Lütfen tüm alanları eksiksiz doldurun." };
+    }
+    if (!raw && !required) {
+      continue;
     }
     if (field.kind === "number") {
       const value = Number(raw);
-      if (!Number.isInteger(value) || value < 1) {
-        return { error: "Kalış süresi geçerli bir gün sayısı olmalıdır." };
+      if (!Number.isInteger(value)) {
+        return { error: "Sayısal alanlar için geçerli bir sayı giriniz." };
       }
       payload[field.name] = value;
     } else {

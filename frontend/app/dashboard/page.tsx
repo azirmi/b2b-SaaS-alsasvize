@@ -151,6 +151,9 @@ export default async function DashboardPage() {
                       <TableHead className="text-xs font-medium text-muted-foreground">
                         Stage
                       </TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground">
+                        Başvuru Formu
+                      </TableHead>
                       <TableHead className="text-right text-xs font-medium text-muted-foreground">
                         Updated
                       </TableHead>
@@ -172,6 +175,14 @@ export default async function DashboardPage() {
                         </TableCell>
                         <TableCell>
                           <StageBadge stage={application.currentStage} />
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            href={`/dashboard/applications/${application.id}?view=form`}
+                            className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
+                          >
+                            Başvuru Formu
+                          </Link>
                         </TableCell>
                         <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
                           {timeAgo(application.stageUpdatedAt)}
