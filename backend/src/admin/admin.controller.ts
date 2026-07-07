@@ -11,7 +11,7 @@ import { AdminService } from './admin.service';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  /** Business analytics: totals by stage, staff productivity, avg processing time. */
+  /** Business analytics: sales/doc split pipeline + productivity charts (SEC excluded). */
   @Get('stats')
   @Roles(Role.ADMIN)
   getStats() {

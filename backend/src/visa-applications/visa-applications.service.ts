@@ -185,11 +185,95 @@ export class VisaApplicationsService {
   }
 
   /** God-Mode: every application across all stages/departments (admin only). */
-  getAll() {
+  async getAll(filters?: { q?: string; staffId?: string }) {
+    const q = filters?.q?.trim();
+    const staffId = filters?.staffId?.trim();
+
+    if (staffId && !this.isUuid(staffId)) {
+      throw new BadRequestException('Invalid staffId format');
+    }
+
+    const conditions: Prisma.VisaApplicationWhereInput[] = [];
+    if (q) {
+      const searchConditions: Prisma.VisaApplicationWhereInput[] = [
+        {
+          customer: {
+            fullName: { contains: q, mode: 'insensitive' },
+          },
+        },
+        {
+          assignedSales: {
+            user: {
+              fullName: { contains: q, mode: 'insensitive' },
+            },
+          },
+        },
+        {
+          assignedDoc: {
+            user: {
+              fullName: { contains: q, mode: 'insensitive' },
+            },
+          },
+        },
+        {
+          salesStaff: {
+            user: {
+              fullName: { contains: q, mode: 'insensitive' },
+            },
+          },
+        },
+      ];
+
+      if (this.isUuid(q)) {
+        searchConditions.push({ id: q });
+      }
+
+      conditions.push({
+        OR: searchConditions,
+      });
+    }
+
+    if (staffId) {
+      const staff = await this.prisma.staff.findUnique({
+        where: { id: staffId },
+        select: { userId: true },
+      });
+      if (!staff) {
+        return [];
+      }
+
+      conditions.push({
+        OR: [
+          { assignedSalesId: staffId },
+          { assignedDocId: staffId },
+          { salesStaffId: staffId },
+          {
+            auditLogs: {
+              some: {
+                performedById: staff.userId,
+                actionType: { in: ['CLAIMED', 'STAGE_CHANGED'] },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    const where: Prisma.VisaApplicationWhereInput = conditions.length
+      ? { AND: conditions }
+      : {};
+
     return this.prisma.visaApplication.findMany({
+      where,
       include: ADMIN_LIST_INCLUDE,
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
+  }
+
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
   }
 
   /**

@@ -219,8 +219,10 @@ export interface StaffPerformance {
 /** Payload from `GET /admin/stats`. */
 export interface AdminStats {
   totalApplications: number;
-  byStage: StageCount[];
-  staffPerformance: StaffPerformance[];
+  salesPipeline: StageCount[];
+  salesProductivity: StaffPerformance[];
+  docPipeline: StageCount[];
+  docProductivity: StaffPerformance[];
   avgProcessingMs: number;
   completedCount: number;
 }

@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Put,
   UseGuards,
 } from '@nestjs/common';
@@ -71,11 +72,14 @@ export class VisaApplicationsController {
     return this.service.getSalesHistory(user);
   }
 
-  /** God-Mode: every application across all stages (admin only). */
+  /**
+   * God-Mode: every application across all stages (admin only).
+   * Supports full-text search (`q`) and staff-focused filtering (`staffId`).
+   */
   @Get('all')
   @Roles(Role.ADMIN)
-  getAll() {
-    return this.service.getAll();
+  getAll(@Query('q') q?: string, @Query('staffId') staffId?: string) {
+    return this.service.getAll({ q, staffId });
   }
 
   /** Full application detail. Per-record access is enforced in the service. */

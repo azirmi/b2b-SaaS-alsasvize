@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 
-import { AdminStatsCharts } from "@/components/admin/admin-stats-charts";
+import { AdminOverviewPanel } from "@/components/admin/admin-overview-panel";
 import { StageBadge } from "@/components/stage-badge";
 import {
   Table,
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import { getSession, serverApi } from "@/lib/api.server";
 import { Role, VisaStage } from "@/lib/enums";
-import { formatDuration, timeAgo } from "@/lib/format";
+import { timeAgo } from "@/lib/format";
 import type {
   AdminApplicationRow,
   AdminStats,
@@ -27,21 +27,6 @@ const TERMINAL = new Set<VisaStage>([
   VisaStage.COMPLETED,
   VisaStage.CANCELLED,
 ]);
-
-/** The staff member actively handling an application at its current stage. */
-function stageHandler(app: AdminApplicationRow): string | null {
-  switch (app.currentStage) {
-    case VisaStage.SALES_PROCESS:
-      return app.assignedSales?.user.fullName ?? null;
-    case VisaStage.DOC_PROCESS:
-      return app.assignedDoc?.user.fullName ?? null;
-    case VisaStage.SEC_PROCESS:
-    case VisaStage.COMPLETED:
-      return app.assignedSec?.user.fullName ?? null;
-    default:
-      return null;
-  }
-}
 
 function StatCard({
   label,
@@ -202,10 +187,10 @@ export default async function DashboardPage() {
   // ── Staff / admin overview ────────────────────────────────────────
   if (session.role === Role.ADMIN) {
     let stats: AdminStats | null = null;
-    let all: AdminApplicationRow[] = [];
+    let initialApplications: AdminApplicationRow[] = [];
     let adminError = false;
     try {
-      [stats, all] = await Promise.all([
+      [stats, initialApplications] = await Promise.all([
         serverApi.get<AdminStats>("/admin/stats"),
         serverApi.get<AdminApplicationRow[]>("/applications/all"),
       ]);
@@ -230,12 +215,6 @@ export default async function DashboardPage() {
       );
     }
 
-    const inProcess = stats.byStage
-      .filter((s) => s.stage.endsWith("_PROCESS"))
-      .reduce((sum, s) => sum + s.count, 0);
-    const completed =
-      stats.byStage.find((s) => s.stage === VisaStage.COMPLETED)?.count ?? 0;
-
     return (
       <div className="space-y-8">
         <div>
@@ -245,92 +224,10 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="All applications" value={stats.totalApplications} />
-          <StatCard
-            label="In process"
-            value={inProcess}
-            hint="Actively being worked"
-          />
-          <StatCard label="Completed" value={completed} />
-          <StatCard
-            label="Avg processing"
-            value={formatDuration(stats.avgProcessingMs)}
-            hint={`${stats.completedCount} completed`}
-          />
-        </div>
-
-        <AdminStatsCharts
-          byStage={stats.byStage}
-          staffPerformance={stats.staffPerformance}
+        <AdminOverviewPanel
+          stats={stats}
+          initialApplications={initialApplications}
         />
-
-        <section className="rounded-lg border border-border/40 bg-card shadow-sm">
-          <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
-            <h2 className="text-sm font-medium">All applications</h2>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {all.length} total
-            </span>
-          </div>
-          {all.length === 0 ? (
-            <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-              No applications yet.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/40 hover:bg-transparent">
-                  <TableHead className="text-xs font-medium text-muted-foreground">
-                    Applicant
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground">
-                    Stage
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground">
-                    Handler
-                  </TableHead>
-                  <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                    In system
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {all.map((application) => {
-                  const handler = stageHandler(application);
-                  return (
-                    <TableRow
-                      key={application.id}
-                      className="border-border/40"
-                    >
-                      <TableCell>
-                        <Link
-                          href={`/dashboard/applications/${application.id}`}
-                          className="font-medium underline-offset-4 hover:underline"
-                        >
-                          {application.customer.fullName}
-                        </Link>
-                        <div className="font-mono text-xs text-muted-foreground">
-                          {application.customer.email}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <StageBadge stage={application.currentStage} />
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {handler ?? (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                        {timeAgo(application.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </section>
       </div>
     );
   }
