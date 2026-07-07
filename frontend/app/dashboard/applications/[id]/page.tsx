@@ -46,6 +46,15 @@ const PROCESS_STAGES = new Set<VisaStage>([
 
 const IMAGE_RE = /\.(jpe?g|png|webp|gif|avif|bmp|svg)$/i;
 
+/** Document types DOC staff prepare and upload during Document Review. */
+const DOC_UPLOAD_TYPES: FileType[] = [
+  FileType.FLIGHT_HOTEL_RESERVATION,
+  FileType.LETTER_OF_INTENT,
+  FileType.TRAVEL_PLAN,
+  FileType.HEALTH_INSURANCE,
+  FileType.APPOINTMENT_CONFIRMATION,
+];
+
 function isStage(value: unknown): value is VisaStage {
   return (
     typeof value === "string" &&
@@ -249,6 +258,14 @@ export default async function ApplicationDetailPage({
   const crmTargetCountry = detail.customer.targetCountry ?? "";
   const crmPhone = detail.details?.phone ?? detail.customer.phone ?? "";
   const crmTravelDate = detail.details?.plannedTravelDates ?? "";
+
+  // Finance (DOC): remaining balance on a prepaid plan + any final receipt.
+  const crmRemaining =
+    crm && crm.paymentType === "PREPAID"
+      ? crm.totalAmount - (crm.upfrontPaid ?? 0)
+      : null;
+  const finalReceipt =
+    detail.documents.find((d) => d.fileType === FileType.FINAL_RECEIPT) ?? null;
   const advanceDisabled = advanceBlockedByDocs || advanceBlockedByCrm;
   const canEditCrm =
     stage === VisaStage.SALES_PROCESS && (isAdmin || isCurrentStageOwner);
@@ -275,6 +292,10 @@ export default async function ApplicationDetailPage({
   const canIssueVisaGrant =
     stage === VisaStage.SEC_PROCESS &&
     (isAdmin || detail.assignedSec?.user.id === session.userId);
+
+  const canDocUpload =
+    stage === VisaStage.DOC_PROCESS &&
+    (isAdmin || detail.assignedDoc?.user.id === session.userId);
 
   // Admin God-Mode: staff options for the reassign picker.
   let staffOptions: StaffOption[] = [];
@@ -559,6 +580,88 @@ export default async function ApplicationDetailPage({
               </ul>
             )}
           </section>
+
+          {canDocUpload ? (
+            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+              <h2 className="text-sm font-medium">Staff Uploads</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Hazırladığınız belgeleri yükleyin — uçuş/otel rezervasyonu,
+                niyet mektubu, seyahat planı, sağlık sigortası ve randevu teyidi.
+              </p>
+              <Separator className="my-4" />
+              <DocumentUploader
+                applicationId={detail.id}
+                defaultType={FileType.FLIGHT_HOTEL_RESERVATION}
+                allowedTypes={DOC_UPLOAD_TYPES}
+              />
+            </section>
+          ) : null}
+
+          {canDocUpload && crm && crm.paymentType === "PREPAID" ? (
+            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+              <h2 className="text-sm font-medium">Kalan Ödeme</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Randevu alındıktan sonra kalan ödemeyi tahsil edin ve dekontunu
+                yükleyin.
+              </p>
+              <Separator className="my-4" />
+
+              <div className="rounded-lg border border-border/40 bg-muted/40 p-4">
+                <p className="text-xs tracking-wide text-muted-foreground uppercase">
+                  Kalan Bakiye
+                </p>
+                <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
+                  {formatTl(crmRemaining)}
+                </p>
+                <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-xs text-muted-foreground">Toplam</dt>
+                    <dd className="text-sm tabular-nums">
+                      {formatTl(crm.totalAmount)}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-xs text-muted-foreground">Ön ödeme</dt>
+                    <dd className="text-sm tabular-nums">
+                      {formatTl(crm.upfrontPaid)}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <Separator className="my-4" />
+
+              {finalReceipt ? (
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background px-3 py-2.5">
+                  <span className="flex min-w-0 items-center gap-2 text-sm">
+                    <FileText
+                      className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                      aria-hidden
+                    />
+                    <span className="truncate font-medium">
+                      Kalan ödeme dekontu yüklendi
+                    </span>
+                  </span>
+                  {urlById.get(finalReceipt.id) ? (
+                    <a
+                      href={urlById.get(finalReceipt.id)!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                    >
+                      Görüntüle
+                    </a>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <DocumentUploader
+                applicationId={detail.id}
+                defaultType={FileType.FINAL_RECEIPT}
+                allowedTypes={[FileType.FINAL_RECEIPT]}
+              />
+            </section>
+          ) : null}
 
           {canIssueVisaGrant ? (
             <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">

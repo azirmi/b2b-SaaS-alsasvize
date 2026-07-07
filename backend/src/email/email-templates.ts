@@ -81,6 +81,12 @@ const FILE_TYPE_LABEL: Record<FileType, string> = {
   [FileType.CONSULATE_FORM]: 'Consulate Form',
   [FileType.VISA_GRANT]: 'Visa Grant',
   [FileType.PAYMENT_RECEIPT]: 'Payment Receipt',
+  [FileType.FLIGHT_HOTEL_RESERVATION]: 'Flight & Hotel Reservation',
+  [FileType.LETTER_OF_INTENT]: 'Letter of Intent',
+  [FileType.TRAVEL_PLAN]: 'Travel Plan',
+  [FileType.HEALTH_INSURANCE]: 'Health Insurance',
+  [FileType.APPOINTMENT_CONFIRMATION]: 'Appointment Confirmation',
+  [FileType.FINAL_RECEIPT]: 'Final Payment Receipt',
   [FileType.OTHER]: 'Document',
 };
 
@@ -277,6 +283,9 @@ function renderShell(params: {
   contentHtml: string;
   applicationRef: string;
 }): string {
+  // Absolute URL required for email clients; overridable per environment.
+  const logoUrl =
+    process.env.EMAIL_LOGO_URL ?? 'https://alsasvize.com/logo.png';
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
@@ -292,7 +301,7 @@ function renderShell(params: {
 <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background:${CANVAS};"><tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="600" border="0" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:${SURFACE};border:1px solid ${LINE};border-radius:12px;overflow:hidden;">
 <tr><td style="height:4px;background:${INK};font-size:0;line-height:0;">&nbsp;</td></tr>
-<tr><td style="padding:28px 40px 0 40px;font-family:${FONT};"><div style="font-size:13px;letter-spacing:3px;font-weight:700;color:${INK};text-transform:uppercase;">Alsasvize</div></td></tr>
+<tr><td align="center" style="padding:28px 40px 6px 40px;font-family:${FONT};"><img src="${logoUrl}" width="150" alt="Alsas Vize" style="display:block;margin:0 auto;width:150px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" /></td></tr>
 <tr><td style="padding:4px 40px 8px 40px;font-family:${FONT};">${params.contentHtml}</td></tr>
 <tr><td style="padding:22px 40px 30px 40px;font-family:${FONT};border-top:1px solid ${LINE};">
 <div style="font-size:12px;line-height:18px;color:${MUTED};">Reference <span style="font-family:'Courier New',Courier,monospace;color:${INK_SOFT};">#${escapeHtml(
