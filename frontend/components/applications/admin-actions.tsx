@@ -53,7 +53,7 @@ export function AdminActions({
       if (result.ok) {
         setNote(success);
       } else {
-        setError(result.error ?? "Action failed.");
+        setError(result.error ?? "İşlem başarısız.");
       }
     });
   }
@@ -61,12 +61,12 @@ export function AdminActions({
   function onReassign() {
     const option = staff.find((s) => s.staffId === staffId);
     if (!option) {
-      setError("Select a staff member first.");
+      setError("Önce bir personel seçin.");
       return;
     }
     run(
       () => reassignApplication(applicationId, option.department, option.staffId),
-      `Reassigned to ${option.fullName}.`,
+      `${option.fullName} kişisine yeniden atandı.`,
     );
   }
 
@@ -74,25 +74,25 @@ export function AdminActions({
     <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
       <div className="flex items-center gap-2">
         <ShieldAlert className="h-4 w-4 text-muted-foreground" aria-hidden />
-        <h2 className="text-sm font-medium">Admin actions</h2>
+        <h2 className="text-sm font-medium">Yönetici İşlemleri</h2>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        God-Mode overrides — every action is audited.
+        Yönetici override işlemleri. Tüm adımlar denetim kaydına yazılır.
       </p>
       <Separator className="my-4" />
 
       <div className="space-y-5">
         <div className="space-y-1.5">
-          <Label htmlFor="reassign-staff">Reassign to staff</Label>
+          <Label htmlFor="reassign-staff">Personele yeniden ata</Label>
           <div className="flex gap-2">
             <Select value={staffId} onValueChange={setStaffId}>
               <SelectTrigger id="reassign-staff" className="w-full">
-                <SelectValue placeholder="Select staff" />
+                <SelectValue placeholder="Personel seçin" />
               </SelectTrigger>
               <SelectContent>
                 {staff.length === 0 ? (
                   <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                    No staff available
+                    Uygun personel yok
                   </div>
                 ) : (
                   staff.map((option) => (
@@ -109,13 +109,13 @@ export function AdminActions({
               onClick={onReassign}
               disabled={pending || !staffId}
             >
-              Reassign
+              Yeniden Ata
             </Button>
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="force-stage">Force stage</Label>
+          <Label htmlFor="force-stage">Aşamayı zorla değiştir</Label>
           <div className="flex gap-2">
             <Select value={stage} onValueChange={(value) => setStage(value as VisaStage)}>
               <SelectTrigger id="force-stage" className="w-full">
@@ -135,18 +135,18 @@ export function AdminActions({
               onClick={() =>
                 run(
                   () => forceStage(applicationId, stage),
-                  `Stage set to ${STAGE_LABEL[stage]}.`,
+                  `Aşama ${STAGE_LABEL[stage]} olarak ayarlandı.`,
                 )
               }
               disabled={pending || stage === currentStage}
             >
-              Apply
+              Uygula
             </Button>
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label>Cancel application</Label>
+          <Label>Başvuruyu iptal et</Label>
           {confirmingCancel ? (
             <div className="flex items-center gap-2">
               <Button
@@ -155,7 +155,7 @@ export function AdminActions({
                 onClick={() => setConfirmingCancel(false)}
                 disabled={pending}
               >
-                Keep
+                Vazgeç
               </Button>
               <Button
                 size="sm"
@@ -163,12 +163,12 @@ export function AdminActions({
                 onClick={() =>
                   run(
                     () => forceCancelApplication(applicationId),
-                    "Application cancelled.",
+                    "Başvuru iptal edildi.",
                   )
                 }
                 disabled={pending}
               >
-                {pending ? "Cancelling…" : "Confirm cancel"}
+                {pending ? "İptal ediliyor…" : "İptali Onayla"}
               </Button>
             </div>
           ) : (
@@ -182,7 +182,7 @@ export function AdminActions({
               }}
               disabled={pending || currentStage === VisaStage.CANCELLED}
             >
-              Force cancel
+              Zorla İptal
             </Button>
           )}
         </div>

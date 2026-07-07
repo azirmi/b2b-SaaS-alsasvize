@@ -47,26 +47,27 @@ export default async function PoolPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Work pool</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">İş Havuzu</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             {isAdmin
-              ? "Every application currently in flight across all departments."
-              : "Unclaimed applications waiting in your department queue — longest-waiting first."}
+              ? "Tüm birimlerde havuzda bekleyen başvurular."
+              : "Birim kuyruğunuzdaki alınmamış başvurular. En uzun bekleyenler üstte listelenir."}
           </p>
         </div>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {applications.length} waiting
+          {applications.length} bekleyen
         </span>
       </div>
 
       {loadError ? (
         <div className="rounded-lg border border-border/40 bg-card p-6 text-sm text-muted-foreground shadow-sm">
-          Unable to load the work pool right now. It will refresh automatically
-          once the service is reachable.
+          Havuz başvuruları şu anda yüklenemiyor. Hizmet tekrar erişilebilir
+          olduğunda sayfa otomatik yenilenir.
         </div>
       ) : applications.length === 0 ? (
         <div className="rounded-lg border border-border/40 bg-card px-5 py-16 text-center text-sm text-muted-foreground shadow-sm">
-          Nothing in the queue. New work appears here the moment it arrives.
+          Kuyruğunuzda hiçbir başvuru yok. Yeni işler buraya geldiği anda
+          görünecek.
         </div>
       ) : (
         <section className="rounded-lg border border-border/40 bg-card shadow-sm">
@@ -74,16 +75,16 @@ export default async function PoolPage() {
             <TableHeader>
               <TableRow className="border-border/40 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Applicant
+                  Başvuran
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Stage
+                  Aşama
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Waiting
+                  Bekleme
                 </TableHead>
                 <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                  Action
+                  İşlem
                 </TableHead>
               </TableRow>
             </TableHeader>

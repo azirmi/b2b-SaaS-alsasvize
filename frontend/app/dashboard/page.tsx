@@ -96,35 +96,35 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Genel Bakış</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            The status of every visa application you have submitted.
+            Gönderdiğiniz tüm vize başvurularının güncel durumu.
           </p>
         </div>
 
         {loadError ? (
           <div className="rounded-lg border border-border/40 bg-card p-6 text-sm text-muted-foreground shadow-sm">
-            Unable to load your applications right now. This page refreshes
-            automatically once the service is reachable.
+            Başvurularınız şu anda yüklenemiyor. Hizmet tekrar erişilebilir
+            olduğunda bu sayfa otomatik yenilenir.
           </div>
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-3">
-              <StatCard label="Applications" value={stats.total} />
-              <StatCard label="Active" value={stats.active} />
-              <StatCard label="Completed" value={stats.completed} />
+              <StatCard label="Başvurular" value={stats.total} />
+              <StatCard label="Aktif" value={stats.active} />
+              <StatCard label="Tamamlanan" value={stats.completed} />
             </div>
 
             <section className="rounded-lg border border-border/40 bg-card shadow-sm">
               <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
-                <h2 className="text-sm font-medium">Recent applications</h2>
+                <h2 className="text-sm font-medium">Son Başvurular</h2>
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {recent.length} of {applications.length}
+                  {recent.length} / {applications.length}
                 </span>
               </div>
               {recent.length === 0 ? (
                 <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                  No applications to show yet.
+                  Henüz gösterilecek bir başvuru yok.
                 </div>
               ) : (
                 <Table>
@@ -134,13 +134,13 @@ export default async function DashboardPage() {
                         Başvuru
                       </TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground">
-                        Stage
+                        Aşama
                       </TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground">
                         Başvuru Formu
                       </TableHead>
                       <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                        Updated
+                        Güncellendi
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -202,14 +202,14 @@ export default async function DashboardPage() {
       return (
         <div className="space-y-8">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Genel Bakış</h1>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Every application across all departments and stages.
+              Tüm birimlerdeki ve aşamalardaki başvuruların özeti.
             </p>
           </div>
           <div className="rounded-lg border border-border/40 bg-card p-6 text-sm text-muted-foreground shadow-sm">
-            Unable to load analytics right now. This page refreshes automatically
-            once the service is reachable.
+            Analitik veriler şu anda yüklenemiyor. Hizmet tekrar erişilebilir
+            olduğunda sayfa otomatik yenilenecektir.
           </div>
         </div>
       );
@@ -218,9 +218,9 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Genel Bakış</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            Every application across all departments and stages.
+            Tüm birimlerdeki ve aşamalardaki başvuruların özeti.
           </p>
         </div>
 
@@ -250,69 +250,69 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Genel Bakış</h1>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          Your department queue and the work you are actively processing.
+          Birim kuyruğunuz ve aktif olarak işlediğiniz başvurular.
         </p>
       </div>
 
       {loadError ? (
         <div className="rounded-lg border border-border/40 bg-card p-6 text-sm text-muted-foreground shadow-sm">
-          Unable to load the workspace right now. This page refreshes
-          automatically once the service is reachable.
+          Çalışma alanı şu anda yüklenemiyor. Hizmet tekrar erişilebilir
+          olduğunda sayfa otomatik yenilenir.
         </div>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
-              label="In your queue"
+              label="Kuyruğunuzda"
               value={queueCount}
-              hint="Waiting to be claimed"
+              hint="Alınmayı bekliyor"
               href="/dashboard/pool"
             />
             <StatCard
-              label="Assigned to you"
+              label="Size atanan"
               value={assigned.length}
-              hint="Actively being worked"
+              hint="Aktif işlemde"
               href="/dashboard/workspace"
             />
           </div>
 
           <section className="rounded-lg border border-border/40 bg-card shadow-sm">
             <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
-              <h2 className="text-sm font-medium">Assigned to you</h2>
+              <h2 className="text-sm font-medium">Size Atananlar</h2>
               <Link
                 href="/dashboard/workspace"
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                View all
+                Tümünü Gör
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
             </div>
 
             {recent.length === 0 ? (
               <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                Nothing assigned yet. Claim work from the{" "}
+                Henüz bir atama yok. İş almak için{" "}
                 <Link
                   href="/dashboard/pool"
                   className="font-medium text-foreground underline-offset-4 hover:underline"
                 >
-                  work pool
+                  iş havuzunu
                 </Link>
-                .
+                kullanın.
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Applicant
+                      Başvuran
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Stage
+                      Aşama
                     </TableHead>
                     <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                      In stage
+                      Aşamada Geçen Süre
                     </TableHead>
                   </TableRow>
                 </TableHeader>

@@ -39,7 +39,7 @@ export function StageActions({
     startTransition(async () => {
       const result = await action(id);
       if (!result.ok) {
-        setError(result.error ?? "Something went wrong.");
+        setError(result.error ?? "Bir hata oluştu.");
       }
     });
   }
@@ -47,7 +47,7 @@ export function StageActions({
   if (!advance && !canPause && !canResume) {
     return (
       <p className="text-sm text-muted-foreground">
-        No workflow actions are available to you at this stage.
+        Bu aşamada sizin için kullanılabilir bir iş akışı işlemi yok.
       </p>
     );
   }
@@ -73,7 +73,7 @@ export function StageActions({
             disabled={pending}
           >
             <Pause aria-hidden />
-            Pause
+            Duraklat
           </Button>
         ) : null}
         {canResume ? (
@@ -84,7 +84,7 @@ export function StageActions({
             disabled={pending}
           >
             <Play aria-hidden />
-            Resume
+            Devam Ettir
           </Button>
         ) : null}
       </div>

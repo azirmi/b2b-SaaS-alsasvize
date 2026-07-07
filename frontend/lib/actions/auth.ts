@@ -64,7 +64,7 @@ export async function login(
   const next = safeNext(String(formData.get("next") ?? ""));
 
   if (!email || !password) {
-    return { error: "Email and password are required." };
+    return { error: "E-posta ve şifre zorunludur." };
   }
 
   try {
@@ -76,13 +76,15 @@ export async function login(
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      return { error: messageFrom(body) ?? "Invalid email or password." };
+      return { error: messageFrom(body) ?? "E-posta veya şifre hatalı." };
     }
     if (!(await persistSession(response.headers.getSetCookie()))) {
-      return { error: "Login succeeded but no session was issued. Try again." };
+      return {
+        error: "Giriş başarılı ancak oturum oluşturulamadı. Lütfen tekrar deneyin.",
+      };
     }
   } catch {
-    return { error: "Unable to reach the server. Please try again." };
+    return { error: "Sunucuya ulaşılamıyor. Lütfen tekrar deneyin." };
   }
 
   redirect(next);

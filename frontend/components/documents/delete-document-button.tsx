@@ -21,7 +21,7 @@ export function DeleteDocumentButton({ documentId }: { documentId: string }) {
     startTransition(async () => {
       const result = await deleteDocument(documentId);
       if (!result.ok) {
-        setError(result.error ?? "Delete failed.");
+        setError(result.error ?? "Silme işlemi başarısız.");
         setConfirming(false);
       }
     });
@@ -36,7 +36,7 @@ export function DeleteDocumentButton({ documentId }: { documentId: string }) {
           onClick={() => setConfirming(false)}
           disabled={pending}
         >
-          Cancel
+          İptal
         </Button>
         <Button
           size="sm"
@@ -44,7 +44,7 @@ export function DeleteDocumentButton({ documentId }: { documentId: string }) {
           onClick={onDelete}
           disabled={pending}
         >
-          {pending ? "Removing…" : "Remove"}
+          {pending ? "Siliniyor…" : "Sil"}
         </Button>
       </span>
     );
@@ -65,7 +65,7 @@ export function DeleteDocumentButton({ documentId }: { documentId: string }) {
           setError(null);
         }}
         disabled={pending}
-        aria-label="Delete document"
+        aria-label="Belgeyi sil"
         className="text-muted-foreground hover:text-foreground"
       >
         <Trash2 aria-hidden />

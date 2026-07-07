@@ -65,18 +65,18 @@ export class AuthController {
   ) {
     // ── Manual field validation (multipart bodies bypass class-validator) ──
     if (!email || typeof email !== 'string') {
-      throw new BadRequestException('email is required');
+      throw new BadRequestException('E-posta alanı zorunludur');
     }
     // Lightweight email format check.
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new BadRequestException('email must be a valid email address');
+      throw new BadRequestException('E-posta adresi geçerli formatta olmalıdır');
     }
     if (!password || typeof password !== 'string') {
-      throw new BadRequestException('password is required');
+      throw new BadRequestException('Şifre alanı zorunludur');
     }
     if (password.length < 8 || password.length > 72) {
       throw new BadRequestException(
-        'password must be between 8 and 72 characters',
+        'Şifre 8 ile 72 karakter arasında olmalıdır',
       );
     }
     if (
@@ -84,17 +84,17 @@ export class AuthController {
       typeof fullName !== 'string' ||
       fullName.trim().length === 0
     ) {
-      throw new BadRequestException('fullName is required');
+      throw new BadRequestException('Ad Soyad alanı zorunludur');
     }
     if (!phone || typeof phone !== 'string' || phone.trim().length === 0) {
-      throw new BadRequestException('phone is required');
+      throw new BadRequestException('Telefon alanı zorunludur');
     }
     if (
       !targetCountry ||
       typeof targetCountry !== 'string' ||
       targetCountry.trim().length === 0
     ) {
-      throw new BadRequestException('targetCountry is required');
+      throw new BadRequestException('Hedef ülke alanı zorunludur');
     }
     // Booleans arrive as strings over multipart — both consents must be "true".
     if (hasAcceptedKVKK !== 'true') {
@@ -106,7 +106,7 @@ export class AuthController {
       );
     }
     if (!passports || passports.length === 0) {
-      throw new BadRequestException('At least one passport file is required');
+      throw new BadRequestException('En az bir pasaport dosyası yüklenmelidir');
     }
 
     return this.authService.onboard(
@@ -139,14 +139,14 @@ export class AuthController {
       maxAge: ACCESS_TOKEN_MAX_AGE_MS,
       path: '/',
     });
-    return { message: 'Login successful' };
+    return { message: 'Giriş başarılı' };
   }
   /** Clears the auth cookie. Required because HTTP-only cookies can't be cleared client-side. */
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   logout(@Res({ passthrough: true }) res: Response): { message: string } {
     res.clearCookie(ACCESS_TOKEN_COOKIE, { path: '/' });
-    return { message: 'Logout successful' };
+    return { message: 'Çıkış başarılı' };
   }
   /** Returns the currently authenticated user. Demonstrates JwtAuthGuard. */
   @Get('me')

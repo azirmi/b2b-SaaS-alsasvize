@@ -26,7 +26,7 @@ async function runApplicationMutation(
   fallback: string,
 ): Promise<ActionResult> {
   if (!UUID_RE.test(id)) {
-    return { ok: false, error: "Invalid application reference." };
+    return { ok: false, error: "Geçersiz başvuru referansı." };
   }
 
   try {
@@ -47,7 +47,7 @@ export async function claimApplication(id: string): Promise<ActionResult> {
   return runApplicationMutation(
     id,
     (applicationId) => serverApi.post(`/applications/${applicationId}/claim`),
-    "Unable to claim the application. Please retry.",
+    "Başvuru alınamadı. Lütfen tekrar deneyin.",
   );
 }
 
@@ -56,7 +56,7 @@ export async function advanceStage(id: string): Promise<ActionResult> {
   return runApplicationMutation(
     id,
     (applicationId) => serverApi.patch(`/applications/${applicationId}/stage`),
-    "Unable to advance the application. Please retry.",
+    "Başvuru ilerletilemedi. Lütfen tekrar deneyin.",
   );
 }
 
@@ -65,7 +65,7 @@ export async function pauseApplication(id: string): Promise<ActionResult> {
   return runApplicationMutation(
     id,
     (applicationId) => serverApi.patch(`/applications/${applicationId}/pause`),
-    "Unable to pause the application. Please retry.",
+    "Başvuru duraklatılamadı. Lütfen tekrar deneyin.",
   );
 }
 
@@ -74,7 +74,7 @@ export async function resumeApplication(id: string): Promise<ActionResult> {
   return runApplicationMutation(
     id,
     (applicationId) => serverApi.patch(`/applications/${applicationId}/resume`),
-    "Unable to resume the application. Please retry.",
+    "Başvuru devam ettirilemedi. Lütfen tekrar deneyin.",
   );
 }
 
@@ -85,7 +85,7 @@ export async function reassignApplication(
   newStaffId: string,
 ): Promise<ActionResult> {
   if (!UUID_RE.test(newStaffId)) {
-    return { ok: false, error: "Invalid staff reference." };
+    return { ok: false, error: "Geçersiz personel referansı." };
   }
   return runApplicationMutation(
     id,
@@ -94,7 +94,7 @@ export async function reassignApplication(
         department,
         newStaffId,
       }),
-    "Unable to reassign the application. Please retry.",
+    "Başvuru yeniden atanamadı. Lütfen tekrar deneyin.",
   );
 }
 
@@ -107,7 +107,7 @@ export async function forceStage(
     id,
     (applicationId) =>
       serverApi.patch(`/applications/${applicationId}/force-stage`, { stage }),
-    "Unable to change the stage. Please retry.",
+    "Aşama değiştirilemedi. Lütfen tekrar deneyin.",
   );
 }
 
@@ -119,7 +119,7 @@ export async function forceCancelApplication(
     id,
     (applicationId) =>
       serverApi.patch(`/applications/${applicationId}/force-cancel`),
-    "Unable to cancel the application. Please retry.",
+    "Başvuru iptal edilemedi. Lütfen tekrar deneyin.",
   );
 }
 

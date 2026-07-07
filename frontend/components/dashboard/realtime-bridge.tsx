@@ -29,7 +29,7 @@ export function RealtimeBridge({ enabled = true }: { enabled?: boolean }) {
   return (
     <span
       className="hidden items-center gap-1.5 sm:flex"
-      title={connected ? "Live updates connected" : "Reconnecting…"}
+      title={connected ? "Canlı güncelleme bağlantısı aktif" : "Yeniden bağlanıyor…"}
     >
       <span
         className={cn(
@@ -38,7 +38,7 @@ export function RealtimeBridge({ enabled = true }: { enabled?: boolean }) {
         )}
       />
       <span className="text-xs text-muted-foreground">
-        {connected ? "Live" : "Offline"}
+        {connected ? "Canlı" : "Çevrimdışı"}
       </span>
     </span>
   );

@@ -15,12 +15,12 @@ import type { StageCount, StaffPerformance } from "@/lib/types";
 
 // Monochrome only — bars are drawn from neutral tokens (foreground / muted).
 const pipelineConfig = {
-  count: { label: "Applications", color: "var(--foreground)" },
+  count: { label: "Başvurular", color: "var(--foreground)" },
 } satisfies ChartConfig;
 
 const productivityConfig = {
-  claimed: { label: "Claimed", color: "var(--muted-foreground)" },
-  processed: { label: "Processed", color: "var(--foreground)" },
+  claimed: { label: "Alınan", color: "var(--muted-foreground)" },
+  processed: { label: "İşlenen", color: "var(--foreground)" },
 } satisfies ChartConfig;
 
 type ProductivityPoint = {
@@ -167,7 +167,7 @@ function ProductivityChart({
       <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       {data.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          No staff activity recorded yet.
+          Henüz personel aktivitesi kaydedilmedi.
         </p>
       ) : (
         <ChartContainer config={productivityConfig} className="mt-4 h-60 w-full">
@@ -272,25 +272,25 @@ export function AdminStatsCharts({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <PipelineChart
-        title="Sales Pipeline"
-        description="Distribution across sales queue and in-progress stages."
+        title="Satış Hattı"
+        description="Satış kuyruğu ve işlem aşamalarına göre dağılım."
         rows={salesPipeline}
       />
       <ProductivityChart
-        title="Sales Productivity"
-        description="Claims and processed transitions per Sales staff member."
+        title="Satış Verimliliği"
+        description="Satış personeli bazında alınan ve işlenen başvurular."
         rows={salesProductivity}
         selectedStaffId={selectedStaffId}
         onStaffSelect={onStaffSelect}
       />
       <PipelineChart
-        title="DOC Pipeline"
-        description="Distribution across document queue and in-progress stages."
+        title="Evrak Hattı"
+        description="Evrak kuyruğu ve işlem aşamalarına göre dağılım."
         rows={docPipeline}
       />
       <ProductivityChart
-        title="DOC Productivity"
-        description="Claims and processed transitions per DOC staff member."
+        title="Evrak Verimliliği"
+        description="Evrak personeli bazında alınan ve işlenen başvurular."
         rows={docProductivity}
         selectedStaffId={selectedStaffId}
         onStaffSelect={onStaffSelect}

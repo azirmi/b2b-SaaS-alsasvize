@@ -24,7 +24,7 @@ export function OnboardForm() {
           id="fullName"
           name="fullName"
           autoComplete="name"
-          placeholder="Ada Lovelace"
+          placeholder="Ayşe Yılmaz"
           required
         />
       </div>

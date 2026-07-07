@@ -18,21 +18,21 @@ import { cn } from "@/lib/utils";
 
 /** Customer-facing, plain-language status for each pipeline stage. */
 const STAGE_MESSAGE: Record<VisaStage, string> = {
-  SALES_POOL: "Received — waiting to be picked up by our Sales team.",
-  SALES_PROCESS: "Your application is being prepared by our Sales team.",
-  DOC_POOL: "Queued for document review.",
-  DOC_PROCESS: "Our Documents team is reviewing your files.",
-  SEC_POOL: "Queued for final processing.",
-  SEC_PROCESS: "Final processing by our Secretary team.",
-  COMPLETED: "Your application is complete.",
-  PAUSED: "Your application is temporarily on hold.",
-  CANCELLED: "This application has been cancelled.",
+  SALES_POOL: "Alındı. Satış ekibimizin başvuruyu üstlenmesi bekleniyor.",
+  SALES_PROCESS: "Başvurunuz satış ekibimiz tarafından hazırlanıyor.",
+  DOC_POOL: "Belge inceleme kuyruğunda bekliyor.",
+  DOC_PROCESS: "Belgeleriniz evrak ekibimiz tarafından inceleniyor.",
+  SEC_POOL: "Son işlem kuyruğunda bekliyor.",
+  SEC_PROCESS: "Başvurunuz son işlem aşamasında değerlendiriliyor.",
+  COMPLETED: "Başvurunuz tamamlandı.",
+  PAUSED: "Başvurunuz geçici olarak duraklatıldı.",
+  CANCELLED: "Bu başvuru iptal edildi.",
 };
 
 const OCR_BADGE: Record<OcrStatus, { label: string; intent: Intent }> = {
-  PENDING: { label: "OCR pending", intent: "neutral" },
-  PROCESSED: { label: "OCR read", intent: "success" },
-  FAILED: { label: "OCR failed", intent: "danger" },
+  PENDING: { label: "OCR bekliyor", intent: "neutral" },
+  PROCESSED: { label: "OCR okundu", intent: "success" },
+  FAILED: { label: "OCR başarısız", intent: "danger" },
 };
 
 function Notice({ title, body }: { title: string; body: string }) {
@@ -43,7 +43,7 @@ function Notice({ title, body }: { title: string; body: string }) {
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Dashboard
+        Panel
       </Link>
       <div className="rounded-lg border border-border/40 bg-card p-6 shadow-sm">
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
@@ -94,24 +94,24 @@ export async function CustomerApplicationDetail({
   if (missing) {
     return (
       <Notice
-        title="Application not found"
-        body="This application no longer exists or the link is out of date. Head back to your dashboard to see your current applications."
+        title="Başvuru bulunamadı"
+        body="Bu başvuru artık mevcut değil veya bağlantı güncel değil. Güncel başvurularınız için panele dönün."
       />
     );
   }
   if (forbidden) {
     return (
       <Notice
-        title="Not available"
-        body="This application isn’t associated with your account."
+        title="Erişim yok"
+        body="Bu başvuru hesabınızla ilişkili değil."
       />
     );
   }
   if (loadError || !detail) {
     return (
       <Notice
-        title="Unable to load application"
-        body="Something went wrong reaching the service. Please try again in a moment."
+        title="Başvuru yüklenemedi"
+        body="Hizmete erişirken bir sorun oluştu. Lütfen kısa süre sonra tekrar deneyin."
       />
     );
   }
@@ -142,14 +142,14 @@ export async function CustomerApplicationDetail({
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Dashboard
+        Panel
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">
-              Your application
+              Başvurunuz
             </h1>
             <StageBadge stage={stage} />
           </div>
@@ -161,7 +161,7 @@ export async function CustomerApplicationDetail({
           </p>
         </div>
         <div className="text-right text-xs text-muted-foreground">
-          <div>Opened {timeAgo(detail.createdAt)} ago</div>
+          <div>Açılış: {timeAgo(detail.createdAt)}</div>
         </div>
       </div>
 
@@ -195,10 +195,10 @@ export async function CustomerApplicationDetail({
         <>
           {canUpload ? (
             <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-medium">Upload a document</h2>
+              <h2 className="text-sm font-medium">Belge Yükle</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Add your passport and any documents our team requests. Files
-                upload securely, straight to storage.
+                Pasaportunuzu ve ekibimizin talep ettiği belgeleri yükleyin.
+                Dosyalar güvenli şekilde doğrudan depolama alanına gönderilir.
               </p>
               <Separator className="my-4" />
               <DocumentUploader applicationId={detail.id} />
@@ -207,16 +207,15 @@ export async function CustomerApplicationDetail({
 
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-medium">Your documents</h2>
+          <h2 className="text-sm font-medium">Belgeleriniz</h2>
           <span className="text-xs text-muted-foreground tabular-nums">
-            {detail.documents.length} file
-            {detail.documents.length === 1 ? "" : "s"}
+            {detail.documents.length} belge
           </span>
         </div>
 
         {detail.documents.length === 0 ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            No documents yet. Upload your passport above to get started.
+            Henüz belge yok. Başlamak için yukarıdan pasaportunuzu yükleyin.
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-border/40">
@@ -251,10 +250,10 @@ export async function CustomerApplicationDetail({
                           )}
                         >
                           {document.isApproved
-                            ? "Approved"
+                            ? "Onaylandı"
                             : document.rejectionReason
-                              ? "Rejected"
-                              : "Pending review"}
+                              ? "Reddedildi"
+                              : "İnceleme bekliyor"}
                         </Badge>
                         {ocr ? (
                           <Badge
@@ -269,12 +268,12 @@ export async function CustomerApplicationDetail({
                         ) : null}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Uploaded {timeAgo(document.createdAt)} ago
+                        Yüklendi: {timeAgo(document.createdAt)}
                       </div>
                       {document.rejectionReason ? (
                         <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">
-                          Rejected: {document.rejectionReason} — please upload a
-                          new file above.
+                          Reddedildi: {document.rejectionReason} — lütfen yukarıdan
+                          yeni bir dosya yükleyin.
                         </p>
                       ) : null}
                     </div>
@@ -287,11 +286,11 @@ export async function CustomerApplicationDetail({
                         rel="noopener noreferrer"
                         className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
                       >
-                        View
+                        Görüntüle
                       </a>
                     ) : (
                       <span className="text-xs text-muted-foreground">
-                        Unavailable
+                        Kullanılamıyor
                       </span>
                     )}
                     {!document.isApproved ? (

@@ -41,7 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('User is inactive or no longer exists');
+      throw new UnauthorizedException('Kullanıcı pasif durumda veya artık mevcut değil');
     }
 
     return { userId: user.id, email: user.email, role: user.role };

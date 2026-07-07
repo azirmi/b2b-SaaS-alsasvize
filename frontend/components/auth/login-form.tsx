@@ -17,19 +17,19 @@ export function LoginForm({ next }: { next?: string }) {
       {next ? <input type="hidden" name="next" value={next} /> : null}
 
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">E-posta</Label>
         <Input
           id="email"
           name="email"
           type="email"
           autoComplete="email"
-          placeholder="you@company.com"
+          placeholder="siz@ornek.com"
           required
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password">Şifre</Label>
         <Input
           id="password"
           name="password"
@@ -46,7 +46,7 @@ export function LoginForm({ next }: { next?: string }) {
       ) : null}
 
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? "Giriş yapılıyor…" : "Giriş yap"}
       </Button>
     </form>
   );

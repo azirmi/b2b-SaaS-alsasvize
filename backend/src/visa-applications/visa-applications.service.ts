@@ -170,7 +170,7 @@ export class VisaApplicationsService {
       select: { id: true, department: true },
     });
     if (!staff) {
-      throw new ForbiddenException('Only staff members have a workspace');
+      throw new ForbiddenException('Çalışma alanı yalnızca personel hesapları için kullanılabilir');
     }
     const config = CLAIM_CONFIG[staff.department];
 
@@ -190,7 +190,7 @@ export class VisaApplicationsService {
     const staffId = filters?.staffId?.trim();
 
     if (staffId && !this.isUuid(staffId)) {
-      throw new BadRequestException('Invalid staffId format');
+      throw new BadRequestException('Geçersiz personel kimliği formatı');
     }
 
     const conditions: Prisma.VisaApplicationWhereInput[] = [];
@@ -286,7 +286,7 @@ export class VisaApplicationsService {
       include: APPLICATION_DETAIL_INCLUDE,
     });
     if (!application) {
-      throw new NotFoundException(`Application ${id} not found`);
+      throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
     }
 
     await this.assertCanView(application, actor);
@@ -304,7 +304,7 @@ export class VisaApplicationsService {
     });
     if (!staff) {
       // Admins / non-staff have no staff profile, so they can't be assigned.
-      throw new ForbiddenException('Only staff members can claim applications');
+      throw new ForbiddenException('Başvuru alma işlemini yalnızca personel yapabilir');
     }
     const config = CLAIM_CONFIG[staff.department];
 
@@ -320,15 +320,15 @@ export class VisaApplicationsService {
           },
         });
         if (!application) {
-          throw new NotFoundException(`Application ${id} not found`);
+          throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
         }
         if (application.currentStage !== config.poolStage) {
           throw new ConflictException(
-            `Application is in ${application.currentStage} and cannot be claimed from the ${config.poolStage}`,
+            `Başvuru şu anda ${application.currentStage} aşamasında; ${config.poolStage} havuzundan alınamaz`,
           );
         }
         if (application[config.assignmentField] !== null) {
-          throw new ConflictException('Application has already been claimed');
+          throw new ConflictException('Bu başvuru zaten alınmış');
         }
 
         const { where, data } = this.buildClaimUpdate(id, config, staff.id);
@@ -372,7 +372,7 @@ export class VisaApplicationsService {
     } catch (error) {
       throw this.translateRaceError(
         error,
-        'Application was just claimed by someone else',
+        'Başvuru az önce başka bir personel tarafından alındı',
       );
     }
   }
@@ -402,13 +402,13 @@ export class VisaApplicationsService {
           },
         });
         if (!application) {
-          throw new NotFoundException(`Application ${id} not found`);
+          throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
         }
 
         const transition = STAGE_TRANSITIONS[application.currentStage];
         if (!transition) {
           throw new ConflictException(
-            `Application in ${application.currentStage} cannot be moved to a next stage`,
+            `Başvuru ${application.currentStage} aşamasından bir sonraki adıma taşınamaz`,
           );
         }
 
@@ -423,7 +423,7 @@ export class VisaApplicationsService {
           });
           if (!staff || application[transition.ownerField] !== staff.id) {
             throw new ForbiddenException(
-              'You are not assigned to this application at its current stage',
+              'Bu başvuru mevcut aşamada size atanmadığı için işlem yapamazsınız',
             );
           }
         }
@@ -433,7 +433,7 @@ export class VisaApplicationsService {
         if (application.currentStage === VisaStage.SALES_PROCESS) {
           if (!this.isCrmComplete(application.crmData)) {
             throw new ConflictException(
-              'Complete the CRM data entry before sending to Documents',
+              'Belgeler aşamasına göndermeden önce CRM verilerini eksiksiz kaydedin',
             );
           }
         }
@@ -450,12 +450,12 @@ export class VisaApplicationsService {
           ]);
           if (totalDocuments === 0) {
             throw new ConflictException(
-              'At least one approved document is required before sending to Secretary',
+              'Sekreterya aşamasına göndermeden önce en az bir onaylı evrak gereklidir',
             );
           }
           if (unapprovedDocuments > 0) {
             throw new ConflictException(
-              `Cannot advance: ${unapprovedDocuments} document(s) are not approved`,
+              `İlerletilemez: ${unapprovedDocuments} evrak henüz onaylanmamış`,
             );
           }
         }
@@ -506,7 +506,7 @@ export class VisaApplicationsService {
     } catch (error) {
       throw this.translateRaceError(
         error,
-        'Application stage changed concurrently; please retry',
+        'Başvurunun aşaması eşzamanlı olarak değişti, lütfen tekrar deneyin',
       );
     }
   }
@@ -525,26 +525,51 @@ export class VisaApplicationsService {
       select: { id: true, department: true },
     });
     if (!staff) {
-      throw new BadRequestException(`Staff ${dto.newStaffId} not found`);
+      throw new BadRequestException(`Personel bulunamadı: ${dto.newStaffId}`);
     }
     if (staff.department !== dto.department) {
       throw new BadRequestException(
-        `Staff ${dto.newStaffId} is not in the ${dto.department} department`,
+        `${dto.newStaffId} kimlikli personel ${dto.department} biriminde değil`,
       );
     }
 
     return this.prisma.$transaction(async (tx) => {
       const application = await tx.visaApplication.findUnique({
         where: { id },
-        select: { id: true },
+        select: {
+          id: true,
+          currentStage: true,
+          assignedSalesId: true,
+          assignedDocId: true,
+          assignedSecId: true,
+        },
       });
       if (!application) {
-        throw new NotFoundException(`Application ${id} not found`);
+        throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
+      }
+      if (
+        application.currentStage === VisaStage.COMPLETED ||
+        application.currentStage === VisaStage.CANCELLED
+      ) {
+        throw new ConflictException(
+          'Tamamlanmış veya iptal edilmiş başvurular yeniden atanamaz',
+        );
+      }
+
+      const targetConfig = CLAIM_CONFIG[dto.department];
+      const updateData: Prisma.VisaApplicationUncheckedUpdateInput = {
+        ...this.assignmentData(dto.department, dto.newStaffId),
+        currentStage: targetConfig.processStage,
+        stageUpdatedAt: new Date(),
+      };
+      if (dto.department === Department.SALES) {
+        // Keep historical sales ownership aligned with the forced reassignment.
+        updateData.salesStaffId = dto.newStaffId;
       }
 
       const updated = await tx.visaApplication.update({
         where: { id },
-        data: this.assignmentData(dto.department, dto.newStaffId),
+        data: updateData,
         include: APPLICATION_INCLUDE,
       });
 
@@ -553,7 +578,17 @@ export class VisaApplicationsService {
           application: { connect: { id } },
           performedBy: { connect: { id: actor.userId } },
           actionType: 'FORCE_REASSIGNED',
-          details: { newStaffId: dto.newStaffId, department: dto.department },
+          details: {
+            department: dto.department,
+            previousStage: application.currentStage,
+            newStage: targetConfig.processStage,
+            previousAssignments: {
+              assignedSalesId: application.assignedSalesId,
+              assignedDocId: application.assignedDocId,
+              assignedSecId: application.assignedSecId,
+            },
+            newStaffId: dto.newStaffId,
+          },
         },
       });
 
@@ -572,10 +607,10 @@ export class VisaApplicationsService {
         select: { currentStage: true },
       });
       if (!application) {
-        throw new NotFoundException(`Application ${id} not found`);
+        throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
       }
       if (application.currentStage === VisaStage.CANCELLED) {
-        throw new ConflictException('Application is already cancelled');
+        throw new ConflictException('Başvuru zaten iptal edilmiş');
       }
 
       const updated = await tx.visaApplication.update({
@@ -613,7 +648,7 @@ export class VisaApplicationsService {
         select: { currentStage: true },
       });
       if (!before) {
-        throw new NotFoundException(`Application ${id} not found`);
+        throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
       }
       previousStage = before.currentStage;
 
@@ -660,7 +695,7 @@ export class VisaApplicationsService {
   async getMyApplications(actor: AuthenticatedUser) {
     if (actor.role !== Role.CUSTOMER) {
       throw new ForbiddenException(
-        'This endpoint is exclusively for customers',
+        'Bu uç nokta yalnızca müşteriler içindir',
       );
     }
 
@@ -690,7 +725,7 @@ export class VisaApplicationsService {
       select: { id: true, department: true },
     });
     if (!staff || staff.department !== Department.SALES) {
-      throw new ForbiddenException('Only sales staff have a sales history');
+      throw new ForbiddenException('Geçmiş satış kaydını yalnızca satış personeli görüntüleyebilir');
     }
 
     return this.prisma.visaApplication.findMany({
@@ -725,11 +760,11 @@ export class VisaApplicationsService {
           select: { currentStage: true },
         });
         if (!application) {
-          throw new NotFoundException(`Application ${id} not found`);
+          throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
         }
         if (NON_PAUSABLE.includes(application.currentStage)) {
           throw new ConflictException(
-            `Application in ${application.currentStage} cannot be paused`,
+            `Başvuru ${application.currentStage} aşamasında olduğu için duraklatılamaz`,
           );
         }
 
@@ -758,7 +793,7 @@ export class VisaApplicationsService {
     } catch (error) {
       throw this.translateRaceError(
         error,
-        'Application state changed concurrently; please retry',
+        'Başvuru durumu eşzamanlı olarak değişti, lütfen tekrar deneyin',
       );
     }
   }
@@ -784,11 +819,11 @@ export class VisaApplicationsService {
           select: { currentStage: true },
         });
         if (!application) {
-          throw new NotFoundException(`Application ${id} not found`);
+          throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
         }
         if (application.currentStage !== VisaStage.PAUSED) {
           throw new ConflictException(
-            `Application is in ${application.currentStage}, not PAUSED`,
+            `Başvuru şu anda ${application.currentStage} aşamasında; duraklatılmış değil`,
           );
         }
 
@@ -800,7 +835,7 @@ export class VisaApplicationsService {
         });
         if (!pausedLog) {
           throw new ConflictException(
-            'Cannot determine the pre-pause stage: no PAUSED audit entry found',
+            'Duraklatma öncesi aşama belirlenemedi: PAUSED denetim kaydı bulunamadı',
           );
         }
 
@@ -811,7 +846,7 @@ export class VisaApplicationsService {
           !Object.values(VisaStage).includes(previousStage)
         ) {
           throw new ConflictException(
-            'Cannot determine the pre-pause stage: PAUSED audit entry is malformed',
+            'Duraklatma öncesi aşama belirlenemedi: PAUSED denetim kaydı geçersiz',
           );
         }
 
@@ -840,7 +875,7 @@ export class VisaApplicationsService {
     } catch (error) {
       throw this.translateRaceError(
         error,
-        'Application state changed concurrently; please retry',
+        'Başvuru durumu eşzamanlı olarak değişti, lütfen tekrar deneyin',
       );
     }
   }
@@ -869,12 +904,12 @@ export class VisaApplicationsService {
     if (dto.paymentType === 'PREPAID') {
       if (typeof dto.upfrontPaid !== 'number') {
         throw new BadRequestException(
-          'upfrontPaid is required for a prepaid payment',
+          'Ön ödemeli plan için upfrontPaid alanı zorunludur',
         );
       }
       if (dto.upfrontPaid > dto.totalAmount) {
         throw new BadRequestException(
-          'upfrontPaid cannot exceed the total amount',
+          'Ön ödeme tutarı toplam tutarı aşamaz',
         );
       }
     }
@@ -890,7 +925,7 @@ export class VisaApplicationsService {
         },
       });
       if (!before) {
-        throw new NotFoundException(`Application ${id} not found`);
+        throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
       }
 
       // Authorization: admin (any time) or the assigned sales owner in-process.
@@ -905,12 +940,12 @@ export class VisaApplicationsService {
           before.assignedSalesId !== staff.id
         ) {
           throw new ForbiddenException(
-            'Only the assigned sales owner can edit this CRM record',
+            'Bu CRM kaydını yalnızca atanan satış personeli düzenleyebilir',
           );
         }
         if (before.currentStage !== VisaStage.SALES_PROCESS) {
           throw new ConflictException(
-            'CRM data can only be edited while the application is in Sales processing',
+            'CRM verisi yalnızca başvuru Satış İşlem aşamasındayken düzenlenebilir',
           );
         }
       }
@@ -923,7 +958,7 @@ export class VisaApplicationsService {
         });
         if (!receipt || receipt.applicationId !== id) {
           throw new BadRequestException(
-            'The payment receipt does not belong to this application',
+            'Ödeme dekontu bu başvuruya ait değil',
           );
         }
       }
@@ -994,7 +1029,7 @@ export class VisaApplicationsService {
         select: { customerId: true, currentStage: true, details: true },
       });
       if (!before) {
-        throw new NotFoundException(`Application ${id} not found`);
+        throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
       }
 
       // Authorization: admin (any time) or the owning customer on a live app.
@@ -1004,7 +1039,7 @@ export class VisaApplicationsService {
           before.customerId !== actor.userId
         ) {
           throw new ForbiddenException(
-            'You can only edit your own application form',
+            'Yalnızca kendi başvuru formunuzu düzenleyebilirsiniz',
           );
         }
         if (
@@ -1012,7 +1047,7 @@ export class VisaApplicationsService {
           before.currentStage === VisaStage.CANCELLED
         ) {
           throw new ConflictException(
-            'This application is closed and its form can no longer be edited',
+            'Bu başvuru kapatılmıştır; form artık düzenlenemez',
           );
         }
       }
@@ -1146,7 +1181,7 @@ export class VisaApplicationsService {
     }
     if (!dto.customerId) {
       throw new BadRequestException(
-        'customerId is required when creating an application for a customer',
+        'Müşteri adına başvuru oluştururken customerId alanı zorunludur',
       );
     }
     const customer = await this.prisma.user.findUnique({
@@ -1155,7 +1190,7 @@ export class VisaApplicationsService {
     });
     if (!customer || customer.role !== Role.CUSTOMER || !customer.isActive) {
       throw new BadRequestException(
-        'customerId must reference an active customer account',
+        'customerId aktif bir müşteri hesabını göstermelidir',
       );
     }
     return customer.id;
@@ -1164,17 +1199,39 @@ export class VisaApplicationsService {
   private poolWhere(role: Role): Prisma.VisaApplicationWhereInput {
     switch (role) {
       case Role.SALES:
-        return { currentStage: VisaStage.SALES_POOL };
+        return {
+          currentStage: VisaStage.SALES_POOL,
+          assignedSalesId: null,
+        };
       case Role.DOC:
-        return { currentStage: VisaStage.DOC_POOL };
+        return {
+          currentStage: VisaStage.DOC_POOL,
+          assignedDocId: null,
+        };
       case Role.SEC:
-        return { currentStage: VisaStage.SEC_POOL };
+        return {
+          currentStage: VisaStage.SEC_POOL,
+          assignedSecId: null,
+        };
       case Role.ADMIN:
         return {
-          currentStage: { notIn: [VisaStage.COMPLETED, VisaStage.CANCELLED] },
+          OR: [
+            {
+              currentStage: VisaStage.SALES_POOL,
+              assignedSalesId: null,
+            },
+            {
+              currentStage: VisaStage.DOC_POOL,
+              assignedDocId: null,
+            },
+            {
+              currentStage: VisaStage.SEC_POOL,
+              assignedSecId: null,
+            },
+          ],
         };
       default:
-        throw new ForbiddenException('Your role does not have a work pool');
+        throw new ForbiddenException('Rolünüz için bir iş havuzu tanımlı değil');
     }
   }
 
@@ -1198,7 +1255,7 @@ export class VisaApplicationsService {
 
     if (actor.role === Role.CUSTOMER) {
       if (application.customerId !== actor.userId) {
-        throw new ForbiddenException('You can only view your own applications');
+        throw new ForbiddenException('Yalnızca kendi başvurularınızı görüntüleyebilirsiniz');
       }
       return;
     }
@@ -1210,7 +1267,7 @@ export class VisaApplicationsService {
     });
     if (!staff) {
       throw new ForbiddenException(
-        'You are not allowed to view this application',
+        'Bu başvuruyu görüntüleme yetkiniz yok',
       );
     }
     const config = CLAIM_CONFIG[staff.department];
@@ -1220,7 +1277,7 @@ export class VisaApplicationsService {
       return;
     }
     throw new ForbiddenException(
-      'You are not allowed to view this application',
+      'Bu başvuruyu görüntüleme yetkiniz yok',
     );
   }
 
@@ -1274,7 +1331,7 @@ export class VisaApplicationsService {
       case Department.SEC:
         return { assignedSecId: staffId };
       default:
-        throw new BadRequestException('Unsupported department');
+        throw new BadRequestException('Desteklenmeyen birim');
     }
   }
 
@@ -1291,7 +1348,7 @@ export class VisaApplicationsService {
       case Department.SEC:
         return { assignedSecId: staffId };
       default:
-        throw new BadRequestException('Unsupported department');
+        throw new BadRequestException('Desteklenmeyen birim');
     }
   }
 

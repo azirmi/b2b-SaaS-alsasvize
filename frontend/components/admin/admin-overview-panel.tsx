@@ -97,7 +97,7 @@ export function AdminOverviewPanel({
   );
 
   const selectedStaffName = selectedStaffId
-    ? staffNameMap.get(selectedStaffId) ?? "Unknown staff"
+    ? staffNameMap.get(selectedStaffId) ?? "Bilinmeyen personel"
     : null;
 
   const inProcess = [...stats.salesPipeline, ...stats.docPipeline]
@@ -123,7 +123,7 @@ export function AdminOverviewPanel({
         setApplications(next);
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
-          setLoadError("Could not refresh applications. Please try again.");
+          setLoadError("Başvurular yenilenemedi. Lütfen tekrar deneyin.");
         }
       } finally {
         setIsLoading(false);
@@ -141,17 +141,17 @@ export function AdminOverviewPanel({
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="All applications" value={stats.totalApplications} />
+        <StatCard label="Tüm başvurular" value={stats.totalApplications} />
         <StatCard
-          label="In process"
+          label="İşlemde"
           value={inProcess}
-          hint="Sales and DOC work in progress"
+          hint="Satış ve Evrak biriminde işlemde"
         />
-        <StatCard label="Completed" value={stats.completedCount} />
+        <StatCard label="Tamamlanan" value={stats.completedCount} />
         <StatCard
-          label="Avg processing"
+          label="Ort. işlem süresi"
           value={formatDuration(stats.avgProcessingMs)}
-          hint={`${stats.completedCount} completed`}
+          hint={`${stats.completedCount} tamamlanan`}
         />
       </div>
 
@@ -171,9 +171,9 @@ export function AdminOverviewPanel({
       <section className="rounded-lg border border-border/40 bg-card shadow-sm">
         <div className="border-b border-border/40 px-5 py-3.5">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-sm font-medium">All applications</h2>
+            <h2 className="text-sm font-medium">Tüm Başvurular</h2>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {isLoading ? "Updating..." : `${applications.length} shown`}
+              {isLoading ? "Güncelleniyor..." : `${applications.length} kayıt`}
             </span>
           </div>
 
@@ -186,7 +186,7 @@ export function AdminOverviewPanel({
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by customer, staff, or application ID"
+                placeholder="Müşteri, personel veya başvuru kimliği ile ara"
                 className="pl-8"
               />
             </div>
@@ -198,7 +198,7 @@ export function AdminOverviewPanel({
                 size="sm"
                 onClick={() => setSelectedStaffId(null)}
               >
-                Clear filter
+                Filtreyi temizle
               </Button>
             ) : null}
 
@@ -212,14 +212,14 @@ export function AdminOverviewPanel({
                   setSelectedStaffId(null);
                 }}
               >
-                Reset
+                Sıfırla
               </Button>
             ) : null}
           </div>
 
           {selectedStaffName ? (
             <p className="mt-2 text-xs text-muted-foreground">
-              Filtered by staff: <span className="font-medium">{selectedStaffName}</span>
+              Personel filtresi: <span className="font-medium">{selectedStaffName}</span>
             </p>
           ) : null}
 
@@ -230,23 +230,23 @@ export function AdminOverviewPanel({
 
         {applications.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-            No applications match your current filter.
+            Mevcut filtreyle eşleşen başvuru bulunamadı.
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow className="border-border/40 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Applicant
+                  Başvuran
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Stage
+                  Aşama
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Handler
+                  Sorumlu
                 </TableHead>
                 <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                  In system
+                  Sistemde
                 </TableHead>
               </TableRow>
             </TableHeader>

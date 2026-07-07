@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Alsasvize — Visa Operations",
+  title: "Alsasvize — Vize Operasyonları",
   description:
-    "Enterprise visa application management: department pools, RBAC, real-time workflow, and an immutable audit trail.",
+    "Kurumsal vize başvuru yönetimi: departman havuzları, RBAC, gerçek zamanlı iş akışı ve değiştirilemez denetim kaydı.",
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="tr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">

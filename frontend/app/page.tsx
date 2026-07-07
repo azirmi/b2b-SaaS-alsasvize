@@ -22,20 +22,20 @@ const SEMANTIC_ROWS: {
   label: string;
   meta: string;
 }[] = [
-  { icon: CheckCircle2, intent: "success", label: "Document approved", meta: "DOC · verified" },
-  { icon: Loader2, intent: "info", label: "In process", meta: "Assigned · SLA 02:00" },
-  { icon: Clock, intent: "warning", label: "Awaiting approval", meta: "Passport · OCR pending" },
-  { icon: AlertTriangle, intent: "danger", label: "SLA breached", meta: "Auto-reverted to pool" },
-  { icon: Inbox, intent: "neutral", label: "Queued", meta: "Unclaimed in pool" },
+  { icon: CheckCircle2, intent: "success", label: "Belge onaylandı", meta: "Evrak · doğrulandı" },
+  { icon: Loader2, intent: "info", label: "İşlemde", meta: "Atandı · SLA 02:00" },
+  { icon: Clock, intent: "warning", label: "Onay bekliyor", meta: "Pasaport · OCR beklemede" },
+  { icon: AlertTriangle, intent: "danger", label: "SLA aşıldı", meta: "Otomatik olarak havuza döndü" },
+  { icon: Inbox, intent: "neutral", label: "Beklemede", meta: "Havuzda alınmayı bekliyor" },
 ];
 
 const SWATCHES = [
-  { name: "background", className: "bg-background" },
-  { name: "card", className: "bg-card" },
-  { name: "muted", className: "bg-muted" },
-  { name: "secondary", className: "bg-secondary" },
-  { name: "accent", className: "bg-accent" },
-  { name: "primary", className: "bg-primary" },
+  { name: "arkaplan", className: "bg-background" },
+  { name: "kart", className: "bg-card" },
+  { name: "soluk", className: "bg-muted" },
+  { name: "ikincil", className: "bg-secondary" },
+  { name: "vurgu", className: "bg-accent" },
+  { name: "ana", className: "bg-primary" },
 ];
 
 export default function Home() {
@@ -46,45 +46,45 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5" aria-hidden />
             <span className="text-sm font-semibold tracking-tight">Alsasvize</span>
-            <span className="text-xs text-muted-foreground">Operations</span>
+            <span className="text-xs text-muted-foreground">Operasyon</span>
           </div>
           <Badge
             variant="outline"
             className="rounded-md font-mono text-[11px] tracking-tight"
           >
-            Design preview
+            Tasarım önizlemesi
           </Badge>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12 md:py-16">
         <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-          Design system
+          Tasarım sistemi
         </p>
         <h1 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight md:text-4xl">
-          Monochrome by default. Color only for meaning.
+          Varsayılan monokrom. Renk sadece anlam için.
         </h1>
         <p className="mt-3 max-w-2xl leading-relaxed text-muted-foreground">
-          The Alsasvize surface is neutral end to end. Depth comes from a single
-          hairline border, radii stay restrained, and accent hues are reserved
-          strictly for workflow status — never decoration.
+          Alsasvize arayüzü uçtan uca nötrdür. Derinlik ince sınır çizgileriyle
+          verilir, köşe yarıçapları kontrollüdür ve vurgu renkleri yalnızca
+          iş akışı durumu için kullanılır.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-2">
-          <Button size="sm">Claim application</Button>
+          <Button size="sm">Başvuru al</Button>
           <Button size="sm" variant="outline">
-            Pause
+            Duraklat
           </Button>
           <Button size="sm" variant="ghost">
-            View audit trail
+            Denetim kaydını görüntüle
           </Button>
         </div>
 
         <div className="mt-10 grid gap-4 md:grid-cols-2">
           <section className="rounded-lg border border-border/40 bg-card p-6 shadow-sm">
-            <h2 className="text-sm font-medium">Application pipeline</h2>
+            <h2 className="text-sm font-medium">Başvuru akışı</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Seven-stage flow across three department pools.
+              Üç departman havuzunda yedi aşamalı süreç.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-2">
               {STAGE_FLOW.map((stage, i) => (
@@ -102,7 +102,7 @@ export default function Home() {
             <Separator className="my-4" />
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-muted-foreground">
-                Terminal
+                Son durumlar
               </span>
               <StageBadge stage={VisaStage.PAUSED} />
               <StageBadge stage={VisaStage.CANCELLED} />
@@ -110,9 +110,9 @@ export default function Home() {
           </section>
 
           <section className="rounded-lg border border-border/40 bg-card p-6 shadow-sm">
-            <h2 className="text-sm font-medium">Semantic status</h2>
+            <h2 className="text-sm font-medium">Anlamsal durumlar</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              The five intents that may introduce color.
+              Renk kullanabilen beş durum niyeti.
             </p>
             <div className="mt-3 divide-y divide-border/40">
               {SEMANTIC_ROWS.map((row) => {
@@ -144,9 +144,9 @@ export default function Home() {
         </div>
 
         <section className="mt-4 rounded-lg border border-border/40 bg-card p-6 shadow-sm">
-          <h2 className="text-sm font-medium">Neutral palette</h2>
+          <h2 className="text-sm font-medium">Nötr palet</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Every surface is drawn from these tokens — no gradients, no heavy shadows.
+            Tüm yüzeyler bu token'larla çizilir: gradyan yok, ağır gölge yok.
           </p>
           <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
             {SWATCHES.map((swatch) => (

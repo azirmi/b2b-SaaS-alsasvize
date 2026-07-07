@@ -55,6 +55,21 @@ const DOC_UPLOAD_TYPES: FileType[] = [
   FileType.APPOINTMENT_CONFIRMATION,
 ];
 
+const ACTION_LABEL: Record<string, string> = {
+  CREATED: "Oluşturuldu",
+  CLAIMED: "Alındı",
+  STAGE_CHANGED: "Aşama değiştirildi",
+  FORCE_REASSIGNED: "Zorla yeniden atandı",
+  FORCE_CANCELLED: "Zorla iptal edildi",
+  PAUSED: "Duraklatıldı",
+  RESUMED: "Devam ettirildi",
+  SLA_BREACH: "SLA ihlali",
+  CRM_UPDATED: "CRM güncellendi",
+  DETAILS_UPDATED: "Başvuru formu güncellendi",
+  DOCUMENT_APPROVED: "Belge onaylandı",
+  DOCUMENT_REJECTED: "Belge reddedildi",
+};
+
 function isStage(value: unknown): value is VisaStage {
   return (
     typeof value === "string" &&
@@ -64,8 +79,10 @@ function isStage(value: unknown): value is VisaStage {
 
 /** "STAGE_CHANGED" -> "Stage changed". */
 function humanizeAction(action: string): string {
-  const lower = action.replaceAll("_", " ").toLowerCase();
-  return lower.charAt(0).toUpperCase() + lower.slice(1);
+  if (ACTION_LABEL[action]) {
+    return ACTION_LABEL[action];
+  }
+  return action.replaceAll("_", " ");
 }
 
 /** Renders the prev -> new stage snapshot from an audit entry's details, if present. */
@@ -93,7 +110,7 @@ function AssignmentRow({
       {staff ? (
         <span className="text-sm">{staff.user.fullName}</span>
       ) : (
-        <span className="text-sm text-muted-foreground">Unassigned</span>
+        <span className="text-sm text-muted-foreground">Atanmadı</span>
       )}
     </div>
   );
@@ -124,7 +141,7 @@ function Notice({ title, body }: { title: string; body: string }) {
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        My workspace
+        Çalışma Alanım
       </Link>
       <div className="rounded-lg border border-border/40 bg-card p-6 shadow-sm">
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
@@ -184,24 +201,24 @@ export default async function ApplicationDetailPage({
   if (missing) {
     return (
       <Notice
-        title="Application not found"
-        body="This application no longer exists or the link is out of date. Head back to your workspace to see current applications."
+        title="Başvuru bulunamadı"
+        body="Bu başvuru artık mevcut değil veya bağlantı güncel değil. Güncel başvurular için çalışma alanınıza dönün."
       />
     );
   }
   if (forbidden) {
     return (
       <Notice
-        title="Not available"
-        body="This application is not assigned to you and is not sitting in your department pool."
+        title="Erişim yok"
+        body="Bu başvuru size atanmamış ve birim havuzunuzda bulunmuyor."
       />
     );
   }
   if (loadError || !detail) {
     return (
       <Notice
-        title="Unable to load application"
-        body="Something went wrong reaching the service. It will be available again once the service is reachable."
+        title="Başvuru yüklenemedi"
+        body="Hizmete erişirken bir sorun oluştu. Hizmet tekrar erişilebilir olduğunda sayfa yenilenecektir."
       />
     );
   }
@@ -278,11 +295,11 @@ export default async function ApplicationDetailPage({
           label: advanceCfg.label,
           disabled: advanceDisabled,
           hint: advanceBlockedByCrm
-            ? "Complete and save the CRM data entry before sending to Documents."
+            ? "Evrak aşamasına geçmeden önce CRM verilerini eksiksiz doldurup kaydedin."
             : advanceBlockedByDocs
               ? detail.documents.length === 0
-                ? "At least one approved document is required before sending to Secretary."
-                : `All documents must be approved — ${unapprovedDocs} still ${unapprovedDocs === 1 ? "needs" : "need"} approval.`
+                ? "Son işleme geçmeden önce en az bir onaylı belge gereklidir."
+                : `Tüm belgeler onaylı olmalıdır. ${unapprovedDocs} belge için onay bekleniyor.`
               : undefined,
         }
       : undefined;
@@ -326,7 +343,7 @@ export default async function ApplicationDetailPage({
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        My workspace
+        Çalışma Alanım
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -342,17 +359,17 @@ export default async function ApplicationDetailPage({
           </p>
         </div>
         <div className="text-right text-xs text-muted-foreground">
-          <div>Opened {timeAgo(detail.createdAt)} ago</div>
-          <div>In stage {timeAgo(detail.stageUpdatedAt)}</div>
+          <div>Açılış: {timeAgo(detail.createdAt)}</div>
+          <div>Aşamadaki süre: {timeAgo(detail.stageUpdatedAt)}</div>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-            <h2 className="text-sm font-medium">Workflow</h2>
+            <h2 className="text-sm font-medium">İş Akışı</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Current stage: {STAGE_LABEL[stage]}
+              Mevcut aşama: {STAGE_LABEL[stage]}
             </p>
             <Separator className="my-4" />
             <StageActions
@@ -366,7 +383,7 @@ export default async function ApplicationDetailPage({
           {canEditCrm || crm ? (
             <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-medium">CRM · Sales data entry</h2>
+                <h2 className="text-sm font-medium">CRM · Satış Veri Girişi</h2>
                 <Badge
                   variant="outline"
                   className={cn(
@@ -376,7 +393,7 @@ export default async function ApplicationDetailPage({
                       : INTENT_CLASSES.warning,
                   )}
                 >
-                  {crmComplete ? "Complete" : "Incomplete"}
+                  {crmComplete ? "Tamamlandı" : "Eksik"}
                 </Badge>
               </div>
 
@@ -468,14 +485,14 @@ export default async function ApplicationDetailPage({
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
             <h2 className="text-sm font-medium">Başvuru Formu</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Customer-submitted application form — read-only.
+              Müşteri tarafından gönderilen başvuru formu (salt okunur).
             </p>
             <Separator className="my-4" />
             {detail.details ? (
               <ApplicationDetailsView details={detail.details} />
             ) : (
               <p className="text-sm text-muted-foreground">
-                The customer has not submitted the application form yet.
+                Müşteri henüz başvuru formunu göndermedi.
               </p>
             )}
           </section>
@@ -484,18 +501,17 @@ export default async function ApplicationDetailPage({
           <TabsContent value="documents" className="space-y-6">
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-medium">Documents</h2>
+              <h2 className="text-sm font-medium">Belgeler</h2>
               <span className="text-xs text-muted-foreground tabular-nums">
-                {detail.documents.length} file
-                {detail.documents.length === 1 ? "" : "s"}
-                {pendingDocs > 0 ? ` · ${pendingDocs} pending` : ""}
-                {rejectedDocs > 0 ? ` · ${rejectedDocs} rejected` : ""}
+                {detail.documents.length} belge
+                {pendingDocs > 0 ? ` · ${pendingDocs} bekleyen` : ""}
+                {rejectedDocs > 0 ? ` · ${rejectedDocs} reddedilen` : ""}
               </span>
             </div>
 
             {detail.documents.length === 0 ? (
               <p className="mt-4 text-sm text-muted-foreground">
-                The customer has not uploaded any documents yet.
+                Müşteri henüz herhangi bir belge yüklemedi.
               </p>
             ) : (
               <ul className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -540,10 +556,10 @@ export default async function ApplicationDetailPage({
                               )}
                             >
                               {document.isApproved
-                                ? "Approved"
+                                ? "Onaylandı"
                                 : document.rejectionReason
-                                  ? "Rejected"
-                                  : "Pending"}
+                                  ? "Reddedildi"
+                                  : "Bekliyor"}
                             </Badge>
                           </div>
                           {url ? (
@@ -553,11 +569,11 @@ export default async function ApplicationDetailPage({
                               rel="noopener noreferrer"
                               className="block text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                             >
-                              Open original
+                              Orijinali Aç
                             </a>
                           ) : (
                             <span className="block text-xs text-muted-foreground">
-                              Preview unavailable
+                              Önizleme yok
                             </span>
                           )}
                           {document.rejectionReason ? (
@@ -583,7 +599,7 @@ export default async function ApplicationDetailPage({
 
           {canDocUpload ? (
             <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-medium">Staff Uploads</h2>
+              <h2 className="text-sm font-medium">Personel Yüklemeleri</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 Hazırladığınız belgeleri yükleyin — uçuş/otel rezervasyonu,
                 niyet mektubu, seyahat planı, sağlık sigortası ve randevu teyidi.
@@ -665,10 +681,10 @@ export default async function ApplicationDetailPage({
 
           {canIssueVisaGrant ? (
             <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-medium">Issue visa grant</h2>
+              <h2 className="text-sm font-medium">Vize Sonuç Belgesi</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Upload the approved visa grant document — the customer will see
-                it in their application.
+                Onaylı vize sonuç belgesini yükleyin. Müşteri bu belgeyi kendi
+                başvuru ekranında görecektir.
               </p>
               <Separator className="my-4" />
               <DocumentUploader
@@ -682,10 +698,10 @@ export default async function ApplicationDetailPage({
           </Tabs>
 
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-            <h2 className="text-sm font-medium">Activity</h2>
+            <h2 className="text-sm font-medium">Aktivite</h2>
             {detail.auditLogs.length === 0 ? (
               <p className="mt-4 text-sm text-muted-foreground">
-                No activity recorded yet.
+                Henüz aktivite kaydı yok.
               </p>
             ) : (
               <ol className="mt-4 space-y-3">
@@ -719,14 +735,14 @@ export default async function ApplicationDetailPage({
 
         <div className="space-y-6">
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-            <h2 className="text-sm font-medium">Applicant</h2>
+            <h2 className="text-sm font-medium">Başvuran</h2>
             <dl className="mt-4 space-y-3">
               <div>
-                <dt className="text-xs text-muted-foreground">Name</dt>
+                <dt className="text-xs text-muted-foreground">Ad Soyad</dt>
                 <dd className="text-sm">{detail.customer.fullName}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Email</dt>
+                <dt className="text-xs text-muted-foreground">E-posta</dt>
                 <dd className="font-mono text-sm break-all">
                   {detail.customer.email}
                 </dd>
@@ -735,11 +751,11 @@ export default async function ApplicationDetailPage({
           </section>
 
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-            <h2 className="text-sm font-medium">Assignments</h2>
+            <h2 className="text-sm font-medium">Atamalar</h2>
             <div className="mt-4 space-y-3">
-              <AssignmentRow label="Sales" staff={detail.assignedSales} />
-              <AssignmentRow label="Documents" staff={detail.assignedDoc} />
-              <AssignmentRow label="Secretary" staff={detail.assignedSec} />
+              <AssignmentRow label="Satış" staff={detail.assignedSales} />
+              <AssignmentRow label="Evrak" staff={detail.assignedDoc} />
+              <AssignmentRow label="Son İşlem" staff={detail.assignedSec} />
             </div>
           </section>
 

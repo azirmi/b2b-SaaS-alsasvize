@@ -40,6 +40,7 @@ export default async function WorkspacePage() {
   const applications =
     assignedResult.status === "fulfilled" ? assignedResult.value : [];
   const loadError = assignedResult.status === "rejected";
+  const historyLoadError = wantsHistory && historyResult.status === "rejected";
   const salesHistory =
     historyResult.status === "fulfilled" ? historyResult.value : [];
 
@@ -47,33 +48,33 @@ export default async function WorkspacePage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">My workspace</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Çalışma Alanım</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             {isAdmin
-              ? "Every application currently being worked across all departments."
-              : "Applications you have claimed and are actively processing."}
+              ? "Tüm birimlerde şu anda işlemde olan başvurular."
+              : "Üzerinize aldığınız ve aktif olarak işlediğiniz başvurular."}
           </p>
         </div>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {applications.length} active
+          {applications.length} aktif
         </span>
       </div>
 
       {loadError ? (
         <div className="rounded-lg border border-border/40 bg-card p-6 text-sm text-muted-foreground shadow-sm">
-          Unable to load your workspace right now. It will refresh automatically
-          once the service is reachable.
+          Çalışma alanınız şu anda yüklenemiyor. Hizmet tekrar erişilebilir
+          olduğunda sayfa otomatik yenilenir.
         </div>
       ) : applications.length === 0 ? (
         <div className="rounded-lg border border-border/40 bg-card px-5 py-16 text-center text-sm text-muted-foreground shadow-sm">
-          Nothing assigned to you yet. Claim work from the{" "}
+          Henüz size atanmış başvuru yok. İş almak için{" "}
           <Link
             href="/dashboard/pool"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            work pool
+            iş havuzuna
           </Link>
-          .
+          gidin.
         </div>
       ) : (
         <section className="rounded-lg border border-border/40 bg-card shadow-sm">
@@ -81,19 +82,19 @@ export default async function WorkspacePage() {
             <TableHeader>
               <TableRow className="border-border/40 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Applicant
+                  Başvuran
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Stage
+                  Aşama
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Files
+                  Evrak
                 </TableHead>
                 <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                  In stage
+                  Aşamada
                 </TableHead>
                 <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                  <span className="sr-only">Open</span>
+                  <span className="sr-only">Aç</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -130,7 +131,7 @@ export default async function WorkspacePage() {
                       href={`/dashboard/applications/${application.id}`}
                       className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
                     >
-                      Open
+                      Aç
                       <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                     </Link>
                   </TableCell>
@@ -145,11 +146,13 @@ export default async function WorkspacePage() {
         <section className="space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-sm font-medium">Geçmiş Satışlarım</h2>
+              <h2 className="text-lg font-semibold tracking-tight">
+                İşlenen Satış Başvuruları
+              </h2>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                 {isAdmin
-                  ? "Bir satış temsilcisi tarafından işlenen tüm başvurular — salt-okunur takip."
-                  : "İşlediğiniz başvurular. Mevcut aşamayı ve müşteri bilgilerini salt-okunur görüntüleyin."}
+                  ? "Satış temsilcileri tarafından işlenen tüm başvuruların salt okunur görünümü."
+                  : "İşlediğiniz satış başvurularının salt okunur görünümü."}
               </p>
             </div>
             <span className="text-xs text-muted-foreground tabular-nums">
@@ -157,13 +160,18 @@ export default async function WorkspacePage() {
             </span>
           </div>
 
-          {salesHistory.length === 0 ? (
-            <div className="rounded-lg border border-border/40 bg-card px-5 py-12 text-center text-sm text-muted-foreground shadow-sm">
-              Henüz işlenmiş bir satış yok.
+          {historyLoadError ? (
+            <div className="rounded-lg border border-border/40 bg-card p-6 text-sm text-muted-foreground shadow-sm">
+              Satış geçmişi şu anda yüklenemiyor. Lütfen daha sonra tekrar deneyin.
             </div>
           ) : (
             <div className="rounded-lg border border-border/40 bg-card shadow-sm">
-              <Table>
+              {salesHistory.length === 0 ? (
+                <div className="px-5 py-16 text-center text-sm text-muted-foreground">
+                  Henüz işlenmiş satış kaydı yok.
+                </div>
+              ) : (
+                <Table>
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="text-xs font-medium text-muted-foreground">
@@ -212,7 +220,8 @@ export default async function WorkspacePage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              )}
             </div>
           )}
         </section>

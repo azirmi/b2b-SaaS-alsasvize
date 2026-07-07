@@ -30,21 +30,21 @@ export function DocumentReviewActions({
     setError(null);
     startTransition(async () => {
       const result = await approveDocument(documentId);
-      if (!result.ok) setError(result.error ?? "Approval failed.");
+      if (!result.ok) setError(result.error ?? "Onaylama başarısız.");
     });
   }
 
   function onReject() {
     const trimmed = reason.trim();
     if (!trimmed) {
-      setError("A rejection reason is required.");
+      setError("Reddetme nedeni zorunludur.");
       return;
     }
     setError(null);
     startTransition(async () => {
       const result = await rejectDocument(documentId, trimmed);
       if (!result.ok) {
-        setError(result.error ?? "Rejection failed.");
+        setError(result.error ?? "Reddetme başarısız.");
         return;
       }
       setRejecting(false);
@@ -59,7 +59,7 @@ export function DocumentReviewActions({
           <Input
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            placeholder="Reason (e.g. blurry scan)"
+            placeholder="Neden (örn. bulanık tarama)"
             maxLength={300}
             autoFocus
             className="h-8 w-52"
@@ -75,10 +75,10 @@ export function DocumentReviewActions({
               }}
               disabled={pending}
             >
-              Cancel
+              İptal
             </Button>
             <Button size="sm" onClick={onReject} disabled={pending}>
-              {pending ? "Rejecting…" : "Confirm reject"}
+              {pending ? "Reddediliyor…" : "Reddi Onayla"}
             </Button>
           </div>
         </div>
@@ -92,7 +92,7 @@ export function DocumentReviewActions({
               disabled={pending}
             >
               <Check aria-hidden />
-              {pending ? "Approving…" : "Approve"}
+              {pending ? "Onaylanıyor…" : "Onayla"}
             </Button>
           ) : null}
           {!isRejected ? (
@@ -106,7 +106,7 @@ export function DocumentReviewActions({
               disabled={pending}
             >
               <X aria-hidden />
-              Reject
+              Reddet
             </Button>
           ) : null}
         </div>

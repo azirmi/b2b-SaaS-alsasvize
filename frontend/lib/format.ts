@@ -6,12 +6,12 @@ export function timeAgo(iso: string): string {
   }
   const diffMs = Math.max(0, Date.now() - then);
   const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1) return "az önce";
+  if (minutes < 60) return `${minutes} dk`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
+  if (hours < 24) return `${hours} sa`;
   const days = Math.floor(hours / 24);
-  return `${days}d`;
+  return `${days} g`;
 }
 
 /** Compact ms duration for analytics (e.g. "3d 4h", "5h 12m", "42m"). */
@@ -20,13 +20,13 @@ export function formatDuration(ms: number): string {
     return "—";
   }
   const minutes = Math.floor(ms / 60_000);
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60) return `${minutes} dk`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
     const remMin = minutes % 60;
-    return remMin ? `${hours}h ${remMin}m` : `${hours}h`;
+    return remMin ? `${hours} sa ${remMin} dk` : `${hours} sa`;
   }
   const days = Math.floor(hours / 24);
   const remHours = hours % 24;
-  return remHours ? `${days}d ${remHours}h` : `${days}d`;
+  return remHours ? `${days} g ${remHours} sa` : `${days} g`;
 }

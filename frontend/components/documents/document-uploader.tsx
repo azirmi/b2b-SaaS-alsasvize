@@ -31,31 +31,31 @@ export const CUSTOMER_DOCUMENT_TYPES: FileType[] = [
 /** Per-type preparation guidance shown above the upload area (placeholder copy). */
 const DOCUMENT_INSTRUCTIONS: Record<FileType, string> = {
   PASSPORT:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+    "Pasaportunuzun fotoğraflı sayfasını tam ve net görünecek şekilde yükleyin. Parlama, kesik kenar veya bulanıklık olmamalıdır.",
   BANK_STATEMENT:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate.",
+    "Son 3 aya ait banka hesap dökümünü yükleyin. Ad-soyad, tarih ve bakiye bilgileri okunur olmalıdır.",
   INTENT_LETTER:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident.",
+    "Seyahat amacınızı ve planlanan tarihleri açıklayan niyet mektubunu imzalı ve okunur şekilde yükleyin.",
   CONSULATE_FORM:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error.",
+    "Konsolosluk başvuru formunu eksiksiz doldurup imzalı biçimde yükleyin.",
   VISA_GRANT:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore.",
+    "Onaylı vize sonuç belgesini tek dosya halinde yükleyin. Belge numarası ve geçerlilik tarihleri net olmalıdır.",
   PAYMENT_RECEIPT:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Neque porro quisquam est qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt.",
+    "Ödeme dekontunu yükleyin. Tutar, tarih ve alıcı bilgileri açıkça okunabilmelidir.",
   FLIGHT_HOTEL_RESERVATION:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat duis aute irure dolor.",
+    "Gidiş-dönüş uçuş ve konaklama rezervasyon belgelerini tek PDF veya okunur görseller halinde yükleyin.",
   LETTER_OF_INTENT:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua, quis nostrud exercitation ullamco laboris nisi.",
+    "Başvuru kapsamında talep edilen destekleyici niyet yazısını imzalı ve okunur şekilde yükleyin.",
   TRAVEL_PLAN:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+    "Gün bazlı seyahat planını (şehir, tarih, amaç) içeren belgeyi yükleyin.",
   HEALTH_INSURANCE:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur excepteur sint.",
+    "Seyahat süresini kapsayan sağlık sigortası poliçesini yükleyin.",
   APPOINTMENT_CONFIRMATION:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos.",
+    "Randevu onay belgesini tarih ve saat bilgileri görünür olacak şekilde yükleyin.",
   FINAL_RECEIPT:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.",
+    "Kalan ödeme dekontunu yükleyin. İşlem referans numarası görünür olmalıdır.",
   OTHER:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.",
+    "Yukarıdaki türlere girmeyen ek belgeleri yükleyin. Belge adı ve içeriği anlaşılır olmalıdır.",
 };
 
 function humanSize(bytes: number): string {
@@ -97,11 +97,11 @@ export function DocumentUploader({
       return;
     }
     if (!ACCEPT_SET.has(next.type)) {
-      setError("Unsupported file type. Use JPG, PNG, WebP, or PDF.");
+      setError("Desteklenmeyen dosya türü. JPG, PNG, WebP veya PDF yükleyin.");
       return;
     }
     if (next.size > MAX_SIZE) {
-      setError("File exceeds the 10 MB limit.");
+      setError("Dosya 10 MB sınırını aşıyor.");
       return;
     }
     setFile(next);
@@ -129,11 +129,11 @@ export function DocumentUploader({
           body: file,
         });
         if (!response.ok) {
-          setError("Upload to storage failed. Please retry.");
+          setError("Depolama alanına yükleme başarısız oldu. Lütfen tekrar deneyin.");
           return;
         }
       } catch {
-        setError("Could not reach storage. Please retry.");
+        setError("Depolama hizmetine ulaşılamadı. Lütfen tekrar deneyin.");
         return;
       }
       clearFile();
@@ -186,7 +186,7 @@ export function DocumentUploader({
 
       <div className="rounded-lg border border-border/40 bg-muted/40 p-4">
         <p className="text-sm font-medium">
-          {FILE_TYPE_LABEL[fileType]} · Hazırlama Talimatı
+          {FILE_TYPE_LABEL[fileType]} · Hazırlama talimatı
         </p>
         <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
           {DOCUMENT_INSTRUCTIONS[fileType]}
@@ -236,7 +236,7 @@ export function DocumentUploader({
                 clearFile();
               }}
               className="text-muted-foreground transition-colors hover:text-foreground"
-              aria-label="Remove file"
+              aria-label="Dosyayı kaldır"
             >
               <X className="h-3.5 w-3.5" aria-hidden />
             </button>
@@ -244,11 +244,11 @@ export function DocumentUploader({
         ) : (
           <>
             <p className="text-sm">
-              <span className="font-medium">Drag a file here</span> or click to
-              browse
+              <span className="font-medium">Dosyayı buraya sürükleyin</span> veya
+              seçmek için tıklayın
             </p>
             <p className="text-xs text-muted-foreground">
-              JPG, PNG, WebP, or PDF · up to 10 MB
+              JPG, PNG, WebP veya PDF · en fazla 10 MB
             </p>
           </>
         )}
@@ -268,7 +268,7 @@ export function DocumentUploader({
       ) : null}
 
       <Button size="sm" onClick={upload} disabled={!file || pending}>
-        {pending ? "Uploading…" : "Upload document"}
+        {pending ? "Yükleniyor…" : "Belgeyi Yükle"}
       </Button>
     </div>
   );

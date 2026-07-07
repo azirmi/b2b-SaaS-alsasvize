@@ -18,7 +18,7 @@ const UUID_RE =
  */
 export async function approveDocument(id: string): Promise<ActionResult> {
   if (!UUID_RE.test(id)) {
-    return { ok: false, error: "Invalid document reference." };
+    return { ok: false, error: "Geçersiz evrak referansı." };
   }
 
   try {
@@ -27,7 +27,7 @@ export async function approveDocument(id: string): Promise<ActionResult> {
     if (error instanceof ApiError) {
       return { ok: false, error: error.message };
     }
-    return { ok: false, error: "Unable to approve the document. Please retry." };
+    return { ok: false, error: "Evrak onaylanamadı. Lütfen tekrar deneyin." };
   }
 
   revalidatePath("/dashboard", "layout");
@@ -43,11 +43,11 @@ export async function rejectDocument(
   reason: string,
 ): Promise<ActionResult> {
   if (!UUID_RE.test(id)) {
-    return { ok: false, error: "Invalid document reference." };
+    return { ok: false, error: "Geçersiz evrak referansı." };
   }
   const trimmed = reason.trim().slice(0, 500);
   if (!trimmed) {
-    return { ok: false, error: "A rejection reason is required." };
+    return { ok: false, error: "Reddetme nedeni zorunludur." };
   }
 
   try {
@@ -56,7 +56,7 @@ export async function rejectDocument(
     if (error instanceof ApiError) {
       return { ok: false, error: error.message };
     }
-    return { ok: false, error: "Unable to reject the document. Please retry." };
+    return { ok: false, error: "Evrak reddedilemedi. Lütfen tekrar deneyin." };
   }
 
   revalidatePath("/dashboard", "layout");
@@ -70,7 +70,7 @@ export async function rejectDocument(
  */
 export async function deleteDocument(id: string): Promise<ActionResult> {
   if (!UUID_RE.test(id)) {
-    return { ok: false, error: "Invalid document reference." };
+    return { ok: false, error: "Geçersiz evrak referansı." };
   }
 
   try {
@@ -79,7 +79,7 @@ export async function deleteDocument(id: string): Promise<ActionResult> {
     if (error instanceof ApiError) {
       return { ok: false, error: error.message };
     }
-    return { ok: false, error: "Unable to delete the document. Please retry." };
+    return { ok: false, error: "Evrak silinemedi. Lütfen tekrar deneyin." };
   }
 
   revalidatePath("/dashboard", "layout");
@@ -99,14 +99,14 @@ export async function requestDocumentUpload(
   fileName: string,
 ): Promise<DocumentUploadResult> {
   if (!UUID_RE.test(applicationId)) {
-    return { ok: false, error: "Invalid application reference." };
+    return { ok: false, error: "Geçersiz başvuru referansı." };
   }
   const cleanName = fileName.trim().slice(0, 255);
   if (!cleanName) {
-    return { ok: false, error: "A file name is required." };
+    return { ok: false, error: "Dosya adı zorunludur." };
   }
   if (!Object.values(FileType).includes(fileType)) {
-    return { ok: false, error: "Unsupported document type." };
+    return { ok: false, error: "Desteklenmeyen belge türü." };
   }
 
   try {
@@ -127,6 +127,6 @@ export async function requestDocumentUpload(
     if (error instanceof ApiError) {
       return { ok: false, error: error.message };
     }
-    return { ok: false, error: "Unable to start the upload. Please retry." };
+    return { ok: false, error: "Yükleme başlatılamadı. Lütfen tekrar deneyin." };
   }
 }

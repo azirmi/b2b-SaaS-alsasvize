@@ -54,10 +54,10 @@ export interface StageAdvancedEmailInput {
 //  Customer-facing pipeline (4 milestones the customer actually cares about)
 // -----------------------------------------------------------------------------
 const PIPELINE_STEPS = [
-  'Application Received',
-  'Document Review',
-  'Processing',
-  'Completed',
+  'Başvuru Alındı',
+  'Evrak İncelemesi',
+  'İşlemde',
+  'Tamamlandı',
 ] as const;
 
 /** Maps each internal stage onto one of the four customer-facing milestones. */
@@ -75,19 +75,19 @@ const STAGE_STEP_INDEX: Record<VisaStage, number> = {
 };
 
 const FILE_TYPE_LABEL: Record<FileType, string> = {
-  [FileType.PASSPORT]: 'Passport',
-  [FileType.BANK_STATEMENT]: 'Bank Statement',
-  [FileType.INTENT_LETTER]: 'Letter of Intent',
-  [FileType.CONSULATE_FORM]: 'Consulate Form',
-  [FileType.VISA_GRANT]: 'Visa Grant',
-  [FileType.PAYMENT_RECEIPT]: 'Payment Receipt',
-  [FileType.FLIGHT_HOTEL_RESERVATION]: 'Flight & Hotel Reservation',
-  [FileType.LETTER_OF_INTENT]: 'Letter of Intent',
-  [FileType.TRAVEL_PLAN]: 'Travel Plan',
-  [FileType.HEALTH_INSURANCE]: 'Health Insurance',
-  [FileType.APPOINTMENT_CONFIRMATION]: 'Appointment Confirmation',
-  [FileType.FINAL_RECEIPT]: 'Final Payment Receipt',
-  [FileType.OTHER]: 'Document',
+  [FileType.PASSPORT]: 'Pasaport',
+  [FileType.BANK_STATEMENT]: 'Banka Hesap Dökümü',
+  [FileType.INTENT_LETTER]: 'Niyet Mektubu',
+  [FileType.CONSULATE_FORM]: 'Konsolosluk Formu',
+  [FileType.VISA_GRANT]: 'Vize Sonuç Belgesi',
+  [FileType.PAYMENT_RECEIPT]: 'Ödeme Dekontu',
+  [FileType.FLIGHT_HOTEL_RESERVATION]: 'Uçak ve Otel Rezervasyonu',
+  [FileType.LETTER_OF_INTENT]: 'Niyet Mektubu',
+  [FileType.TRAVEL_PLAN]: 'Seyahat Planı',
+  [FileType.HEALTH_INSURANCE]: 'Seyahat Sağlık Sigortası',
+  [FileType.APPOINTMENT_CONFIRMATION]: 'Randevu Onayı',
+  [FileType.FINAL_RECEIPT]: 'Kalan Ödeme Dekontu',
+  [FileType.OTHER]: 'Belge',
 };
 
 interface StageCopy {
@@ -98,30 +98,30 @@ interface StageCopy {
 
 const STAGE_ADVANCED_COPY: Partial<Record<VisaStage, StageCopy>> = {
   [VisaStage.DOC_POOL]: {
-    subject: 'Your application has moved to Document Review',
-    headline: 'Your documents are being reviewed',
+    subject: 'Başvurunuz evrak inceleme aşamasına geçti',
+    headline: 'Evraklarınız inceleniyor',
     message:
-      'good news — your application has cleared the initial review and moved into the Document Review stage. Our team will verify your uploaded documents and reach out if anything else is needed.',
+      'İyi haber: Başvurunuz ön kontrolden geçti ve Evrak İnceleme aşamasına alındı. Yüklediğiniz evraklar ekibimiz tarafından kontrol edilecek, ihtiyaç halinde sizinle iletişime geçilecektir.',
   },
   [VisaStage.SEC_POOL]: {
-    subject: 'Your application is now being processed',
-    headline: 'Your application is being processed',
+    subject: 'Başvurunuz işlem aşamasına alındı',
+    headline: 'Başvurunuz işlemde',
     message:
-      'your documents have been approved and your application has advanced to Processing. Our secretariat is now preparing the final steps of your visa application.',
+      'Evraklarınız onaylandı ve başvurunuz işlem aşamasına geçti. Ekibimiz vize başvurunuzun son adımlarını hazırlamaktadır.',
   },
   [VisaStage.COMPLETED]: {
-    subject: 'Your visa application is complete',
-    headline: 'Your visa application is complete',
+    subject: 'Vize başvurunuz tamamlandı',
+    headline: 'Vize başvurunuz tamamlandı',
     message:
-      'your visa application has been finalized. Thank you for choosing Alsasvize — sign in to your dashboard to review the outcome and download any issued documents.',
+      'Vize başvurunuz sonuçlandırılmıştır. Alsasvize’i tercih ettiğiniz için teşekkür ederiz. Sonucu görüntülemek ve oluşturulan belgeleri indirmek için panelinize giriş yapabilirsiniz.',
   },
 };
 
 const DEFAULT_STAGE_COPY: StageCopy = {
-  subject: 'Your application status has been updated',
-  headline: 'Your application has advanced',
+  subject: 'Başvuru durumunuz güncellendi',
+  headline: 'Başvurunuz bir sonraki aşamaya geçti',
   message:
-    'your visa application has moved to the next stage. Sign in to your dashboard for the latest details.',
+    'Vize başvurunuz bir sonraki aşamaya geçmiştir. Güncel detaylar için panelinize giriş yapabilirsiniz.',
 };
 
 // -----------------------------------------------------------------------------
@@ -287,12 +287,12 @@ function renderShell(params: {
   const logoUrl =
     process.env.EMAIL_LOGO_URL ?? 'https://alsasvize.com/logo.png';
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="tr">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-<title>Alsasvize</title>
+<title>Alsasvize Bildirim</title>
 </head>
 <body style="margin:0;padding:0;background:${CANVAS};-webkit-text-size-adjust:100%;">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${CANVAS};opacity:0;">${escapeHtml(
@@ -304,10 +304,10 @@ function renderShell(params: {
 <tr><td align="center" style="padding:28px 40px 6px 40px;font-family:${FONT};"><img src="${logoUrl}" width="150" alt="Alsas Vize" style="display:block;margin:0 auto;width:150px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" /></td></tr>
 <tr><td style="padding:4px 40px 8px 40px;font-family:${FONT};">${params.contentHtml}</td></tr>
 <tr><td style="padding:22px 40px 30px 40px;font-family:${FONT};border-top:1px solid ${LINE};">
-<div style="font-size:12px;line-height:18px;color:${MUTED};">Reference <span style="font-family:'Courier New',Courier,monospace;color:${INK_SOFT};">#${escapeHtml(
+<div style="font-size:12px;line-height:18px;color:${MUTED};">Referans <span style="font-family:'Courier New',Courier,monospace;color:${INK_SOFT};">#${escapeHtml(
     params.applicationRef,
   )}</span></div>
-<div style="margin-top:6px;font-size:12px;line-height:18px;color:${MUTED};">This is an automated message from Alsasvize. Please do not reply to this email.</div>
+<div style="margin-top:6px;font-size:12px;line-height:18px;color:${MUTED};">Bu e-posta Alsasvize tarafından otomatik olarak gönderilmiştir. Lütfen bu mesaja yanıt vermeyiniz.</div>
 </td></tr>
 </table>
 </td></tr></table>
@@ -324,39 +324,39 @@ export function renderDocumentRejectedEmail(
   const name = escapeHtml(input.customerName);
   const fileLabel = FILE_TYPE_LABEL[input.fileType];
   const ref = shortRef(input.applicationId);
-  const subject = `Action required: re-upload your ${fileLabel}`;
-  const preheader = `Your ${fileLabel} could not be approved — please upload a corrected version.`;
+  const subject = `İşlem gerekli: ${fileLabel} belgesini yeniden yükleyin`;
+  const preheader = `${fileLabel} belgesi onaylanamadı. Lütfen düzeltilmiş sürümü yeniden yükleyin.`;
 
   const contentHtml = [
-    heading('A document needs your attention'),
-    paragraph(`Hi ${name},`),
+    heading('Bir belgeniz için işlem gerekiyor'),
+    paragraph(`Merhaba ${name},`),
     paragraph(
-      `One of the documents on your visa application was reviewed and <strong style="color:${INK};font-weight:700;">could not be approved</strong>. Please upload a corrected version so we can keep your application moving.`,
+      `Vize başvurunuzdaki belgelerden biri incelendi ve <strong style="color:${INK};font-weight:700;">onaylanamadı</strong>. Sürecin devam edebilmesi için lütfen düzeltilmiş sürümünü yeniden yükleyiniz.`,
     ),
     trackerSection(input.currentStage),
     calloutBox([
-      { label: 'Document', value: fileLabel, strong: true },
-      { label: 'Reason for rejection', value: input.reason },
+      { label: 'Belge', value: fileLabel, strong: true },
+      { label: 'Reddedilme nedeni', value: input.reason },
     ]),
     paragraph(
-      'Sign in to your dashboard, remove the flagged file, and upload a replacement. Once it is approved, your application advances automatically.',
+      'Panelinize giriş yapıp işaretlenen dosyayı kaldırın ve yerine yeni dosya yükleyin. Belge onaylandığında başvurunuz otomatik olarak ilerleyecektir.',
     ),
   ].join('');
 
   const html = renderShell({ preheader, contentHtml, applicationRef: ref });
   const text = [
-    'A document needs your attention',
+    'Bir belgeniz için işlem gerekiyor',
     '',
-    `Hi ${input.customerName},`,
-    'One of the documents on your visa application could not be approved.',
+    `Merhaba ${input.customerName},`,
+    'Vize başvurunuzdaki belgelerden biri onaylanamadı.',
     '',
-    `Document: ${fileLabel}`,
-    `Reason: ${input.reason}`,
+    `Belge: ${fileLabel}`,
+    `Neden: ${input.reason}`,
     '',
-    'Please sign in to your dashboard, remove the flagged file, and upload a corrected version. Once it is approved, your application advances automatically.',
+    'Lütfen panelinize giriş yapın, işaretlenen dosyayı kaldırın ve düzeltilmiş sürümünü yükleyin. Belge onaylandığında başvurunuz otomatik olarak ilerler.',
     '',
-    `Reference #${ref}`,
-    'This is an automated message from Alsasvize. Please do not reply.',
+    `Referans #${ref}`,
+    'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',
   ].join('\n');
 
   return { subject, html, text };
@@ -371,7 +371,7 @@ export function renderStageAdvancedEmail(
 
   const contentHtml = [
     heading(copy.headline),
-    paragraph(`Hi ${name},`),
+    paragraph(`Merhaba ${name},`),
     paragraph(escapeHtml(copy.message)),
     trackerSection(input.newStage),
   ].join('');
@@ -384,11 +384,11 @@ export function renderStageAdvancedEmail(
   const text = [
     copy.headline,
     '',
-    `Hi ${input.customerName},`,
+    `Merhaba ${input.customerName},`,
     copy.message,
     '',
-    `Reference #${ref}`,
-    'This is an automated message from Alsasvize. Please do not reply.',
+    `Referans #${ref}`,
+    'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',
   ].join('\n');
 
   return { subject: copy.subject, html, text };

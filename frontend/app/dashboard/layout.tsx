@@ -46,7 +46,7 @@ export default async function DashboardLayout({
             </div>
             <form action={logout}>
               <Button type="submit" variant="ghost" size="sm">
-                Sign out
+                Çıkış yap
               </Button>
             </form>
           </div>

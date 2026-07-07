@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard/pool", label: "Work pool" },
-  { href: "/dashboard/workspace", label: "My workspace" },
+  { href: "/dashboard", label: "Genel Bakış" },
+  { href: "/dashboard/pool", label: "İş Havuzu" },
+  { href: "/dashboard/workspace", label: "Çalışma Alanım" },
 ] as const;
 
 /** Primary staff navigation with an active-route indicator. */

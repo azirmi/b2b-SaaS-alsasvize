@@ -27,15 +27,15 @@ export const STAGE_INTENT: Record<VisaStage, Intent> = {
 };
 
 export const STAGE_LABEL: Record<VisaStage, string> = {
-  SALES_POOL: 'Sales · Queue',
-  SALES_PROCESS: 'Sales · Working',
-  DOC_POOL: 'Docs · Queue',
-  DOC_PROCESS: 'Docs · Working',
-  SEC_POOL: 'Secretary · Queue',
-  SEC_PROCESS: 'Secretary · Working',
-  COMPLETED: 'Completed',
-  PAUSED: 'Paused',
-  CANCELLED: 'Cancelled',
+  SALES_POOL: 'Satış · Bekliyor',
+  SALES_PROCESS: 'Satış · İşleniyor',
+  DOC_POOL: 'Evrak · Bekliyor',
+  DOC_PROCESS: 'Evrak · İşleniyor',
+  SEC_POOL: 'Son İşlem · Bekliyor',
+  SEC_PROCESS: 'Son İşlem · İşleniyor',
+  COMPLETED: 'Tamamlandı',
+  PAUSED: 'Duraklatıldı',
+  CANCELLED: 'İptal Edildi',
 };
 
 /** Canonical happy-path order (terminal PAUSED/CANCELLED excluded). */
@@ -54,32 +54,32 @@ export const STAGE_ADVANCE: Partial<
   Record<VisaStage, { label: string; next: VisaStage }>
 > = {
   [VisaStage.SALES_PROCESS]: {
-    label: 'Send to Documents',
+    label: 'Belgelere Gönder',
     next: VisaStage.DOC_POOL,
   },
   [VisaStage.DOC_PROCESS]: {
-    label: 'Send to Secretary',
+    label: 'Son İşleme Gönder',
     next: VisaStage.SEC_POOL,
   },
   [VisaStage.SEC_PROCESS]: {
-    label: 'Mark completed',
+    label: 'Tamamlandı Olarak İşaretle',
     next: VisaStage.COMPLETED,
   },
 };
 
 /** Human labels for document categories. */
 export const FILE_TYPE_LABEL: Record<FileType, string> = {
-  PASSPORT: 'Passport',
-  BANK_STATEMENT: 'Bank statement',
-  INTENT_LETTER: 'Intent letter',
-  CONSULATE_FORM: 'Consulate form',
-  VISA_GRANT: 'Visa grant',
-  PAYMENT_RECEIPT: 'Payment receipt',
-  FLIGHT_HOTEL_RESERVATION: 'Flight & hotel reservation',
-  LETTER_OF_INTENT: 'Letter of intent',
-  TRAVEL_PLAN: 'Travel plan',
-  HEALTH_INSURANCE: 'Health insurance',
-  APPOINTMENT_CONFIRMATION: 'Appointment confirmation',
-  FINAL_RECEIPT: 'Final payment receipt',
-  OTHER: 'Other',
+  PASSPORT: 'Pasaport',
+  BANK_STATEMENT: 'Banka Hesap Dökümü',
+  INTENT_LETTER: 'Niyet Mektubu',
+  CONSULATE_FORM: 'Konsolosluk Formu',
+  VISA_GRANT: 'Vize Sonuç Belgesi',
+  PAYMENT_RECEIPT: 'Ödeme Dekontu',
+  FLIGHT_HOTEL_RESERVATION: 'Uçak ve Otel Rezervasyonu',
+  LETTER_OF_INTENT: 'Niyet Mektubu',
+  TRAVEL_PLAN: 'Seyahat Planı',
+  HEALTH_INSURANCE: 'Seyahat Sağlık Sigortası',
+  APPOINTMENT_CONFIRMATION: 'Randevu Onayı',
+  FINAL_RECEIPT: 'Kalan Ödeme Dekontu',
+  OTHER: 'Diğer',
 };

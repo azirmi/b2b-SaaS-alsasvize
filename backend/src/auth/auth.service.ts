@@ -56,7 +56,7 @@ export class AuthService {
       select: { id: true },
     });
     if (existing) {
-      throw new ConflictException('An account with this email already exists');
+      throw new ConflictException('Bu e-posta ile kayıtlı bir hesap zaten var');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
@@ -104,17 +104,17 @@ export class AuthService {
   ) {
     // ── File validation ──────────────────────────────────────────────────
     if (!passports || passports.length === 0) {
-      throw new BadRequestException('At least one passport file is required');
+      throw new BadRequestException('En az bir pasaport dosyası yüklenmelidir');
     }
     for (const passport of passports) {
       if (!ALLOWED_PASSPORT_MIMES.has(passport.mimetype)) {
         throw new BadRequestException(
-          `Invalid file type "${passport.mimetype}". Allowed: ${[...ALLOWED_PASSPORT_MIMES].join(', ')}`,
+          `Geçersiz dosya türü: "${passport.mimetype}". İzin verilenler: ${[...ALLOWED_PASSPORT_MIMES].join(', ')}`,
         );
       }
       if (passport.size > MAX_PASSPORT_SIZE) {
         throw new BadRequestException(
-          `Passport file "${passport.originalname}" exceeds the maximum size of ${MAX_PASSPORT_SIZE / (1024 * 1024)} MB`,
+          `"${passport.originalname}" dosyası azami ${MAX_PASSPORT_SIZE / (1024 * 1024)} MB sınırını aşıyor`,
         );
       }
     }
@@ -125,7 +125,7 @@ export class AuthService {
       select: { id: true },
     });
     if (existing) {
-      throw new ConflictException('An account with this email already exists');
+      throw new ConflictException('Bu e-posta ile kayıtlı bir hesap zaten var');
     }
 
     // ── Hash password ────────────────────────────────────────────────────
@@ -233,17 +233,17 @@ export class AuthService {
     // Use the same generic message whether the user is missing or the password
     // is wrong, to avoid leaking which emails are registered (user enumeration).
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('E-posta veya şifre hatalı');
     }
 
     const passwordMatches = await bcrypt.compare(password, user.password);
     if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('E-posta veya şifre hatalı');
     }
 
     // Soft-delete check: deactivated accounts cannot log in.
     if (!user.isActive) {
-      throw new ForbiddenException('This account has been deactivated');
+      throw new ForbiddenException('Bu hesap devre dışı bırakılmış');
     }
 
     const payload: JwtPayload = { sub: user.id, role: user.role };

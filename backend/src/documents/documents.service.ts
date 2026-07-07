@@ -41,7 +41,7 @@ export class DocumentsService {
       },
     });
     if (!application) {
-      throw new NotFoundException(`Application ${dto.applicationId} not found`);
+      throw new NotFoundException(`Başvuru bulunamadı: ${dto.applicationId}`);
     }
 
     await this.assertCanUpload(application, actor);
@@ -84,7 +84,7 @@ export class DocumentsService {
       },
     });
     if (!document) {
-      throw new NotFoundException(`Document ${id} not found`);
+      throw new NotFoundException(`Evrak bulunamadı: ${id}`);
     }
 
     // Customers may only access documents on their own applications; staff see all.
@@ -93,7 +93,7 @@ export class DocumentsService {
       document.application.customerId !== actor.userId
     ) {
       throw new ForbiddenException(
-        'You can only download documents from your own applications',
+        'Yalnızca kendi başvurularınızdaki evrakları indirebilirsiniz',
       );
     }
 
@@ -169,7 +169,7 @@ export class DocumentsService {
           },
         });
         if (!before) {
-          throw new NotFoundException(`Document ${id} not found`);
+          throw new NotFoundException(`Evrak bulunamadı: ${id}`);
         }
 
         const updated = await tx.document.update({
@@ -209,7 +209,7 @@ export class DocumentsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
       ) {
-        throw new NotFoundException(`Document ${id} not found`);
+        throw new NotFoundException(`Evrak bulunamadı: ${id}`);
       }
       throw error;
     }
@@ -239,7 +239,7 @@ export class DocumentsService {
         },
       });
       if (!document) {
-        throw new NotFoundException(`Document ${id} not found`);
+        throw new NotFoundException(`Evrak bulunamadı: ${id}`);
       }
 
       // Customers may only delete their own documents; admins may delete any.
@@ -249,7 +249,7 @@ export class DocumentsService {
           document.application.customerId !== actor.userId
         ) {
           throw new ForbiddenException(
-            'You can only delete your own documents',
+            'Yalnızca kendi evraklarınızı silebilirsiniz',
           );
         }
       }
@@ -295,7 +295,7 @@ export class DocumentsService {
     if (actor.role === Role.CUSTOMER) {
       if (application.customerId !== actor.userId) {
         throw new ForbiddenException(
-          'You can only upload documents to your own applications',
+          'Yalnızca kendi başvurularınıza evrak yükleyebilirsiniz',
         );
       }
       return;
@@ -307,7 +307,7 @@ export class DocumentsService {
       });
       if (!staff || application.assignedSalesId !== staff.id) {
         throw new ForbiddenException(
-          'You can only upload documents to applications assigned to you',
+          'Yalnızca size atanmış başvurulara evrak yükleyebilirsiniz',
         );
       }
       return;
@@ -319,7 +319,7 @@ export class DocumentsService {
       });
       if (!staff || application.assignedDocId !== staff.id) {
         throw new ForbiddenException(
-          'You can only upload documents to applications assigned to you',
+          'Yalnızca size atanmış başvurulara evrak yükleyebilirsiniz',
         );
       }
       return;
@@ -331,12 +331,12 @@ export class DocumentsService {
       });
       if (!staff || application.assignedSecId !== staff.id) {
         throw new ForbiddenException(
-          'You can only upload documents to applications assigned to you',
+          'Yalnızca size atanmış başvurulara evrak yükleyebilirsiniz',
         );
       }
       return;
     }
-    throw new ForbiddenException('You are not allowed to upload documents');
+    throw new ForbiddenException('Bu başvuruya evrak yükleme yetkiniz bulunmuyor');
   }
 
   private buildObjectKey(applicationId: string, fileName: string): string {

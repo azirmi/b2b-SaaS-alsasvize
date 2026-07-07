@@ -38,7 +38,7 @@ export class RolesGuard implements CanActivate {
     const user = request.user;
 
     if (!user || !requiredRoles.includes(user.role)) {
-      throw new ForbiddenException('Insufficient permissions');
+      throw new ForbiddenException('Bu işlem için yetkiniz bulunmuyor');
     }
 
     return true;

@@ -20,7 +20,7 @@ export function ClaimButton({ id }: { id: string }) {
     startTransition(async () => {
       const result = await claimApplication(id);
       if (!result.ok) {
-        setError(result.error ?? "Claim failed.");
+        setError(result.error ?? "Başvuru alınamadı.");
       }
     });
   }
@@ -33,7 +33,7 @@ export function ClaimButton({ id }: { id: string }) {
         </span>
       ) : null}
       <Button size="sm" onClick={onClaim} disabled={pending}>
-        {pending ? "Claiming…" : "Claim"}
+        {pending ? "Alınıyor…" : "Al"}
       </Button>
     </div>
   );

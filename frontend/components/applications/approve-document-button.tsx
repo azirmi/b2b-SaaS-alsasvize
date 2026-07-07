@@ -20,7 +20,7 @@ export function ApproveDocumentButton({ id }: { id: string }) {
     startTransition(async () => {
       const result = await approveDocument(id);
       if (!result.ok) {
-        setError(result.error ?? "Approval failed.");
+        setError(result.error ?? "Onaylama başarısız.");
       }
     });
   }
@@ -34,7 +34,7 @@ export function ApproveDocumentButton({ id }: { id: string }) {
       ) : null}
       <Button size="sm" variant="outline" onClick={onApprove} disabled={pending}>
         <Check aria-hidden />
-        {pending ? "Approving…" : "Approve"}
+        {pending ? "Onaylanıyor…" : "Onayla"}
       </Button>
     </div>
   );

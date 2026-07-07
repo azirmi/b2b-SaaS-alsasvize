@@ -91,7 +91,7 @@ export class UsersService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
       ) {
-        throw new NotFoundException(`User ${id} not found`);
+        throw new NotFoundException(`Kullanıcı bulunamadı: ${id}`);
       }
       throw error;
     }
@@ -112,7 +112,7 @@ export class UsersService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      throw new ConflictException('A user with this email already exists');
+      throw new ConflictException('Bu e-posta ile kayıtlı bir kullanıcı zaten var');
     }
     throw error;
   }
