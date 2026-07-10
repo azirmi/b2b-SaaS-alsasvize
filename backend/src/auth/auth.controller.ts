@@ -14,7 +14,11 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
-import { ACCESS_TOKEN_COOKIE, ACCESS_TOKEN_MAX_AGE_MS } from './auth.constants';
+import {
+  ACCESS_TOKEN_COOKIE,
+  ACCESS_TOKEN_MAX_AGE_MS,
+  ACCESS_TOKEN_REMEMBER_MAX_AGE_MS,
+} from './auth.constants';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
@@ -24,6 +28,10 @@ import type { AuthenticatedUser } from './interfaces/jwt-payload.interface';
 
 /** Upper bound on passports accepted per onboarding (customer + family/friends). */
 const MAX_PASSPORT_FILES = 10;
+
+interface OnboardingExtraApplicantInput {
+  fullName: string;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -43,7 +51,8 @@ export class AuthController {
   /**
    * Full customer auto-onboarding (multipart/form-data).
    *
-   * Accepts `email`, `password`, `fullName`, `phone`, `targetCountry`,
+    * Accepts `email`, `password`, `fullName`, `phone`, `targetCountry`, `appointmentCity`,
+    * `groupApplicants` (JSON array of only extra full names),
    * `hasAcceptedKVKK`, `hasAcceptedTerms` as text fields and one or more
    * `passports` file uploads (customer + family/friends). Creates the user,
    * uploads every passport to MinIO, creates the visa application in
@@ -59,6 +68,8 @@ export class AuthController {
     @Body('fullName') fullName: string,
     @Body('phone') phone: string,
     @Body('targetCountry') targetCountry: string,
+    @Body('appointmentCity') appointmentCity: string,
+    @Body('groupApplicants') groupApplicantsRaw: string,
     @Body('hasAcceptedKVKK') hasAcceptedKVKK: string,
     @Body('hasAcceptedTerms') hasAcceptedTerms: string,
     @UploadedFiles() passports: Express.Multer.File[],
@@ -96,6 +107,13 @@ export class AuthController {
     ) {
       throw new BadRequestException('Hedef ülke alanı zorunludur');
     }
+    if (
+      !appointmentCity ||
+      typeof appointmentCity !== 'string' ||
+      appointmentCity.trim().length === 0
+    ) {
+      throw new BadRequestException('Randevu şehri alanı zorunludur');
+    }
     // Booleans arrive as strings over multipart — both consents must be "true".
     if (hasAcceptedKVKK !== 'true') {
       throw new BadRequestException('KVKK Aydınlatma Metni onayı zorunludur.');
@@ -109,12 +127,27 @@ export class AuthController {
       throw new BadRequestException('En az bir pasaport dosyası yüklenmelidir');
     }
 
+    const extraApplicants = this.parseGroupApplicants(groupApplicantsRaw);
+    const totalApplicants = extraApplicants.length + 1;
+    if (totalApplicants > MAX_PASSPORT_FILES) {
+      throw new BadRequestException(
+        `Toplam başvuru kişi sayısı en fazla ${MAX_PASSPORT_FILES} olabilir`,
+      );
+    }
+    if (passports.length !== totalApplicants) {
+      throw new BadRequestException(
+        'Yüklenen pasaport sayısı, sizinle birlikte toplam başvuru kişi sayısı ile aynı olmalıdır',
+      );
+    }
+
     return this.authService.onboard(
       email,
       password,
       fullName.trim(),
       phone.trim(),
       targetCountry.trim(),
+      appointmentCity.trim(),
+      extraApplicants,
       passports,
     );
   }
@@ -128,7 +161,8 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ message: string }> {
-    const token = await this.authService.login(dto.email, dto.password);
+    const rememberMe = dto.rememberMe === true;
+    const token = await this.authService.login(dto.email, dto.password, rememberMe);
     res.cookie(ACCESS_TOKEN_COOKIE, token, {
       httpOnly: true,
       // Only send over HTTPS in production.
@@ -136,7 +170,7 @@ export class AuthController {
       // 'lax' is fine when the front-end is served same-site; a cross-site
       // deployment would need 'none' + secure: true.
       sameSite: 'lax',
-      maxAge: ACCESS_TOKEN_MAX_AGE_MS,
+      maxAge: rememberMe ? ACCESS_TOKEN_REMEMBER_MAX_AGE_MS : ACCESS_TOKEN_MAX_AGE_MS,
       path: '/',
     });
     return { message: 'Giriş başarılı' };
@@ -153,5 +187,50 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthenticatedUser): AuthenticatedUser {
     return user;
+  }
+
+  private parseGroupApplicants(raw?: string): OnboardingExtraApplicantInput[] {
+    if (!raw || typeof raw !== 'string' || raw.trim().length === 0) {
+      return [];
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new BadRequestException('Başvuru kişi listesi geçersiz formatta');
+    }
+
+    if (!Array.isArray(parsed)) {
+      throw new BadRequestException('Başvuru kişi listesi geçersiz formatta');
+    }
+    if (parsed.length > MAX_PASSPORT_FILES - 1) {
+      throw new BadRequestException(
+        `En fazla ${MAX_PASSPORT_FILES - 1} ek kişi eklenebilir`,
+      );
+    }
+
+    return parsed.map((item, index) => {
+      const entry = item as Partial<OnboardingExtraApplicantInput>;
+      const fullName =
+        typeof item === 'string'
+          ? item.trim()
+          : typeof entry.fullName === 'string'
+            ? entry.fullName.trim()
+            : '';
+
+      if (!fullName) {
+        throw new BadRequestException(
+          `${index + 2}. kişi için ad soyad zorunludur`,
+        );
+      }
+      if (fullName.length > 120) {
+        throw new BadRequestException(
+          `${index + 2}. kişi için ad soyad 120 karakteri aşamaz`,
+        );
+      }
+
+      return { fullName };
+    });
   }
 }

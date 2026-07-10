@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, FileText, FileUp, Paperclip, X } from "lucide-react";
 
@@ -28,7 +28,7 @@ export const CUSTOMER_DOCUMENT_TYPES: FileType[] = [
   FileType.OTHER,
 ];
 
-/** Per-type preparation guidance shown above the upload area (placeholder copy). */
+/** Per-type fallback guidance used when a custom document catalog is not provided. */
 const DOCUMENT_INSTRUCTIONS: Record<FileType, string> = {
   PASSPORT:
     "Pasaportunuzun fotoğraflı sayfasını tam ve net görünecek şekilde yükleyin. Parlama, kesik kenar veya bulanıklık olmamalıdır.",
@@ -58,6 +58,29 @@ const DOCUMENT_INSTRUCTIONS: Record<FileType, string> = {
     "Yukarıdaki türlere girmeyen ek belgeleri yükleyin. Belge adı ve içeriği anlaşılır olmalıdır.",
 };
 
+export interface UploadDocumentOption {
+  id: string;
+  category: string;
+  label: string;
+  description: string;
+  fileType: FileType;
+  optional?: boolean;
+}
+
+function toDefaultOption(
+  fileType: FileType,
+  optionalTypeSet: Set<FileType>,
+): UploadDocumentOption {
+  return {
+    id: fileType,
+    category: "Belgeler",
+    label: FILE_TYPE_LABEL[fileType],
+    description: DOCUMENT_INSTRUCTIONS[fileType],
+    fileType,
+    optional: optionalTypeSet.has(fileType),
+  };
+}
+
 function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -74,21 +97,69 @@ export function DocumentUploader({
   applicationId,
   defaultType = FileType.PASSPORT,
   allowedTypes = CUSTOMER_DOCUMENT_TYPES,
+  optionalTypes = [],
+  documentOptions,
 }: {
   applicationId: string;
   defaultType?: FileType;
   allowedTypes?: FileType[];
+  optionalTypes?: FileType[];
+  documentOptions?: UploadDocumentOption[];
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const initialType = allowedTypes.includes(defaultType)
-    ? defaultType
-    : allowedTypes[0];
-  const [fileType, setFileType] = useState<FileType>(initialType);
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const optionalTypeSet = useMemo(
+    () => new Set(optionalTypes),
+    [optionalTypes],
+  );
+  const allowedTypeSet = useMemo(
+    () => new Set(allowedTypes),
+    [allowedTypes],
+  );
+
+  const options = useMemo(() => {
+    const source =
+      documentOptions && documentOptions.length > 0
+        ? documentOptions
+        : allowedTypes.map((type) => toDefaultOption(type, optionalTypeSet));
+
+    const filtered = source.filter((option) =>
+      allowedTypeSet.has(option.fileType),
+    );
+    return filtered.length > 0
+      ? filtered
+      : allowedTypes.map((type) => toDefaultOption(type, optionalTypeSet));
+  }, [allowedTypeSet, allowedTypes, documentOptions, optionalTypeSet]);
+
+  const initialOptionId =
+    options.find((option) => option.fileType === defaultType)?.id ?? options[0]?.id;
+  const [selectedOptionId, setSelectedOptionId] = useState(initialOptionId);
+
+  useEffect(() => {
+    if (!options.some((option) => option.id === selectedOptionId) && options[0]) {
+      setSelectedOptionId(options[0].id);
+    }
+  }, [options, selectedOptionId]);
+
+  const selectedOption =
+    options.find((option) => option.id === selectedOptionId) ?? options[0];
+
+  const groupedOptions = useMemo(() => {
+    const groups = new Map<string, UploadDocumentOption[]>();
+    for (const option of options) {
+      const existing = groups.get(option.category);
+      if (existing) {
+        existing.push(option);
+      } else {
+        groups.set(option.category, [option]);
+      }
+    }
+    return Array.from(groups.entries());
+  }, [options]);
 
   function selectFile(next: File | null) {
     setError(null);
@@ -116,9 +187,17 @@ export function DocumentUploader({
 
   function upload() {
     if (!file) return;
+    if (!selectedOption) {
+      setError("Lütfen önce yüklemek istediğiniz belgeyi seçin.");
+      return;
+    }
     setError(null);
     startTransition(async () => {
-      const ticket = await requestDocumentUpload(applicationId, fileType, file.name);
+      const ticket = await requestDocumentUpload(
+        applicationId,
+        selectedOption.fileType,
+        file.name,
+      );
       if (!ticket.ok) {
         setError(ticket.error);
         return;
@@ -144,52 +223,66 @@ export function DocumentUploader({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <p className="text-sm font-medium">Belge türünü seçin</p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {allowedTypes.map((type) => {
-            const active = type === fileType;
-            return (
-              <button
-                key={type}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setFileType(type)}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg border p-3 text-left text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                  active
-                    ? "border-foreground/40 bg-muted"
-                    : "border-border hover:bg-muted/50",
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border",
-                    active
-                      ? "border-foreground/30 bg-background text-foreground"
-                      : "border-border/60 bg-muted text-muted-foreground",
-                  )}
-                >
-                  {active ? (
-                    <Check className="h-3.5 w-3.5" aria-hidden />
-                  ) : (
-                    <FileText className="h-3.5 w-3.5" aria-hidden />
-                  )}
-                </span>
-                <span className="min-w-0 font-medium">
-                  {FILE_TYPE_LABEL[type]}
-                </span>
-              </button>
-            );
-          })}
+        <p className="text-sm font-medium">Belge seçin</p>
+        <div className="space-y-3">
+          {groupedOptions.map(([category, categoryOptions]) => (
+            <div key={category} className="space-y-2">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                {category}
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {categoryOptions.map((option) => {
+                  const active = option.id === selectedOption?.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setSelectedOptionId(option.id)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg border p-3 text-left text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                        active
+                          ? "border-foreground/40 bg-muted"
+                          : "border-border hover:bg-muted/50",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border",
+                          active
+                            ? "border-foreground/30 bg-background text-foreground"
+                            : "border-border/60 bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {active ? (
+                          <Check className="h-3.5 w-3.5" aria-hidden />
+                        ) : (
+                          <FileText className="h-3.5 w-3.5" aria-hidden />
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-medium">{option.label}</span>
+                        {option.optional ? (
+                          <span className="text-[11px] text-muted-foreground">
+                            Opsiyonel
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="rounded-lg border border-border/40 bg-muted/40 p-4">
         <p className="text-sm font-medium">
-          {FILE_TYPE_LABEL[fileType]} · Hazırlama talimatı
+          {selectedOption?.label ?? "Belge"} · Hazırlama talimatı
         </p>
         <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-          {DOCUMENT_INSTRUCTIONS[fileType]}
+          {selectedOption?.description ?? "Belge talimatı bulunamadı."}
         </p>
       </div>
 

@@ -4,7 +4,9 @@ import { ArrowLeft, ClipboardList, FileText } from "lucide-react";
 
 import { AdminActions } from "@/components/applications/admin-actions";
 import { ApplicationDetailsView } from "@/components/applications/application-details-view";
+import { AppointmentOpsForm } from "@/components/applications/appointment-ops-form";
 import { CrmForm } from "@/components/applications/crm-form";
+import { DijizinPanel } from "@/components/applications/dijizin-panel";
 import { CustomerApplicationDetail } from "@/components/applications/customer-application-detail";
 import { DocumentReviewActions } from "@/components/applications/document-review-actions";
 import { StageActions } from "@/components/applications/stage-actions";
@@ -18,6 +20,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { getDijizinFormsSnapshot } from "@/lib/actions/applications";
 import { ApiError } from "@/lib/api";
 import { getSession, serverApi } from "@/lib/api.server";
 import { isCrmComplete, formatTl, PAYMENT_TYPE_LABEL } from "@/lib/crm";
@@ -30,7 +33,9 @@ import {
   STAGE_LABEL,
 } from "@/lib/status";
 import type {
+  DijizinFormsSnapshot,
   DownloadUrlResponse,
+  LinkedActiveApplication,
   StaffOption,
   StaffProfile,
   VisaApplicationDetail,
@@ -46,13 +51,12 @@ const PROCESS_STAGES = new Set<VisaStage>([
 
 const IMAGE_RE = /\.(jpe?g|png|webp|gif|avif|bmp|svg)$/i;
 
-/** Document types DOC staff prepare and upload during Document Review. */
+/** Staff-safe document types for DOC workspace uploads. */
 const DOC_UPLOAD_TYPES: FileType[] = [
-  FileType.FLIGHT_HOTEL_RESERVATION,
   FileType.LETTER_OF_INTENT,
   FileType.TRAVEL_PLAN,
   FileType.HEALTH_INSURANCE,
-  FileType.APPOINTMENT_CONFIRMATION,
+  FileType.FLIGHT_HOTEL_RESERVATION,
 ];
 
 const ACTION_LABEL: Record<string, string> = {
@@ -68,6 +72,9 @@ const ACTION_LABEL: Record<string, string> = {
   DETAILS_UPDATED: "Başvuru formu güncellendi",
   DOCUMENT_APPROVED: "Belge onaylandı",
   DOCUMENT_REJECTED: "Belge reddedildi",
+  DIJIZIN_KVKK_SMS_SENT: "Dijizin KVKK SMS gönderildi",
+  DIJIZIN_FORM_SENT: "Dijizin formu gönderildi",
+  DIJIZIN_KVKK_VERIFIED: "Dijizin KVKK doğrulandı",
 };
 
 function isStage(value: unknown): value is VisaStage {
@@ -95,6 +102,34 @@ function stageChangeText(details: Record<string, unknown> | null): string | null
     return `${STAGE_LABEL[previousStage]} → ${STAGE_LABEL[newStage]}`;
   }
   return isStage(newStage) ? STAGE_LABEL[newStage] : null;
+}
+
+function formatDisplayDate(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-");
+    return `${day}/${month}/${year}`;
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString("tr-TR");
+  }
+
+  return value;
+}
+
+function formatDateRange(
+  start: string | null | undefined,
+  end: string | null | undefined,
+): string {
+  if (!start || !end) {
+    return "";
+  }
+  return `${formatDisplayDate(start)} - ${formatDisplayDate(end)}`;
 }
 
 function AssignmentRow({
@@ -258,23 +293,51 @@ export default async function ApplicationDetailPage({
   const pendingDocs = detail.documents.filter(
     (d) => !d.isApproved && !d.rejectionReason,
   ).length;
-  const approvedDocs = detail.documents.filter((d) => d.isApproved).length;
   const rejectedDocs = detail.documents.filter(
     (d) => !d.isApproved && d.rejectionReason,
   ).length;
-  const unapprovedDocs = detail.documents.length - approvedDocs;
+  const checklist = detail.docChecklist;
+  const missingRequiredLabels = checklist.missingTypes.map(
+    (type) => FILE_TYPE_LABEL[type],
+  );
+  const pendingRequiredLabels = checklist.pendingApprovalTypes.map(
+    (type) => FILE_TYPE_LABEL[type],
+  );
   const advanceBlockedByDocs =
     stage === VisaStage.DOC_PROCESS &&
-    (detail.documents.length === 0 || unapprovedDocs > 0);
+    (missingRequiredLabels.length > 0 || pendingRequiredLabels.length > 0);
 
   const crm = detail.crmData ?? null;
   const crmComplete = isCrmComplete(crm);
-  const advanceBlockedByCrm = stage === VisaStage.SALES_PROCESS && !crmComplete;
+  const kvkkVerified = Boolean(crm?.dijizinKvkkVerified);
+  const advanceBlockedByCrm =
+    stage === VisaStage.SALES_PROCESS && (!crmComplete || !kvkkVerified);
+
+  const appointmentCity =
+    crm?.appointmentCity ?? detail.customer.appointmentCity ?? null;
+  const appointmentDate = crm?.appointmentDate ?? null;
 
   // Read-only context for the CRM form, pulled from the customer's own records.
   const crmTargetCountry = detail.customer.targetCountry ?? "";
   const crmPhone = detail.details?.phone ?? detail.customer.phone ?? "";
-  const crmTravelDate = detail.details?.plannedTravelDates ?? "";
+  const crmTravelDateStart =
+    detail.salesReadonlyData?.travelStartDate ??
+    detail.details?.travelStartDate ??
+    detail.salesReadonlyData?.plannedTravelStartDate ??
+    detail.details?.plannedTravelStartDate ??
+    "";
+  const crmTravelDateEnd =
+    detail.salesReadonlyData?.travelEndDate ??
+    detail.details?.travelEndDate ??
+    detail.salesReadonlyData?.plannedTravelEndDate ??
+    detail.details?.plannedTravelEndDate ??
+    "";
+  const crmTravelDate = formatDateRange(crmTravelDateStart, crmTravelDateEnd);
+  const customerResidenceCity =
+    detail.salesReadonlyData?.residenceCity ??
+    detail.details?.residenceCity ??
+    detail.customer.residenceCity ??
+    "";
 
   // Finance (DOC): remaining balance on a prepaid plan + any final receipt.
   const crmRemaining =
@@ -289,17 +352,56 @@ export default async function ApplicationDetailPage({
 
   const canReviewDocs =
     stage === VisaStage.DOC_PROCESS && (session.role === Role.DOC || isAdmin);
+  const canDocUpload =
+    stage === VisaStage.DOC_PROCESS &&
+    (isAdmin || detail.assignedDoc?.user.id === session.userId);
+  const isSales = session.role === Role.SALES;
+  const canUseDocWorkspace = canDocUpload;
+
+  let linkedApplications: LinkedActiveApplication[] = [];
+  if (canUseDocWorkspace) {
+    try {
+      linkedApplications = await serverApi.get<LinkedActiveApplication[]>(
+        `/applications/${detail.id}/linked-active`,
+      );
+    } catch {
+      linkedApplications = [];
+    }
+  }
+
+  const appointmentConfirmationDocuments = detail.documents
+    .filter((document) => document.fileType === FileType.APPOINTMENT_CONFIRMATION)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    .map((document) => ({
+      id: document.id,
+      createdAt: document.createdAt,
+    }));
+
+  const docAdvanceHintParts: string[] = [];
+  if (missingRequiredLabels.length > 0) {
+    docAdvanceHintParts.push(`Eksik Alanlar: ${missingRequiredLabels.join(", ")}`);
+  }
+  if (pendingRequiredLabels.length > 0) {
+    docAdvanceHintParts.push(
+      `Onay Bekleyen Alanlar: ${pendingRequiredLabels.join(", ")}`,
+    );
+  }
+  const docAdvanceHint = docAdvanceHintParts.join(" · ");
+
   const advanceProp =
     advanceCfg && (isAdmin || isCurrentStageOwner)
       ? {
           label: advanceCfg.label,
           disabled: advanceDisabled,
           hint: advanceBlockedByCrm
-            ? "Evrak aşamasına geçmeden önce CRM verilerini eksiksiz doldurup kaydedin."
+            ? !crmComplete
+              ? "Evrak aşamasına geçmeden önce CRM verilerini eksiksiz doldurup kaydedin."
+              : "Evrak aşamasına geçmeden önce Dijizin KVKK doğrulamasını tamamlayın."
             : advanceBlockedByDocs
-              ? detail.documents.length === 0
-                ? "Son işleme geçmeden önce en az bir onaylı belge gereklidir."
-                : `Tüm belgeler onaylı olmalıdır. ${unapprovedDocs} belge için onay bekleniyor.`
+              ? docAdvanceHint
               : undefined,
         }
       : undefined;
@@ -310,9 +412,18 @@ export default async function ApplicationDetailPage({
     stage === VisaStage.SEC_PROCESS &&
     (isAdmin || detail.assignedSec?.user.id === session.userId);
 
-  const canDocUpload =
-    stage === VisaStage.DOC_PROCESS &&
-    (isAdmin || detail.assignedDoc?.user.id === session.userId);
+  let dijizinSnapshot: DijizinFormsSnapshot | null = null;
+  let dijizinError: string | null = null;
+  if (canEditCrm) {
+    const result = await getDijizinFormsSnapshot(detail.id);
+    if (result.ok && result.data) {
+      dijizinSnapshot = result.data;
+    } else if (!result.ok) {
+      dijizinError =
+        result.error ??
+        "Dijizin bilgileri yüklenemedi. Sayfayı yenileyip tekrar deneyin.";
+    }
+  }
 
   // Admin God-Mode: staff options for the reassign picker.
   let staffOptions: StaffOption[] = [];
@@ -410,6 +521,7 @@ export default async function ApplicationDetailPage({
                     targetCountry={crmTargetCountry}
                     phone={crmPhone}
                     travelDate={crmTravelDate}
+                    residenceCity={customerResidenceCity}
                   />
                 </>
               ) : crm ? (
@@ -422,7 +534,10 @@ export default async function ApplicationDetailPage({
                         : "—"
                     }
                   />
-                  <CrmField label="İkamet şehri" value={crm.residenceCity} />
+                  <CrmField
+                    label="İkamet şehri"
+                    value={customerResidenceCity || "—"}
+                  />
                   <CrmField
                     label="Ödeme türü"
                     value={PAYMENT_TYPE_LABEL[crm.paymentType]}
@@ -469,6 +584,23 @@ export default async function ApplicationDetailPage({
             </section>
           ) : null}
 
+          {canEditCrm ? (
+            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+              <DijizinPanel
+                applicationId={detail.id}
+                phone={crmPhone}
+                initialSnapshot={
+                  dijizinSnapshot ?? {
+                    kvkkVerified,
+                    availableForms: [],
+                    customerForms: [],
+                  }
+                }
+                initialError={dijizinError}
+              />
+            </section>
+          ) : null}
+
           <Tabs defaultValue="form" className="gap-6">
             <TabsList className="w-full sm:w-auto">
               <TabsTrigger value="form">
@@ -485,10 +617,23 @@ export default async function ApplicationDetailPage({
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
             <h2 className="text-sm font-medium">Başvuru Formu</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Müşteri tarafından gönderilen başvuru formu (salt okunur).
+              {isSales
+                ? "Satış rolü yalnızca formun gönderim durumunu görebilir."
+                : "Müşteri tarafından gönderilen başvuru formu (salt okunur)."}
             </p>
             <Separator className="my-4" />
-            {detail.details ? (
+            {isSales ? (
+              <div className="rounded-lg border border-border/40 bg-muted/40 p-4">
+                <p className="text-sm font-medium">
+                  {detail.applicationFormSubmitted
+                    ? "Başvuru Formu Gönderildi"
+                    : "Başvuru Formu Gönderilmedi"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Satış birimi için form içeriği gizlenmiştir.
+                </p>
+              </div>
+            ) : detail.details ? (
               <ApplicationDetailsView details={detail.details} />
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -508,6 +653,18 @@ export default async function ApplicationDetailPage({
                 {rejectedDocs > 0 ? ` · ${rejectedDocs} reddedilen` : ""}
               </span>
             </div>
+
+            {stage === VisaStage.DOC_PROCESS &&
+            (missingRequiredLabels.length > 0 || pendingRequiredLabels.length > 0) ? (
+              <div className="mt-4 space-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-400">
+                {missingRequiredLabels.length > 0 ? (
+                  <p>Eksik Alanlar: {missingRequiredLabels.join(", ")}</p>
+                ) : null}
+                {pendingRequiredLabels.length > 0 ? (
+                  <p>Onay Bekleyen Alanlar: {pendingRequiredLabels.join(", ")}</p>
+                ) : null}
+              </div>
+            ) : null}
 
             {detail.documents.length === 0 ? (
               <p className="mt-4 text-sm text-muted-foreground">
@@ -597,85 +754,120 @@ export default async function ApplicationDetailPage({
             )}
           </section>
 
-          {canDocUpload ? (
+          {canUseDocWorkspace ? (
             <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-medium">Personel Yüklemeleri</h2>
+              <h2 className="text-sm font-medium">DOC Çalışma Alanı</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Hazırladığınız belgeleri yükleyin — uçuş/otel rezervasyonu,
-                niyet mektubu, seyahat planı, sağlık sigortası ve randevu teyidi.
-              </p>
-              <Separator className="my-4" />
-              <DocumentUploader
-                applicationId={detail.id}
-                defaultType={FileType.FLIGHT_HOTEL_RESERVATION}
-                allowedTypes={DOC_UPLOAD_TYPES}
-              />
-            </section>
-          ) : null}
-
-          {canDocUpload && crm && crm.paymentType === "PREPAID" ? (
-            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-medium">Kalan Ödeme</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Randevu alındıktan sonra kalan ödemeyi tahsil edin ve dekontunu
-                yükleyin.
+                Personel yüklemeleri, kalan ödeme ve randevu işlemlerini sekmeler
+                üzerinden yönetin.
               </p>
               <Separator className="my-4" />
 
-              <div className="rounded-lg border border-border/40 bg-muted/40 p-4">
-                <p className="text-xs tracking-wide text-muted-foreground uppercase">
-                  Kalan Bakiye
-                </p>
-                <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
-                  {formatTl(crmRemaining)}
-                </p>
-                <dl className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <dt className="text-xs text-muted-foreground">Toplam</dt>
-                    <dd className="text-sm tabular-nums">
-                      {formatTl(crm.totalAmount)}
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <dt className="text-xs text-muted-foreground">Ön ödeme</dt>
-                    <dd className="text-sm tabular-nums">
-                      {formatTl(crm.upfrontPaid)}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
+              <Tabs defaultValue="staff" className="gap-4">
+                <TabsList className="w-full sm:w-auto">
+                  <TabsTrigger value="staff">Personel Yüklemeleri</TabsTrigger>
+                  <TabsTrigger value="payment">Kalan Ödeme</TabsTrigger>
+                  <TabsTrigger value="appointment">Randevu İşlemleri</TabsTrigger>
+                </TabsList>
 
-              <Separator className="my-4" />
+                <TabsContent value="staff" className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Evrak biriminin hazırladığı belgeleri yükleyin. Uçak ve otel
+                    rezervasyonu opsiyoneldir.
+                  </p>
+                  <DocumentUploader
+                    applicationId={detail.id}
+                    defaultType={FileType.FLIGHT_HOTEL_RESERVATION}
+                    allowedTypes={DOC_UPLOAD_TYPES}
+                    optionalTypes={[FileType.FLIGHT_HOTEL_RESERVATION]}
+                  />
+                </TabsContent>
 
-              {finalReceipt ? (
-                <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background px-3 py-2.5">
-                  <span className="flex min-w-0 items-center gap-2 text-sm">
-                    <FileText
-                      className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
-                      aria-hidden
-                    />
-                    <span className="truncate font-medium">
-                      Kalan ödeme dekontu yüklendi
-                    </span>
-                  </span>
-                  {urlById.get(finalReceipt.id) ? (
-                    <a
-                      href={urlById.get(finalReceipt.id)!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                    >
-                      Görüntüle
-                    </a>
-                  ) : null}
-                </div>
-              ) : null}
+                <TabsContent value="payment" className="space-y-4">
+                  {crm && crm.paymentType === "PREPAID" ? (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Randevu alındıktan sonra kalan ödemeyi tahsil edin ve
+                        dekontunu yükleyin.
+                      </p>
 
-              <DocumentUploader
-                applicationId={detail.id}
-                defaultType={FileType.FINAL_RECEIPT}
-                allowedTypes={[FileType.FINAL_RECEIPT]}
-              />
+                      <div className="rounded-lg border border-border/40 bg-muted/40 p-4">
+                        <p className="text-xs tracking-wide text-muted-foreground uppercase">
+                          Kalan Bakiye
+                        </p>
+                        <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
+                          {formatTl(crmRemaining)}
+                        </p>
+                        <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="text-xs text-muted-foreground">Toplam</dt>
+                            <dd className="text-sm tabular-nums">
+                              {formatTl(crm.totalAmount)}
+                            </dd>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="text-xs text-muted-foreground">Ön ödeme</dt>
+                            <dd className="text-sm tabular-nums">
+                              {formatTl(crm.upfrontPaid)}
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+
+                      {finalReceipt ? (
+                        <div className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background px-3 py-2.5">
+                          <span className="flex min-w-0 items-center gap-2 text-sm">
+                            <FileText
+                              className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                              aria-hidden
+                            />
+                            <span className="truncate font-medium">
+                              Kalan ödeme dekontu yüklendi
+                            </span>
+                          </span>
+                          {urlById.get(finalReceipt.id) ? (
+                            <a
+                              href={urlById.get(finalReceipt.id)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                            >
+                              Görüntüle
+                            </a>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <DocumentUploader
+                        applicationId={detail.id}
+                        defaultType={FileType.FINAL_RECEIPT}
+                        allowedTypes={[FileType.FINAL_RECEIPT]}
+                      />
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Bu başvuru ön ödemeli değil. Kalan ödeme işlemi gerekmiyor.
+                    </p>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="appointment" className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Randevu şehri ve tarih/saat bilgisini kaydedin, ülke kuralına
+                    göre seyahat başlangıç tarihini güncelleyin.
+                  </p>
+                  <AppointmentOpsForm
+                    applicationId={detail.id}
+                    targetCountry={crmTargetCountry}
+                    initialAppointmentCity={appointmentCity}
+                    initialAppointmentDate={appointmentDate}
+                    initialTravelDate={detail.details?.plannedTravelStartDate ?? null}
+                    initialAppointmentExpense={crm?.appointmentExpense ?? null}
+                    linkedApplications={linkedApplications}
+                    appointmentConfirmationDocuments={appointmentConfirmationDocuments}
+                  />
+                </TabsContent>
+              </Tabs>
             </section>
           ) : null}
 

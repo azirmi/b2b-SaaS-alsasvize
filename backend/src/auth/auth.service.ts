@@ -16,6 +16,8 @@ import {
   VisaStage,
 } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { COUNTRY_RULES } from '../visa-applications/country-rules';
+import { ACCESS_TOKEN_REMEMBER_EXPIRES_IN } from './auth.constants';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 
@@ -32,6 +34,10 @@ const ALLOWED_PASSPORT_MIMES = new Set([
 
 /** Maximum passport file size: 10 MB. */
 const MAX_PASSPORT_SIZE = 10 * 1024 * 1024;
+
+interface OnboardingApplicantInput {
+  fullName: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -68,6 +74,7 @@ export class AuthService {
         fullName: dto.fullName,
         phone: dto.phone,
         targetCountry: dto.targetCountry,
+        appointmentCity: dto.appointmentCity?.trim() || null,
         hasAcceptedKVKK: dto.hasAcceptedKVKK,
         hasAcceptedTerms: dto.hasAcceptedTerms,
         role: Role.CUSTOMER, // CRITICAL: hardcoded — never trust client input
@@ -100,11 +107,47 @@ export class AuthService {
     fullName: string,
     phone: string,
     targetCountry: string,
+    appointmentCity: string,
+    extraApplicants: OnboardingApplicantInput[],
     passports: Express.Multer.File[],
   ) {
+    const countryRule = COUNTRY_RULES[targetCountry];
+    if (!countryRule) {
+      throw new BadRequestException('Desteklenmeyen hedef ülke seçimi');
+    }
+    if (!countryRule.cities.includes(appointmentCity)) {
+      throw new BadRequestException(
+        'Seçilen ülke için randevu şehri geçersiz',
+      );
+    }
+
     // ── File validation ──────────────────────────────────────────────────
     if (!passports || passports.length === 0) {
       throw new BadRequestException('En az bir pasaport dosyası yüklenmelidir');
+    }
+    const normalizedExtraApplicants = (extraApplicants ?? []).map((applicant) => {
+      const normalizedName = applicant.fullName?.trim() ?? '';
+      if (!normalizedName) {
+        throw new BadRequestException('Ek kişi ad soyad alanı boş bırakılamaz');
+      }
+      if (normalizedName.length > 120) {
+        throw new BadRequestException('Ek kişi ad soyad 120 karakteri aşamaz');
+      }
+      return { fullName: normalizedName };
+    });
+
+    const applicantsToPersist = [
+      fullName,
+      ...normalizedExtraApplicants.map((applicant) => applicant.fullName),
+    ];
+
+    if (applicantsToPersist.length > 10) {
+      throw new BadRequestException('Toplam başvuru kişi sayısı en fazla 10 olabilir');
+    }
+    if (applicantsToPersist.length !== passports.length) {
+      throw new BadRequestException(
+        'Yüklenen pasaport sayısı, sizinle birlikte toplam başvuru kişi sayısı ile aynı olmalıdır',
+      );
     }
     for (const passport of passports) {
       if (!ALLOWED_PASSPORT_MIMES.has(passport.mimetype)) {
@@ -155,6 +198,7 @@ export class AuthService {
           fullName,
           phone,
           targetCountry,
+          appointmentCity,
           hasAcceptedKVKK: true,
           hasAcceptedTerms: true,
           role: Role.CUSTOMER,
@@ -192,6 +236,22 @@ export class AuthService {
         ),
       );
 
+      const applicants = await Promise.all(
+        applicantsToPersist.map((applicantFullName) =>
+          tx.onboardingApplicant.create({
+            data: {
+              applicationId: application.id,
+              fullName: applicantFullName,
+              passportNumber: null,
+            },
+            select: {
+              id: true,
+              fullName: true,
+            },
+          }),
+        ),
+      );
+
       // 4. Create the audit log entry
       await tx.auditLog.create({
         data: {
@@ -202,12 +262,14 @@ export class AuthService {
             method: 'Customer self-onboarded',
             newStage: VisaStage.SALES_POOL,
             targetCountry,
+            appointmentCity,
+            applicantCount: applicants.length,
             passportDocumentIds: documents.map((doc) => doc.id),
           },
         },
       });
 
-      return { user, application, documents };
+      return { user, application, documents, applicants };
     });
 
     return {
@@ -218,6 +280,7 @@ export class AuthService {
         createdAt: result.application.createdAt,
       },
       documents: result.documents,
+      applicants: result.applicants,
     };
   }
 
@@ -227,7 +290,11 @@ export class AuthService {
    * @throws UnauthorizedException when the email or password is invalid.
    * @throws ForbiddenException when the account is soft-deleted (isActive = false).
    */
-  async login(email: string, password: string): Promise<string> {
+  async login(
+    email: string,
+    password: string,
+    rememberMe = false,
+  ): Promise<string> {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     // Use the same generic message whether the user is missing or the password
@@ -247,6 +314,11 @@ export class AuthService {
     }
 
     const payload: JwtPayload = { sub: user.id, role: user.role };
+    if (rememberMe) {
+      return this.jwt.signAsync(payload, {
+        expiresIn: ACCESS_TOKEN_REMEMBER_EXPIRES_IN,
+      });
+    }
     return this.jwt.signAsync(payload);
   }
 

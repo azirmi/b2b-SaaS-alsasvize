@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEmail,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MaxLength,
   MinLength,
@@ -32,6 +33,12 @@ export class RegisterDto {
   @IsNotEmpty()
   @MaxLength(120)
   targetCountry: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  appointmentCity?: string;
 
   // Legal consent — registration is rejected unless both are explicitly true.
   @IsBoolean()

@@ -36,6 +36,9 @@ export interface FormSection {
   fields: FormField[];
 }
 
+export const EMPLOYER_SECTION_TITLE = "Profesyonel Bilgiler";
+export const SPONSOR_SECTION_TITLE = "Sponsor Bilgileri";
+
 export const GENDER_OPTIONS = ["Kadın", "Erkek", "Diğer"] as const;
 export const MARITAL_STATUS_OPTIONS = [
   "Evli",
@@ -114,6 +117,12 @@ export const APPLICATION_FORM_SECTIONS: readonly FormSection[] = [
       { name: "email", label: "E-posta", kind: "email", maxLength: 160 },
       { name: "phone", label: "Telefon Numarası", kind: "tel", maxLength: 32 },
       {
+        name: "residenceCity",
+        label: "İkamet Şehri",
+        kind: "text",
+        maxLength: 120,
+      },
+      {
         name: "registeredAddress",
         label: "Kayıtlı Adres (e-Devlet kayıtlarındaki gibi)",
         kind: "textarea",
@@ -123,7 +132,7 @@ export const APPLICATION_FORM_SECTIONS: readonly FormSection[] = [
     ],
   },
   {
-    title: "Profesyonel Bilgiler",
+    title: EMPLOYER_SECTION_TITLE,
     fields: [
       { name: "occupation", label: "Meslek", kind: "text", maxLength: 120 },
       {
@@ -257,16 +266,19 @@ export const APPLICATION_FORM_SECTIONS: readonly FormSection[] = [
         maxLength: 1000,
       },
       {
-        name: "plannedTravelDates",
-        label: "Planlanan Seyahat Tarihleri",
-        kind: "text",
-        maxLength: 160,
-        placeholder: "Örn. 10.09.2026 - 24.09.2026",
+        name: "plannedTravelStartDate",
+        label: "Planlanan Seyahat Başlangıç Tarihi",
+        kind: "date",
+      },
+      {
+        name: "plannedTravelEndDate",
+        label: "Planlanan Seyahat Bitiş Tarihi",
+        kind: "date",
       },
     ],
   },
   {
-    title: "Sponsor Bilgileri (Varsa)",
+    title: SPONSOR_SECTION_TITLE,
     fields: [
       {
         name: "sponsorFullName",

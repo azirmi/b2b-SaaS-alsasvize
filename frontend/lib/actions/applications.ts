@@ -6,11 +6,30 @@ import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
 import { APPLICATION_FORM_FIELDS } from "@/lib/application-form";
 import type { Department, VisaStage } from "@/lib/enums";
-import type { ActionResult, CrmActionState } from "@/lib/types";
+import type {
+  ActionResult,
+  CrmActionState,
+  DijizinFormsSnapshot,
+} from "@/lib/types";
 
 /** Guards the path param before it is interpolated into the API URL. */
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface DijizinActionResult extends ActionResult {
+  message?: string;
+}
+
+interface DijizinSnapshotResult extends ActionResult {
+  data?: DijizinFormsSnapshot;
+}
+
+function mapActionError(error: unknown, fallback: string): ActionResult {
+  if (error instanceof ApiError) {
+    return { ok: false, error: error.message };
+  }
+  return { ok: false, error: fallback };
+}
 
 /**
  * Shared runner for application mutations. Validates the id, runs the request on
@@ -123,6 +142,116 @@ export async function forceCancelApplication(
   );
 }
 
+/** Reads Dijizin forms snapshot for the sales-side widget on the detail screen. */
+export async function getDijizinFormsSnapshot(
+  id: string,
+): Promise<DijizinSnapshotResult> {
+  if (!UUID_RE.test(id)) {
+    return { ok: false, error: "Geçersiz başvuru referansı." };
+  }
+
+  try {
+    const data = await serverApi.get<DijizinFormsSnapshot>(
+      `/applications/${id}/dijizin/forms`,
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return mapActionError(
+      error,
+      "Dijizin form bilgileri alınamadı. Lütfen tekrar deneyin.",
+    );
+  }
+}
+
+/** Sends the Dijizin KVKK OTP SMS to the customer tied to this application. */
+export async function sendDijizinConsentSms(
+  id: string,
+): Promise<DijizinActionResult> {
+  if (!UUID_RE.test(id)) {
+    return { ok: false, error: "Geçersiz başvuru referansı." };
+  }
+
+  try {
+    const response = await serverApi.post<{ message?: string }>(
+      `/applications/${id}/dijizin/consent/sms`,
+    );
+    revalidatePath("/dashboard", "layout");
+    return {
+      ok: true,
+      message: response.message ?? "KVKK onay SMS'i gönderildi.",
+    };
+  } catch (error) {
+    return mapActionError(
+      error,
+      "KVKK onay SMS'i gönderilemedi. Lütfen tekrar deneyin.",
+    );
+  }
+}
+
+/** Verifies the Dijizin KVKK OTP and opens the Sales -> DOC gate. */
+export async function verifyDijizinConsentCode(
+  id: string,
+  code: string,
+): Promise<DijizinActionResult> {
+  if (!UUID_RE.test(id)) {
+    return { ok: false, error: "Geçersiz başvuru referansı." };
+  }
+
+  const normalizedCode = code.trim();
+  if (!/^\d{1,16}$/.test(normalizedCode)) {
+    return { ok: false, error: "Doğrulama kodu yalnızca rakamlardan oluşmalıdır." };
+  }
+
+  try {
+    const response = await serverApi.post<{ message?: string }>(
+      `/applications/${id}/dijizin/consent/verify`,
+      { code: normalizedCode },
+    );
+    revalidatePath("/dashboard", "layout");
+    return {
+      ok: true,
+      message: response.message ?? "KVKK doğrulaması başarıyla tamamlandı.",
+    };
+  } catch (error) {
+    return mapActionError(
+      error,
+      "KVKK doğrulaması tamamlanamadı. Lütfen tekrar deneyin.",
+    );
+  }
+}
+
+/** Sends one selected Dijizin form to the customer. */
+export async function sendDijizinFormToCustomer(
+  id: string,
+  formId: string,
+): Promise<DijizinActionResult> {
+  if (!UUID_RE.test(id)) {
+    return { ok: false, error: "Geçersiz başvuru referansı." };
+  }
+
+  const normalizedFormId = formId.trim();
+  if (!normalizedFormId) {
+    return { ok: false, error: "Gönderilecek formu seçin." };
+  }
+
+  try {
+    const response = await serverApi.post<{ message?: string }>(
+      `/applications/${id}/dijizin/forms/send`,
+      { formId: normalizedFormId },
+    );
+    revalidatePath("/dashboard", "layout");
+    return {
+      ok: true,
+      message: response.message ?? "Form müşteriye başarıyla gönderildi.",
+    };
+  } catch (error) {
+    return mapActionError(
+      error,
+      "Form müşteriye gönderilemedi. Lütfen tekrar deneyin.",
+    );
+  }
+}
+
 /**
  * Saves the Sales CRM data entry (`PATCH /applications/:id`). Every field is
  * required: a successful save is what unlocks advancing out of SALES_PROCESS.
@@ -138,7 +267,6 @@ export async function saveCrm(
   }
 
   const salesDate = String(formData.get("salesDate") ?? "").trim();
-  const residenceCity = String(formData.get("residenceCity") ?? "").trim();
   const paymentType = String(formData.get("paymentType") ?? "").trim();
   const totalAmount = Number(String(formData.get("totalAmount") ?? "").trim());
   const upfrontRaw = String(formData.get("upfrontPaid") ?? "").trim();
@@ -146,9 +274,6 @@ export async function saveCrm(
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(salesDate)) {
     return { error: "Geçerli bir satış tarihi seçin." };
-  }
-  if (!residenceCity) {
-    return { error: "İkamet şehri gereklidir." };
   }
   if (paymentType !== "NORMAL" && paymentType !== "PREPAID") {
     return { error: "Ödeme türünü seçin." };
@@ -159,7 +284,6 @@ export async function saveCrm(
 
   const payload: Record<string, string | number> = {
     salesDate,
-    residenceCity,
     paymentType,
     totalAmount,
   };
@@ -196,6 +320,109 @@ export async function saveCrm(
 }
 
 /**
+ * DOC + admin appointment workflow:
+ * saves appointment city/date and force-updates customer travel date.
+ */
+export async function saveAppointmentOps(
+  id: string,
+  _prev: CrmActionState,
+  formData: FormData,
+): Promise<CrmActionState> {
+  if (!UUID_RE.test(id)) {
+    return { error: "Geçersiz başvuru referansı." };
+  }
+
+  const appointmentCity = String(formData.get("appointmentCity") ?? "").trim();
+  const appointmentDate = String(formData.get("appointmentDate") ?? "").trim();
+  const travelDate = String(formData.get("travelDate") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const appointmentExpenseRaw = String(
+    formData.get("appointmentExpense") ?? "",
+  ).trim();
+  const appointmentConfirmationDocumentId = String(
+    formData.get("appointmentConfirmationDocumentId") ?? "",
+  ).trim();
+  const linkedApplicationIds = Array.from(
+    new Set(
+      formData
+        .getAll("linkedApplicationIds")
+        .map((value) => String(value).trim())
+        .filter((value) => value.length > 0),
+    ),
+  );
+
+  if (!appointmentCity || !appointmentDate || !travelDate) {
+    return { error: "Randevu şehri, randevu tarihi ve seyahat tarihi zorunludur." };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(appointmentDate)) {
+    return { error: "Geçerli bir randevu tarih/saat seçin." };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(travelDate)) {
+    return { error: "Geçerli bir seyahat tarihi seçin." };
+  }
+  if (!UUID_RE.test(appointmentConfirmationDocumentId)) {
+    return { error: "Randevu onay belgesi seçimi zorunludur." };
+  }
+
+  for (const linkedId of linkedApplicationIds) {
+    if (!UUID_RE.test(linkedId)) {
+      return { error: "Bağlı başvuru listesinde geçersiz kayıt bulundu." };
+    }
+  }
+
+  const appointmentDateValue = new Date(appointmentDate);
+  if (Number.isNaN(appointmentDateValue.getTime())) {
+    return { error: "Randevu tarih/saat değeri geçersiz." };
+  }
+  const appointmentDateIso = appointmentDateValue.toISOString();
+
+  let appointmentExpense: number | undefined;
+
+  if (appointmentExpenseRaw) {
+    const normalized = appointmentExpenseRaw.replace(",", ".");
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return { error: "Randevu maliyeti için geçerli bir tutar girin." };
+    }
+    appointmentExpense = parsed;
+  }
+
+  const payload: {
+    appointmentCity: string;
+    appointmentDate: string;
+    travelDate: string;
+    appointmentConfirmationDocumentId: string;
+    linkedApplicationIds: string[];
+    note?: string;
+    appointmentExpense?: number;
+  } = {
+    appointmentCity,
+    appointmentDate: appointmentDateIso,
+    travelDate,
+    appointmentConfirmationDocumentId,
+    linkedApplicationIds: linkedApplicationIds.filter((linkedId) => linkedId !== id),
+  };
+  if (note) {
+    payload.note = note;
+  }
+  if (appointmentExpense !== undefined) {
+    payload.appointmentExpense = appointmentExpense;
+  }
+
+  try {
+    await serverApi.patch(`/applications/${id}/appointment-ops`, payload);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { error: error.message };
+    }
+    return { error: "Randevu işlemleri kaydedilemedi. Lütfen tekrar deneyin." };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true };
+}
+
+/**
  * Saves the customer's comprehensive application form ("Başvuru Formu") via
  * `PUT /applications/:id/details`. Every field is required; the backend
  * re-validates. Bound to the application id for `useActionState`.
@@ -209,7 +436,13 @@ export async function saveApplicationDetails(
     return { error: "Geçersiz başvuru referansı." };
   }
 
-  const payload: Record<string, string | number> = {};
+  const isEmployer = String(formData.get("isEmployer") ?? "").trim() === "true";
+  const hasSponsor = String(formData.get("hasSponsor") ?? "").trim() === "true";
+
+  const payload: Record<string, string | number | boolean> = {
+    isEmployer,
+    hasSponsor,
+  };
   for (const field of APPLICATION_FORM_FIELDS) {
     const raw = String(formData.get(field.name) ?? "").trim();
     const required = field.required !== false;
@@ -228,6 +461,18 @@ export async function saveApplicationDetails(
     } else {
       payload[field.name] = raw;
     }
+  }
+
+  if (!isEmployer) {
+    delete payload.employerName;
+    delete payload.employerAddress;
+    delete payload.employerPhone;
+  }
+  if (!hasSponsor) {
+    delete payload.sponsorFullName;
+    delete payload.sponsorIdentity;
+    delete payload.sponsorContact;
+    delete payload.sponsorRelation;
   }
 
   try {

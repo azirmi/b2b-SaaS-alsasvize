@@ -6,19 +6,24 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
+import { DijizinService } from '../dijizin/dijizin.service';
 import { EmailService } from '../email/email.service';
 import { EventsGateway } from '../events/events.gateway';
 import { Prisma } from '../generated/prisma/client';
-import { Department, Role, VisaStage } from '../generated/prisma/enums';
+import { Department, FileType, Role, VisaStage } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { COUNTRY_RULES } from './country-rules';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { ForceStageDto } from './dto/force-stage.dto';
 import { PauseApplicationDto } from './dto/pause-application.dto';
 import { ReassignApplicationDto } from './dto/reassign-application.dto';
 import { ResumeApplicationDto } from './dto/resume-application.dto';
+import { SendDijizinFormDto } from './dto/send-dijizin-form.dto';
+import { UpdateAppointmentOpsDto } from './dto/update-appointment-ops.dto';
 import { TransitionStageDto } from './dto/transition-stage.dto';
 import { UpdateApplicationCrmDto } from './dto/update-application-crm.dto';
 import { UpsertApplicationDetailsDto } from './dto/upsert-application-details.dto';
+import { VerifyDijizinConsentDto } from './dto/verify-dijizin-consent.dto';
 
 type AssignmentField = 'assignedSalesId' | 'assignedDocId' | 'assignedSecId';
 
@@ -68,6 +73,42 @@ const STAGE_TRANSITIONS: Partial<Record<VisaStage, StageTransition>> = {
   },
 };
 
+/** Required document set for DOC -> SEC transition (flight/hotel stays optional). */
+const DOC_REQUIRED_BASE_FILE_TYPES: FileType[] = [
+  FileType.PASSPORT,
+  FileType.LETTER_OF_INTENT,
+  FileType.TRAVEL_PLAN,
+  FileType.HEALTH_INSURANCE,
+  FileType.APPOINTMENT_CONFIRMATION,
+];
+
+/** Optional by policy: does not block stage transition when missing. */
+const DOC_OPTIONAL_FILE_TYPES: FileType[] = [FileType.FLIGHT_HOTEL_RESERVATION];
+
+const FILE_TYPE_LABELS_TR: Record<FileType, string> = {
+  [FileType.PASSPORT]: 'Pasaport',
+  [FileType.BANK_STATEMENT]: 'Banka Hesap Dökümü',
+  [FileType.INTENT_LETTER]: 'Niyet Mektubu',
+  [FileType.CONSULATE_FORM]: 'Konsolosluk Formu',
+  [FileType.VISA_GRANT]: 'Vize Sonuç Belgesi',
+  [FileType.PAYMENT_RECEIPT]: 'Ödeme Dekontu',
+  [FileType.FLIGHT_HOTEL_RESERVATION]: 'Uçak ve Otel Rezervasyonu',
+  [FileType.LETTER_OF_INTENT]: 'Niyet Mektubu',
+  [FileType.TRAVEL_PLAN]: 'Seyahat Planı',
+  [FileType.HEALTH_INSURANCE]: 'Seyahat Sağlık Sigortası',
+  [FileType.APPOINTMENT_CONFIRMATION]: 'Randevu Onayı',
+  [FileType.FINAL_RECEIPT]: 'Kalan Ödeme Dekontu',
+  [FileType.OTHER]: 'Diğer',
+};
+
+export interface DocChecklistState {
+  requiredTypes: FileType[];
+  optionalTypes: FileType[];
+  missingTypes: FileType[];
+  pendingApprovalTypes: FileType[];
+  prepaidLocked: boolean;
+}
+
 /** Shared, optimized include — only the customer fields a list/detail view needs. */
 const APPLICATION_INCLUDE = {
   customer: { select: { id: true, email: true, fullName: true } },
@@ -106,6 +147,7 @@ export class VisaApplicationsService {
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
     private readonly email: EmailService,
+    private readonly dijizin: DijizinService,
   ) {}
 
   /**
@@ -185,9 +227,21 @@ export class VisaApplicationsService {
   }
 
   /** God-Mode: every application across all stages/departments (admin only). */
-  async getAll(filters?: { q?: string; staffId?: string }) {
+  async getAll(filters?: {
+    q?: string;
+    staffId?: string;
+    sortBy?: string;
+    sortDirection?: string;
+  }) {
     const q = filters?.q?.trim();
     const staffId = filters?.staffId?.trim();
+    const sortBy = filters?.sortBy === 'stage' ? 'stage' : 'date';
+    const sortDirection =
+      filters?.sortDirection === 'asc' || filters?.sortDirection === 'desc'
+        ? filters.sortDirection
+        : sortBy === 'date'
+          ? 'desc'
+          : 'asc';
 
     if (staffId && !this.isUuid(staffId)) {
       throw new BadRequestException('Geçersiz personel kimliği formatı');
@@ -263,11 +317,158 @@ export class VisaApplicationsService {
       ? { AND: conditions }
       : {};
 
+    const orderBy: Prisma.VisaApplicationOrderByWithRelationInput[] =
+      sortBy === 'stage'
+        ? [
+            { currentStage: sortDirection },
+            { createdAt: 'desc' },
+            { id: 'desc' },
+          ]
+        : [{ createdAt: sortDirection }, { id: 'desc' }];
+
     return this.prisma.visaApplication.findMany({
       where,
       include: ADMIN_LIST_INCLUDE,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy,
     });
+  }
+
+  /** Global appointment agenda used by admin/doc calendar screens. */
+  async getAppointments(actor: AuthenticatedUser) {
+    if (actor.role === Role.DOC) {
+      const staff = await this.prisma.staff.findUnique({
+        where: { userId: actor.userId },
+        select: { id: true, department: true },
+      });
+      if (!staff || staff.department !== Department.DOC) {
+        throw new ForbiddenException(
+          'Takvim görünümünü yalnızca evrak personeli kullanabilir',
+        );
+      }
+    }
+
+    const applications = await this.prisma.visaApplication.findMany({
+      where: {
+        crmData: {
+          is: {
+            appointmentDate: {
+              not: null,
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        customer: {
+          select: {
+            fullName: true,
+          },
+        },
+        crmData: {
+          select: {
+            appointmentDate: true,
+            appointmentCity: true,
+          },
+        },
+        assignedDoc: {
+          select: {
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return applications
+      .filter((app) => app.crmData?.appointmentDate)
+      .sort(
+        (a, b) =>
+          a.crmData!.appointmentDate!.getTime() -
+          b.crmData!.appointmentDate!.getTime(),
+      )
+      .map((app) => ({
+        applicationId: app.id,
+        appointmentDate: app.crmData!.appointmentDate!.toISOString(),
+        appointmentCity: app.crmData!.appointmentCity ?? 'Belirtilmedi',
+        customerName: app.customer.fullName,
+        docStaffName: app.assignedDoc?.user.fullName ?? null,
+      }));
+  }
+
+  /** Linked active applications for the same customer account (DOC/admin only). */
+  async getLinkedActiveApplications(id: string, actor: AuthenticatedUser) {
+    const base = await this.prisma.visaApplication.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        customerId: true,
+        currentStage: true,
+        assignedDocId: true,
+      },
+    });
+    if (!base) {
+      throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
+    }
+
+    if (actor.role !== Role.ADMIN) {
+      const staff = await this.prisma.staff.findUnique({
+        where: { userId: actor.userId },
+        select: { id: true, department: true },
+      });
+      if (
+        !staff ||
+        staff.department !== Department.DOC ||
+        base.assignedDocId !== staff.id
+      ) {
+        throw new ForbiddenException(
+          'Bağlı başvuruları yalnızca atanan evrak personeli görüntüleyebilir',
+        );
+      }
+      if (base.currentStage !== VisaStage.DOC_PROCESS) {
+        throw new ConflictException(
+          'Bağlı başvurular yalnızca Evrak İşlem aşamasında listelenebilir',
+        );
+      }
+    }
+
+    const linked = await this.prisma.visaApplication.findMany({
+      where: {
+        customerId: base.customerId,
+        id: { not: id },
+        currentStage: {
+          notIn: [VisaStage.COMPLETED, VisaStage.CANCELLED, VisaStage.PAUSED],
+        },
+      },
+      select: {
+        id: true,
+        currentStage: true,
+        customer: {
+          select: {
+            targetCountry: true,
+          },
+        },
+        crmData: {
+          select: {
+            appointmentCity: true,
+            appointmentDate: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return linked.map((application) => ({
+      applicationId: application.id,
+      currentStage: application.currentStage,
+      targetCountry: application.customer.targetCountry ?? '',
+      appointmentCity: application.crmData?.appointmentCity ?? null,
+      appointmentDate: application.crmData?.appointmentDate
+        ? application.crmData.appointmentDate.toISOString()
+        : null,
+    }));
   }
 
   private isUuid(value: string): boolean {
@@ -290,7 +491,35 @@ export class VisaApplicationsService {
     }
 
     await this.assertCanView(application, actor);
-    return application;
+
+    const checklist = this.buildDocChecklist(
+      application.crmData,
+      application.documents,
+    );
+    const scopedDocuments =
+      actor.role === Role.SALES
+        ? application.documents.filter(
+            (document) => document.fileType === FileType.PASSPORT,
+          )
+        : application.documents;
+    const salesReadonlyData = application.details
+      ? {
+          residenceCity: application.details.residenceCity,
+          travelStartDate: application.details.plannedTravelStartDate,
+          travelEndDate: application.details.plannedTravelEndDate,
+          plannedTravelStartDate: application.details.plannedTravelStartDate,
+          plannedTravelEndDate: application.details.plannedTravelEndDate,
+        }
+      : null;
+
+    return {
+      ...application,
+      documents: scopedDocuments,
+      details: actor.role === Role.SALES ? null : application.details,
+      applicationFormSubmitted: Boolean(application.details),
+      salesReadonlyData,
+      docChecklist: checklist,
+    };
   }
 
   /**
@@ -399,6 +628,17 @@ export class VisaApplicationsService {
             assignedDocId: true,
             assignedSecId: true,
             crmData: true,
+            customer: {
+              select: {
+                targetCountry: true,
+              },
+            },
+            details: {
+              select: {
+                plannedTravelStartDate: true,
+                plannedTravelEndDate: true,
+              },
+            },
           },
         });
         if (!application) {
@@ -436,26 +676,82 @@ export class VisaApplicationsService {
               'Belgeler aşamasına göndermeden önce CRM verilerini eksiksiz kaydedin',
             );
           }
-        }
-
-        // Gating rule: EVERY uploaded document must be approved before the file
-        // can leave DOC_PROCESS. Any pending or rejected file blocks the advance
-        // (the customer deletes/replaces rejected files, staff approves them).
-        if (application.currentStage === VisaStage.DOC_PROCESS) {
-          const [totalDocuments, unapprovedDocuments] = await Promise.all([
-            tx.document.count({ where: { applicationId: id } }),
-            tx.document.count({
-              where: { applicationId: id, isApproved: false },
-            }),
-          ]);
-          if (totalDocuments === 0) {
+          if (!application.crmData?.dijizinKvkkVerified) {
             throw new ConflictException(
-              'Sekreterya aşamasına göndermeden önce en az bir onaylı evrak gereklidir',
+              'Belgeler aşamasına göndermeden önce Dijizin KVKK doğrulaması tamamlanmalıdır',
             );
           }
-          if (unapprovedDocuments > 0) {
+        }
+
+        // Gating rule: only required document types block DOC -> SEC. Flight/
+        // hotel reservation is explicitly optional by policy.
+        if (application.currentStage === VisaStage.DOC_PROCESS) {
+          const documents = await tx.document.findMany({
+            where: { applicationId: id },
+            select: { fileType: true, isApproved: true },
+          });
+          const checklist = this.buildDocChecklist(application.crmData, documents);
+
+          const missingLabels = checklist.missingTypes.map(
+            (type) => FILE_TYPE_LABELS_TR[type],
+          );
+          const pendingLabels = checklist.pendingApprovalTypes.map(
+            (type) => FILE_TYPE_LABELS_TR[type],
+          );
+
+          if (missingLabels.length > 0 || pendingLabels.length > 0) {
+            const messages: string[] = [];
+            if (missingLabels.length > 0) {
+              messages.push(`Eksik Alanlar: ${missingLabels.join(', ')}`);
+            }
+            if (pendingLabels.length > 0) {
+              messages.push(`Onay Bekleyen Alanlar: ${pendingLabels.join(', ')}`);
+            }
+            throw new ConflictException(messages.join(' · '));
+          }
+
+          const targetCountry = application.customer.targetCountry?.trim();
+          if (!targetCountry || !COUNTRY_RULES[targetCountry]) {
             throw new ConflictException(
-              `İlerletilemez: ${unapprovedDocuments} evrak henüz onaylanmamış`,
+              'Son işleme geçmeden önce hedef ülke kuralı tanımlı olmalıdır',
+            );
+          }
+
+          const appointmentCity = application.crmData?.appointmentCity?.trim();
+          const appointmentDate = this.dateToIso(application.crmData?.appointmentDate);
+          const travelStartDate = application.details?.plannedTravelStartDate ?? null;
+          const travelEndDate = application.details?.plannedTravelEndDate ?? null;
+          if (
+            !appointmentCity ||
+            !appointmentDate ||
+            !travelStartDate ||
+            !travelEndDate
+          ) {
+            throw new ConflictException(
+              'Son işleme geçmeden önce randevu işlemleri alanını eksiksiz kaydedin',
+            );
+          }
+
+          if (travelEndDate < travelStartDate) {
+            throw new ConflictException(
+              'Seyahat tarih aralığı geçersiz: dönüş tarihi gidiş tarihinden önce olamaz',
+            );
+          }
+
+          const countryRule = COUNTRY_RULES[targetCountry];
+          if (!countryRule.cities.includes(appointmentCity)) {
+            throw new ConflictException(
+              'Son işleme geçmeden önce randevu şehri ülke kuralı ile uyumlu olmalıdır',
+            );
+          }
+
+          const minTravelDate = this.addDaysIso(
+            appointmentDate,
+            countryRule.minDays,
+          );
+          if (travelStartDate < minTravelDate) {
+            throw new ConflictException(
+              `Dikkat: Seçilen ülkenin kuralları gereği seyahat tarihi en erken ${minTravelDate} olmalıdır.`,
             );
           }
         }
@@ -922,6 +1218,13 @@ export class VisaApplicationsService {
           assignedSalesId: true,
           salesStaffId: true,
           crmData: true,
+          customer: {
+            select: {
+              id: true,
+              targetCountry: true,
+              appointmentCity: true,
+            },
+          },
         },
       });
       if (!before) {
@@ -963,9 +1266,33 @@ export class VisaApplicationsService {
         }
       }
 
+      const targetCountry = before.customer.targetCountry?.trim() ?? null;
+      const nextAppointmentCity =
+        dto.appointmentCity?.trim() ??
+        before.crmData?.appointmentCity?.trim() ??
+        before.customer.appointmentCity?.trim() ??
+        null;
+      const nextAppointmentDate = dto.appointmentDate
+        ? this.isoToDate(dto.appointmentDate)
+        : (before.crmData?.appointmentDate ?? null);
+
+      if (nextAppointmentCity) {
+        if (!targetCountry || !COUNTRY_RULES[targetCountry]) {
+          throw new BadRequestException(
+            'Randevu şehri için geçerli bir hedef ülke bulunamadı',
+          );
+        }
+        if (!COUNTRY_RULES[targetCountry].cities.includes(nextAppointmentCity)) {
+          throw new BadRequestException(
+            'Seçilen ülke için randevu şehri geçersiz',
+          );
+        }
+      }
+
       const data = {
         salesDate: new Date(dto.salesDate),
-        residenceCity: dto.residenceCity.trim(),
+        appointmentCity: nextAppointmentCity,
+        appointmentDate: nextAppointmentDate,
         paymentType: dto.paymentType,
         totalAmount: dto.totalAmount,
         upfrontPaid:
@@ -979,6 +1306,16 @@ export class VisaApplicationsService {
         create: { applicationId: id, ...data },
         update: data,
       });
+
+      if (
+        dto.appointmentCity !== undefined &&
+        before.customer.appointmentCity !== nextAppointmentCity
+      ) {
+        await tx.user.update({
+          where: { id: before.customer.id },
+          data: { appointmentCity: nextAppointmentCity },
+        });
+      }
 
       // Stamp the historical sales-rep tracker if it isn't set yet.
       if (!before.salesStaffId && before.assignedSalesId) {
@@ -1000,10 +1337,409 @@ export class VisaApplicationsService {
                   JSON.stringify(before.crmData),
                 ) as Prisma.InputJsonValue)
               : null,
-            after: { ...data, salesDate: data.salesDate.toISOString() },
+            after: {
+              ...data,
+              salesDate: data.salesDate.toISOString(),
+              appointmentDate: data.appointmentDate
+                ? data.appointmentDate.toISOString()
+                : null,
+            },
           },
         },
       });
+
+      return tx.visaApplication.findUniqueOrThrow({
+        where: { id },
+        include: APPLICATION_DETAIL_INCLUDE,
+      });
+    });
+  }
+
+  /** Sends Dijizin KVKK OTP over SMS for the selected application/customer. */
+  async sendDijizinConsentSms(id: string, actor: AuthenticatedUser) {
+    const context = await this.assertCanManageDijizin(id, actor);
+    const result = await this.dijizin.sendConsentRequest(context.mobilePhone);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          application: { connect: { id } },
+          performedBy: { connect: { id: actor.userId } },
+          actionType: 'DIJIZIN_KVKK_SMS_SENT',
+          details: {
+            channel: 'sms',
+            phone: context.mobilePhone,
+          },
+        },
+      });
+    });
+
+    return result;
+  }
+
+  /** Verifies Dijizin KVKK OTP and persists the CRM verification flag. */
+  async verifyDijizinConsent(
+    id: string,
+    dto: VerifyDijizinConsentDto,
+    actor: AuthenticatedUser,
+  ) {
+    const context = await this.assertCanManageDijizin(id, actor);
+    const providerResult = await this.dijizin.verifyConsentCode(
+      context.mobilePhone,
+      dto.code.trim(),
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.visaApplication.findUnique({
+        where: { id },
+        select: {
+          crmData: {
+            select: {
+              dijizinKvkkVerified: true,
+            },
+          },
+        },
+      });
+      if (!before) {
+        throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
+      }
+      if (!before.crmData) {
+        throw new ConflictException(
+          'Dijizin doğrulaması için önce CRM kaydı oluşturulmalıdır',
+        );
+      }
+
+      if (!before.crmData.dijizinKvkkVerified) {
+        await tx.applicationCrmData.update({
+          where: { applicationId: id },
+          data: {
+            dijizinKvkkVerified: true,
+            updatedById: actor.userId,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            application: { connect: { id } },
+            performedBy: { connect: { id: actor.userId } },
+            actionType: 'DIJIZIN_KVKK_VERIFIED',
+            details: {
+              before: { dijizinKvkkVerified: false },
+              after: { dijizinKvkkVerified: true },
+            },
+          },
+        });
+      }
+
+      return {
+        verified: true,
+        message: providerResult.message,
+      };
+    });
+  }
+
+  /** Returns active Dijizin forms and forms sent to this customer. */
+  async getDijizinForms(id: string, actor: AuthenticatedUser) {
+    const context = await this.assertCanManageDijizin(id, actor);
+
+    const [availableForms, customerForms] = await Promise.all([
+      this.dijizin.getSystemForms(),
+      this.dijizin.getCustomerForms(context.mobilePhone),
+    ]);
+
+    return {
+      kvkkVerified: context.kvkkVerified,
+      availableForms,
+      customerForms,
+    };
+  }
+
+  /** Sends a selected Dijizin form to the customer by mobile phone. */
+  async sendDijizinForm(
+    id: string,
+    dto: SendDijizinFormDto,
+    actor: AuthenticatedUser,
+  ) {
+    const context = await this.assertCanManageDijizin(id, actor);
+    if (!context.kvkkVerified) {
+      throw new ConflictException(
+        'Musteri formu gondermeden once Dijizin KVKK dogrulamasini tamamlayin',
+      );
+    }
+
+    const formId = dto.formId.trim();
+    if (!formId) {
+      throw new BadRequestException('Gonderilecek form secilmelidir');
+    }
+
+    const result = await this.dijizin.sendFormToCustomer(
+      context.mobilePhone,
+      formId,
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          application: { connect: { id } },
+          performedBy: { connect: { id: actor.userId } },
+          actionType: 'DIJIZIN_FORM_SENT',
+          details: {
+            phone: context.mobilePhone,
+            formId,
+          },
+        },
+      });
+    });
+
+    return {
+      sent: true,
+      message: result.message,
+    };
+  }
+
+  /**
+   * DOC + admin workflow: save appointment city/date, enforce country minimum
+   * travel lead time, and force-update the customer travel date in one atomic
+   * transaction with an APPOINTMENT_OPS_UPDATED audit entry.
+   */
+  async updateAppointmentOps(
+    id: string,
+    dto: UpdateAppointmentOpsDto,
+    actor: AuthenticatedUser,
+  ) {
+    const linkedIds = Array.from(
+      new Set(
+        (dto.linkedApplicationIds ?? []).filter(
+          (applicationId) => applicationId !== id,
+        ),
+      ),
+    );
+    const targetIds = [id, ...linkedIds];
+
+    return this.prisma.$transaction(async (tx) => {
+      const sourceConfirmation = await tx.document.findUnique({
+        where: { id: dto.appointmentConfirmationDocumentId },
+        select: {
+          id: true,
+          applicationId: true,
+          fileType: true,
+          fileUrl: true,
+        },
+      });
+      if (
+        !sourceConfirmation ||
+        sourceConfirmation.applicationId !== id ||
+        sourceConfirmation.fileType !== FileType.APPOINTMENT_CONFIRMATION
+      ) {
+        throw new BadRequestException(
+          'Randevu onay belgesi geçersiz veya bu başvuruya ait değil',
+        );
+      }
+
+      const applications = await tx.visaApplication.findMany({
+        where: {
+          id: {
+            in: targetIds,
+          },
+        },
+        select: {
+          id: true,
+          currentStage: true,
+          assignedDocId: true,
+          customer: {
+            select: {
+              id: true,
+              targetCountry: true,
+              appointmentCity: true,
+            },
+          },
+          crmData: {
+            select: {
+              appointmentCity: true,
+              appointmentDate: true,
+              appointmentExpense: true,
+            },
+          },
+          details: {
+            select: {
+              plannedTravelStartDate: true,
+              plannedTravelEndDate: true,
+            },
+          },
+        },
+      });
+
+      if (applications.length !== targetIds.length) {
+        throw new NotFoundException(
+          'Seçilen bağlı başvurulardan biri bulunamadı',
+        );
+      }
+
+      const byId = new Map(applications.map((application) => [application.id, application]));
+      const sourceApplication = byId.get(id);
+      if (!sourceApplication) {
+        throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
+      }
+      const sourceCustomerId = sourceApplication.customer.id;
+
+      const docStaff =
+        actor.role === Role.ADMIN
+          ? null
+          : await tx.staff.findUnique({
+              where: { userId: actor.userId },
+              select: { id: true, department: true },
+            });
+
+      if (actor.role !== Role.ADMIN) {
+        if (
+          !docStaff ||
+          docStaff.department !== Department.DOC
+        ) {
+          throw new ForbiddenException(
+            'Randevu işlemlerini yalnızca evrak personeli güncelleyebilir',
+          );
+        }
+      }
+
+      const appointmentCity = dto.appointmentCity.trim();
+      const appointmentDate = dto.appointmentDate;
+      const travelDate = dto.travelDate;
+
+      for (const targetId of targetIds) {
+        const before = byId.get(targetId);
+        if (!before) {
+          throw new NotFoundException(`Başvuru bulunamadı: ${targetId}`);
+        }
+
+        if (before.currentStage !== VisaStage.DOC_PROCESS) {
+          throw new ConflictException(
+            'Randevu işlemleri yalnızca Evrak İşlem aşamasındaki başvurulara uygulanabilir',
+          );
+        }
+        if (!before.details) {
+          throw new ConflictException(
+            'Randevu işlemleri için önce başvuru formu gönderilmiş olmalıdır',
+          );
+        }
+        if (!before.crmData) {
+          throw new ConflictException(
+            'Randevu işlemleri için önce CRM kaydı oluşturulmalıdır',
+          );
+        }
+        if (before.customer.id !== sourceCustomerId) {
+          throw new BadRequestException(
+            'Bağlı başvurular yalnızca aynı müşteri hesabına ait olabilir',
+          );
+        }
+        if (docStaff && before.assignedDocId !== docStaff.id) {
+          throw new ForbiddenException(
+            'Seçilen bağlı başvurular yalnızca size atanmış dosyalardan oluşmalıdır',
+          );
+        }
+
+        const targetCountry = before.customer.targetCountry?.trim();
+        if (!targetCountry || !COUNTRY_RULES[targetCountry]) {
+          throw new BadRequestException('Desteklenmeyen hedef ülke seçimi');
+        }
+        const countryRule = COUNTRY_RULES[targetCountry];
+
+        if (!countryRule.cities.includes(appointmentCity)) {
+          throw new BadRequestException('Seçilen ülke için randevu şehri geçersiz');
+        }
+
+        const minTravelDate = this.addDaysIso(appointmentDate, countryRule.minDays);
+        if (travelDate < minTravelDate) {
+          throw new BadRequestException(
+            `Dikkat: Seçilen ülkenin kuralları gereği seyahat tarihi en erken ${minTravelDate} olmalıdır.`,
+          );
+        }
+        if (before.details.plannedTravelEndDate < travelDate) {
+          throw new BadRequestException(
+            'Seyahat başlangıç tarihi mevcut bitiş tarihinden sonra olamaz',
+          );
+        }
+
+        const nextAppointmentExpense =
+          dto.appointmentExpense ?? before.crmData.appointmentExpense ?? null;
+
+        await tx.applicationCrmData.update({
+          where: { applicationId: targetId },
+          data: {
+            appointmentCity,
+            appointmentDate: this.isoToDate(appointmentDate),
+            ...(dto.appointmentExpense !== undefined
+              ? { appointmentExpense: dto.appointmentExpense }
+              : {}),
+            updatedById: actor.userId,
+          },
+        });
+
+        await tx.user.update({
+          where: { id: before.customer.id },
+          data: { appointmentCity },
+        });
+
+        await tx.visaApplicationDetails.update({
+          where: { applicationId: targetId },
+          data: {
+            plannedTravelStartDate: travelDate,
+          },
+        });
+
+        if (targetId !== id) {
+          const existingConfirmation = await tx.document.findFirst({
+            where: {
+              applicationId: targetId,
+              fileType: FileType.APPOINTMENT_CONFIRMATION,
+              fileUrl: sourceConfirmation.fileUrl,
+            },
+            select: { id: true },
+          });
+          if (!existingConfirmation) {
+            await tx.document.create({
+              data: {
+                applicationId: targetId,
+                uploadedById: actor.userId,
+                fileType: FileType.APPOINTMENT_CONFIRMATION,
+                fileUrl: sourceConfirmation.fileUrl,
+                isApproved: true,
+              },
+            });
+          }
+        }
+
+        await tx.auditLog.create({
+          data: {
+            application: { connect: { id: targetId } },
+            performedBy: { connect: { id: actor.userId } },
+            actionType: 'APPOINTMENT_OPS_UPDATED',
+            details: {
+              before: {
+                appointmentCity:
+                  before.crmData.appointmentCity ?? before.customer.appointmentCity,
+                appointmentDate: this.dateToIso(before.crmData.appointmentDate),
+                appointmentExpense: before.crmData.appointmentExpense,
+                travelStartDate: before.details.plannedTravelStartDate,
+                travelEndDate: before.details.plannedTravelEndDate,
+              },
+              after: {
+                appointmentCity,
+                appointmentDate,
+                appointmentExpense: nextAppointmentExpense,
+                travelStartDate: travelDate,
+                travelEndDate: before.details.plannedTravelEndDate,
+                minTravelDate,
+                targetCountry,
+                minDays: countryRule.minDays,
+                appointmentConfirmationDocumentId:
+                  dto.appointmentConfirmationDocumentId,
+                batchAppliedTo: targetIds,
+                ...(dto.note ? { note: dto.note.trim() } : {}),
+              },
+            },
+          },
+        });
+      }
 
       return tx.visaApplication.findUniqueOrThrow({
         where: { id },
@@ -1026,7 +1762,12 @@ export class VisaApplicationsService {
     return this.prisma.$transaction(async (tx) => {
       const before = await tx.visaApplication.findUnique({
         where: { id },
-        select: { customerId: true, currentStage: true, details: true },
+        select: {
+          customerId: true,
+          currentStage: true,
+          details: true,
+          customer: { select: { targetCountry: true } },
+        },
       });
       if (!before) {
         throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
@@ -1052,6 +1793,37 @@ export class VisaApplicationsService {
         }
       }
 
+      if (dto.plannedTravelEndDate < dto.plannedTravelStartDate) {
+        throw new BadRequestException(
+          'Seyahat bitiş tarihi başlangıç tarihinden önce olamaz',
+        );
+      }
+
+      const targetCountry = before.customer.targetCountry?.trim() ?? null;
+      if (targetCountry === 'Danimarka') {
+        const minTravelStartDate = this.addDaysIso(
+          new Date().toISOString().slice(0, 10),
+          COUNTRY_RULES.Danimarka.minDays,
+        );
+        if (dto.plannedTravelStartDate < minTravelStartDate) {
+          throw new BadRequestException(
+            `Danimarka başvurularında seyahat başlangıcı en erken ${minTravelStartDate} olabilir`,
+          );
+        }
+      }
+
+      const sponsorFields = [
+        dto.sponsorFullName,
+        dto.sponsorIdentity,
+        dto.sponsorContact,
+        dto.sponsorRelation,
+      ].map((value) => value?.trim() ?? '');
+      if (dto.hasSponsor && sponsorFields.some((value) => value.length === 0)) {
+        throw new BadRequestException(
+          'Sponsor bilgileri girilecekse tüm sponsor alanları doldurulmalıdır',
+        );
+      }
+
       const data = {
         firstName: dto.firstName.trim(),
         lastName: dto.lastName.trim(),
@@ -1065,13 +1837,17 @@ export class VisaApplicationsService {
 
         email: dto.email.trim(),
         phone: dto.phone.trim(),
+        residenceCity: dto.residenceCity.trim(),
         registeredAddress: dto.registeredAddress.trim(),
 
         occupation: dto.occupation.trim(),
         employmentStatus: dto.employmentStatus.trim(),
-        employerName: dto.employerName?.trim() || null,
-        employerAddress: dto.employerAddress?.trim() || null,
-        employerPhone: dto.employerPhone?.trim() || null,
+        isEmployer: dto.isEmployer,
+        employerName: dto.isEmployer ? dto.employerName?.trim() || null : null,
+        employerAddress: dto.isEmployer
+          ? dto.employerAddress?.trim() || null
+          : null,
+        employerPhone: dto.isEmployer ? dto.employerPhone?.trim() || null : null,
         educationInstitution: dto.educationInstitution?.trim() || null,
         educationLevel: dto.educationLevel?.trim() || null,
 
@@ -1089,12 +1865,14 @@ export class VisaApplicationsService {
           dto.previousSchengenCountries?.trim() || null,
 
         purposeOfTravel: dto.purposeOfTravel.trim(),
-        plannedTravelDates: dto.plannedTravelDates.trim(),
+        plannedTravelStartDate: dto.plannedTravelStartDate,
+        plannedTravelEndDate: dto.plannedTravelEndDate,
 
-        sponsorFullName: dto.sponsorFullName?.trim() || null,
-        sponsorIdentity: dto.sponsorIdentity?.trim() || null,
-        sponsorContact: dto.sponsorContact?.trim() || null,
-        sponsorRelation: dto.sponsorRelation?.trim() || null,
+        hasSponsor: dto.hasSponsor,
+        sponsorFullName: dto.hasSponsor ? dto.sponsorFullName?.trim() || null : null,
+        sponsorIdentity: dto.hasSponsor ? dto.sponsorIdentity?.trim() || null : null,
+        sponsorContact: dto.hasSponsor ? dto.sponsorContact?.trim() || null : null,
+        sponsorRelation: dto.hasSponsor ? dto.sponsorRelation?.trim() || null : null,
       };
 
       await tx.visaApplicationDetails.upsert({
@@ -1129,14 +1907,13 @@ export class VisaApplicationsService {
 
   /**
    * True when the Sales CRM + finance record is complete enough to leave
-   * SALES_PROCESS: a sale date, residence city, a valid payment type and a
-   * positive total — plus a valid upfront amount (0..total) when PREPAID.
+   * SALES_PROCESS: a sale date, a valid payment type and a positive total —
+   * plus a valid upfront amount (0..total) when PREPAID.
    */
   private isCrmComplete(
     crm:
       | {
           salesDate: Date | null;
-          residenceCity: string | null;
           paymentType: string | null;
           totalAmount: number | null;
           upfrontPaid: number | null;
@@ -1147,16 +1924,13 @@ export class VisaApplicationsService {
     if (!crm) {
       return false;
     }
-    const hasCity =
-      typeof crm.residenceCity === 'string' &&
-      crm.residenceCity.trim().length > 0;
     const validType =
       crm.paymentType === 'NORMAL' || crm.paymentType === 'PREPAID';
     const validTotal =
       typeof crm.totalAmount === 'number' &&
       Number.isFinite(crm.totalAmount) &&
       crm.totalAmount > 0;
-    if (!crm.salesDate || !hasCity || !validType || !validTotal) {
+    if (!crm.salesDate || !validType || !validTotal) {
       return false;
     }
     if (crm.paymentType === 'PREPAID') {
@@ -1169,6 +1943,43 @@ export class VisaApplicationsService {
       );
     }
     return true;
+  }
+
+  private buildDocChecklist(
+    crm:
+      | {
+          paymentType: string | null;
+        }
+      | null
+      | undefined,
+    documents: Array<{ fileType: FileType; isApproved: boolean }>,
+  ): DocChecklistState {
+    const isPrepaid = crm?.paymentType === 'PREPAID';
+    const requiredTypes = isPrepaid
+      ? [...DOC_REQUIRED_BASE_FILE_TYPES, FileType.FINAL_RECEIPT]
+      : [...DOC_REQUIRED_BASE_FILE_TYPES];
+
+    const uploadedTypes = new Set(
+      documents.map((document) => document.fileType),
+    );
+    const approvedTypes = new Set(
+      documents
+        .filter((document) => document.isApproved)
+        .map((document) => document.fileType),
+    );
+
+    const missingTypes = requiredTypes.filter((type) => !uploadedTypes.has(type));
+    const pendingApprovalTypes = requiredTypes.filter(
+      (type) => uploadedTypes.has(type) && !approvedTypes.has(type),
+    );
+
+    return {
+      requiredTypes,
+      optionalTypes: [...DOC_OPTIONAL_FILE_TYPES],
+      missingTypes,
+      pendingApprovalTypes,
+      prepaidLocked: isPrepaid && !approvedTypes.has(FileType.FINAL_RECEIPT),
+    };
   }
 
   /** Resolves the customer id, enforcing that staff target a real active customer. */
@@ -1281,6 +2092,83 @@ export class VisaApplicationsService {
     );
   }
 
+  /** Shared auth/context resolver for Sales CRM Dijizin operations. */
+  private async assertCanManageDijizin(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<{
+    mobilePhone: string;
+    kvkkVerified: boolean;
+  }> {
+    const application = await this.prisma.visaApplication.findUnique({
+      where: { id },
+      select: {
+        currentStage: true,
+        assignedSalesId: true,
+        customer: {
+          select: {
+            phone: true,
+          },
+        },
+        crmData: {
+          select: {
+            dijizinKvkkVerified: true,
+          },
+        },
+      },
+    });
+    if (!application) {
+      throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
+    }
+
+    if (
+      application.currentStage === VisaStage.CANCELLED ||
+      application.currentStage === VisaStage.COMPLETED
+    ) {
+      throw new ConflictException(
+        'Kapatılmış başvurularda Dijizin işlemi yapılamaz',
+      );
+    }
+
+    if (application.currentStage !== VisaStage.SALES_PROCESS) {
+      throw new ConflictException(
+        'Dijizin işlemleri yalnızca Satış İşlem aşamasında yapılabilir',
+      );
+    }
+
+    if (actor.role !== Role.ADMIN) {
+      if (actor.role !== Role.SALES) {
+        throw new ForbiddenException('Bu kaynağa erişim yetkiniz yok');
+      }
+
+      const staff = await this.prisma.staff.findUnique({
+        where: { userId: actor.userId },
+        select: { id: true, department: true },
+      });
+      if (
+        !staff ||
+        staff.department !== Department.SALES ||
+        application.assignedSalesId !== staff.id
+      ) {
+        throw new ForbiddenException(
+          'Bu başvuruda Dijizin işlemi yapma yetkiniz yok',
+        );
+      }
+    }
+
+    const mobilePhone = application.customer.phone?.trim();
+    if (!mobilePhone) {
+      throw new ConflictException(
+        'Dijizin işlemleri için müşteri telefon bilgisi zorunludur',
+      );
+    }
+
+    return {
+      mobilePhone,
+      kvkkVerified: Boolean(application.crmData?.dijizinKvkkVerified),
+    };
+  }
+
   /** Builds the atomic claim where/data for a given department (no dynamic keys). */
   private buildClaimUpdate(
     id: string,
@@ -1350,6 +2238,36 @@ export class VisaApplicationsService {
       default:
         throw new BadRequestException('Desteklenmeyen birim');
     }
+  }
+
+  /** Parses either YYYY-MM-DD or a full ISO datetime string. */
+  private isoToDate(isoDate: string): Date {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+      const [year, month, day] = isoDate.split('-').map(Number);
+      return new Date(Date.UTC(year, month - 1, day));
+    }
+
+    const parsed = new Date(isoDate);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException('Geçersiz tarih formatı');
+    }
+    return parsed;
+  }
+
+  /** Converts a Date to YYYY-MM-DD in UTC. */
+  private dateToIso(date: Date | null | undefined): string | null {
+    if (!date) {
+      return null;
+    }
+    return date.toISOString().slice(0, 10);
+  }
+
+  /** Returns YYYY-MM-DD after adding the country lead-time days. */
+  private addDaysIso(isoDate: string, days: number): string {
+    const base = this.isoToDate(isoDate);
+    const shifted = new Date(base);
+    shifted.setUTCDate(shifted.getUTCDate() + days);
+    return shifted.toISOString().slice(0, 10);
   }
 
   /** Turns a P2025 (conditional update matched nothing) into a 409 Conflict. */

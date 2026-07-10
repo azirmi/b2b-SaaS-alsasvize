@@ -61,12 +61,14 @@ export function CrmForm({
   targetCountry,
   phone,
   travelDate,
+  residenceCity,
 }: {
   applicationId: string;
   crm: CrmData | null;
   targetCountry: string;
   phone: string;
   travelDate: string;
+  residenceCity: string;
 }) {
   const action = saveCrm.bind(null, applicationId);
   const [state, formAction, pending] = useActionState(action, INITIAL);
@@ -156,6 +158,7 @@ export function CrmForm({
         <div className="grid gap-4 sm:grid-cols-3">
           <ReadOnlyField label="Hedef Ülke" value={targetCountry} />
           <ReadOnlyField label="Telefon" value={phone} />
+          <ReadOnlyField label="İkamet Şehri" value={residenceCity} />
           <ReadOnlyField label="Seyahat Tarihi" value={travelDate} />
         </div>
       </fieldset>
@@ -173,17 +176,6 @@ export function CrmForm({
               name="salesDate"
               type="date"
               defaultValue={crm?.salesDate ? crm.salesDate.slice(0, 10) : ""}
-              required
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="residenceCity">İkamet Şehri</Label>
-            <Input
-              id="residenceCity"
-              name="residenceCity"
-              defaultValue={crm?.residenceCity ?? ""}
-              maxLength={120}
-              autoComplete="off"
               required
             />
           </div>

@@ -91,6 +91,7 @@ model User {
   fullName String
   phone         String? // Customer contact number (collected at registration)
   targetCountry String? // Country the customer intends to apply for a visa to
+  appointmentCity String? // Preferred appointment city selected for the target country
   role     Role
   isActive Boolean @default(true) // Soft delete flag (Aktif/Pasif)
 
@@ -180,6 +181,7 @@ model VisaApplication {
   // One-to-Many children.
   documents Document[]
   auditLogs AuditLog[]
+  onboardingApplicants OnboardingApplicant[]
 
   // One-to-One: the comprehensive application form filled in by the customer.
   details VisaApplicationDetails?
@@ -211,11 +213,13 @@ model VisaApplicationDetails {
   // ── Contact information ───────────────────────────────────────────────
   email             String
   phone             String
+  residenceCity     String
   registeredAddress String
 
   // ── Professional & education ──────────────────────────────────────────
   occupation           String
   employmentStatus     String
+  isEmployer           Boolean @default(false)
   employerName         String?
   employerAddress      String?
   employerPhone        String?
@@ -238,9 +242,11 @@ model VisaApplicationDetails {
 
   // ── Travel information ────────────────────────────────────────────────
   purposeOfTravel   String
-  plannedTravelDates String
+  plannedTravelStartDate String
+  plannedTravelEndDate   String
 
   // ── Sponsor information ───────────────────────────────────────────────
+  hasSponsor Boolean @default(false)
   sponsorFullName String?
   sponsorIdentity String?
   sponsorContact  String?
@@ -264,12 +270,15 @@ model ApplicationCrmData {
 
   // ── Sales record ──────────────────────────────────────────────────────
   salesDate     DateTime // Date the sale was closed
-  residenceCity String // Customer's city of residence (İkamet Şehri)
+  appointmentCity String? // Appointment city selected for the country workflow
+  appointmentDate DateTime? // Confirmed appointment date selected by DOC
 
   // ── Finance module ────────────────────────────────────────────────────
   paymentType String // 'NORMAL' | 'PREPAID' (Ön Ödemeli)
   totalAmount Float // Total invoice amount in TL
   upfrontPaid Float? // Amount paid upfront (only for PREPAID)
+  dijizinKvkkVerified Boolean @default(false) // Dijizin KVKK OTP doğrulama durumu
+  appointmentExpense Float? // Appointment cost paid by the company (gider)
   receiptFileId String? @db.Uuid // Uploaded payment receipt (dekont) Document id
 
   updatedById String?  @db.Uuid // Actor who last saved the record
@@ -279,6 +288,21 @@ model ApplicationCrmData {
   application VisaApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@map("application_crm_data")
+}
+
+/// Group/family applicants collected during onboarding (customer + companions).
+model OnboardingApplicant {
+  id            String @id @default(uuid()) @db.Uuid
+  applicationId String @db.Uuid
+
+  fullName       String
+  passportNumber String?
+
+  createdAt DateTime @default(now())
+
+  application VisaApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_applicants")
 }
 
 /// A file attached to an application and stored in MinIO/S3.

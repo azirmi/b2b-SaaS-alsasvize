@@ -29,10 +29,15 @@ export class UpdateApplicationCrmDto {
   @Matches(ISO_DATE, { message: 'salesDate must be a valid date' })
   salesDate!: string;
 
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
-  residenceCity!: string;
+  appointmentCity?: string;
+
+  @IsOptional()
+  @Matches(ISO_DATE, { message: 'appointmentDate must be a valid date' })
+  appointmentDate?: string;
 
   @IsIn(PAYMENT_TYPES)
   paymentType!: (typeof PAYMENT_TYPES)[number];

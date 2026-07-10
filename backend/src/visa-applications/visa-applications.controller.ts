@@ -22,9 +22,12 @@ import { ForceStageDto } from './dto/force-stage.dto';
 import { PauseApplicationDto } from './dto/pause-application.dto';
 import { ReassignApplicationDto } from './dto/reassign-application.dto';
 import { ResumeApplicationDto } from './dto/resume-application.dto';
+import { SendDijizinFormDto } from './dto/send-dijizin-form.dto';
 import { TransitionStageDto } from './dto/transition-stage.dto';
 import { UpdateApplicationCrmDto } from './dto/update-application-crm.dto';
+import { UpdateAppointmentOpsDto } from './dto/update-appointment-ops.dto';
 import { UpsertApplicationDetailsDto } from './dto/upsert-application-details.dto';
+import { VerifyDijizinConsentDto } from './dto/verify-dijizin-consent.dto';
 import { VisaApplicationsService } from './visa-applications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 
@@ -78,8 +81,75 @@ export class VisaApplicationsController {
    */
   @Get('all')
   @Roles(Role.ADMIN)
-  getAll(@Query('q') q?: string, @Query('staffId') staffId?: string) {
-    return this.service.getAll({ q, staffId });
+  getAll(
+    @Query('q') q?: string,
+    @Query('staffId') staffId?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortDirection') sortDirection?: string,
+  ) {
+    return this.service.getAll({ q, staffId, sortBy, sortDirection });
+  }
+
+  /** Global appointment agenda for admin/doc with date+time, city and owner info. */
+  @Get('appointments')
+  @Roles(Role.ADMIN, Role.DOC)
+  getAppointments(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getAppointments(user);
+  }
+
+  /** DOC/admin: active sibling applications under the same customer account. */
+  @Get(':id/linked-active')
+  @Roles(Role.ADMIN, Role.DOC)
+  getLinkedActiveApplications(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.getLinkedActiveApplications(id, user);
+  }
+
+  /** Sales CRM integration: sends Dijizin KVKK consent OTP over SMS. */
+  @Post(':id/dijizin/consent/sms')
+  @Roles(Role.SALES, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  sendDijizinConsentSms(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.sendDijizinConsentSms(id, user);
+  }
+
+  /** Sales CRM integration: verifies the Dijizin KVKK OTP and unlocks gating. */
+  @Post(':id/dijizin/consent/verify')
+  @Roles(Role.SALES, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  verifyDijizinConsent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: VerifyDijizinConsentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.verifyDijizinConsent(id, dto, user);
+  }
+
+  /** Sales CRM integration: active system forms + customer's sent forms. */
+  @Get(':id/dijizin/forms')
+  @Roles(Role.SALES, Role.ADMIN)
+  getDijizinForms(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.getDijizinForms(id, user);
+  }
+
+  /** Sales CRM integration: sends the selected Dijizin form to the customer. */
+  @Post(':id/dijizin/forms/send')
+  @Roles(Role.SALES, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  sendDijizinForm(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SendDijizinFormDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.sendDijizinForm(id, dto, user);
   }
 
   /** Full application detail. Per-record access is enforced in the service. */
@@ -122,6 +192,17 @@ export class VisaApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.updateCrm(id, dto, user);
+  }
+
+  /** DOC + admin: persist appointment city/date and enforce minimum travel date by country. */
+  @Patch(':id/appointment-ops')
+  @Roles(Role.DOC, Role.ADMIN)
+  updateAppointmentOps(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAppointmentOpsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateAppointmentOps(id, dto, user);
   }
 
   /** Customer's comprehensive application form ("Başvuru Formu"). Owner/admin write; staff read-only. */

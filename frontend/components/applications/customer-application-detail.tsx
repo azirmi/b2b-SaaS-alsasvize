@@ -3,14 +3,17 @@ import { ArrowLeft, FileText } from "lucide-react";
 
 import { ApplicationDetailsView } from "@/components/applications/application-details-view";
 import { ApplicationForm } from "@/components/applications/application-form";
-import { DocumentUploader } from "@/components/documents/document-uploader";
+import {
+  DocumentUploader,
+  type UploadDocumentOption,
+} from "@/components/documents/document-uploader";
 import { DeleteDocumentButton } from "@/components/documents/delete-document-button";
 import { StageBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
-import { OcrStatus, VisaStage } from "@/lib/enums";
+import { FileType, OcrStatus, VisaStage } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
 import { FILE_TYPE_LABEL, INTENT_CLASSES, type Intent } from "@/lib/status";
 import type { DownloadUrlResponse, VisaApplicationDetail } from "@/lib/types";
@@ -34,6 +37,332 @@ const OCR_BADGE: Record<OcrStatus, { label: string; intent: Intent }> = {
   PROCESSED: { label: "OCR okundu", intent: "success" },
   FAILED: { label: "OCR başarısız", intent: "danger" },
 };
+
+const BASE_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
+  {
+    id: "passport-main",
+    category: "Kimlik ve Pasaport Belgeleri",
+    label: "Pasaport",
+    fileType: FileType.PASSPORT,
+    description:
+      "Pasaportunuzun fotoğraflı kimlik sayfasını tam, net ve okunabilir şekilde yükleyin. Pasaportunuz son 10 yıl içinde alınmış olmalı, başvurduğunuz vize bitiş tarihinden sonra en az 3 ay daha geçerli olmalıdır.",
+  },
+  {
+    id: "identity-card",
+    category: "Kimlik ve Pasaport Belgeleri",
+    label: "Kimlik Kartı (Ön/Arka)",
+    fileType: FileType.CONSULATE_FORM,
+    description:
+      "T.C. kimlik kartınızın ön ve arka yüzünü tek dosyada, köşeler görünür ve bilgiler okunabilir olacak şekilde yükleyin.",
+  },
+  {
+    id: "population-record",
+    category: "Kimlik ve Pasaport Belgeleri",
+    label: "Tam Tekmil Vukuatlı Nüfus Kayıt Örneği",
+    fileType: FileType.OTHER,
+    description:
+      "E-Devlet veya nüfus müdürlüğünden alınmış güncel tam tekmil vukuatlı nüfus kayıt örneğini PDF olarak yükleyin.",
+  },
+  {
+    id: "bank-statement-main",
+    category: "Finansal Belgeler",
+    label: "Banka Hesap Dökümü",
+    fileType: FileType.BANK_STATEMENT,
+    description:
+      "Son 3 aya ait kaşeli-imzalı banka hesap dökümünü yükleyin. Hesap hareketleri, bakiye ve ad-soyad bilgileri net görünmelidir.",
+  },
+  {
+    id: "financial-support",
+    category: "Finansal Belgeler",
+    label: "Gelir Destekleyici Evrak",
+    fileType: FileType.OTHER,
+    description:
+      "Gelirinizi destekleyen ek belgeleri (kira geliri, tapu, araç ruhsatı vb.) tek PDF halinde yükleyin.",
+    optional: true,
+  },
+  {
+    id: "travel-reservation",
+    category: "Satın alınmış seyahat belgeleri",
+    label: "Uçak ve Otel Rezervasyonları",
+    fileType: FileType.FLIGHT_HOTEL_RESERVATION,
+    description:
+      "Gidiş-dönüş uçuş ve konaklama rezervasyonlarınızı tarih, isim ve rezervasyon numarası görünür olacak şekilde yükleyin.",
+  },
+  {
+    id: "travel-insurance",
+    category: "Satın alınmış seyahat belgeleri",
+    label: "Seyahat Sağlık Sigortası",
+    fileType: FileType.HEALTH_INSURANCE,
+    description:
+      "Seyahat tarih aralığının tamamını kapsayan, Schengen kurallarına uygun seyahat sağlık sigortası poliçesini yükleyin.",
+  },
+  {
+    id: "travel-plan",
+    category: "Satın alınmış seyahat belgeleri",
+    label: "Seyahat Planı",
+    fileType: FileType.TRAVEL_PLAN,
+    description:
+      "Seyahatinizde hangi tarihte hangi şehirde olacağınızı gösteren detaylı seyahat planını yükleyin.",
+  },
+  {
+    id: "intent-letter",
+    category: "Satın alınmış seyahat belgeleri",
+    label: "Niyet Mektubu",
+    fileType: FileType.INTENT_LETTER,
+    description:
+      "Seyahat amacınızı, planınızı ve geri dönüş niyetinizi açıklayan imzalı niyet mektubunu yükleyin.",
+  },
+  {
+    id: "extra-document",
+    category: "Ek belgeler",
+    label: "Ek Destekleyici Belge",
+    fileType: FileType.OTHER,
+    description:
+      "Yukarıdaki başlıklara girmeyen ama başvurunuzu güçlendirecek ek belgeleri yükleyin.",
+    optional: true,
+  },
+];
+
+const EMPLOYEE_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
+  {
+    id: "employee-employment-letter",
+    category: "Çalışanlar İçin Belgeler",
+    label: "İş Yeri Yazısı",
+    fileType: FileType.LETTER_OF_INTENT,
+    description:
+      "Çalıştığınız kurumdan antetli kağıda, kaşeli-imzalı görev/izin yazısını yükleyin.",
+  },
+  {
+    id: "employee-payslips",
+    category: "Çalışanlar İçin Belgeler",
+    label: "Maaş Bordroları",
+    fileType: FileType.BANK_STATEMENT,
+    description:
+      "Son 3 aya ait maaş bordrolarınızı tek dosya halinde yükleyin.",
+  },
+  {
+    id: "employee-sgk",
+    category: "Çalışanlar İçin Belgeler",
+    label: "SGK Hizmet Dökümü",
+    fileType: FileType.OTHER,
+    description:
+      "E-Devlet üzerinden alınmış güncel SGK hizmet dökümünü PDF formatında yükleyin.",
+  },
+];
+
+const EMPLOYER_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
+  {
+    id: "employer-tax",
+    category: "İşverenler / Şirket Sahipleri İçin Belgeler",
+    label: "Vergi Levhası",
+    fileType: FileType.OTHER,
+    description:
+      "Şirketinize ait güncel vergi levhasını yükleyin.",
+  },
+  {
+    id: "employer-activity",
+    category: "İşverenler / Şirket Sahipleri İçin Belgeler",
+    label: "Faaliyet Belgesi",
+    fileType: FileType.OTHER,
+    description:
+      "Ticaret odasından alınmış güncel faaliyet belgesini yükleyin.",
+  },
+  {
+    id: "employer-signature",
+    category: "İşverenler / Şirket Sahipleri İçin Belgeler",
+    label: "İmza Sirküleri",
+    fileType: FileType.OTHER,
+    description:
+      "Şirket imza yetkilerini gösteren imza sirkülerini eksiksiz şekilde yükleyin.",
+  },
+  {
+    id: "employer-company-bank",
+    category: "İşverenler / Şirket Sahipleri İçin Belgeler",
+    label: "Şirket Banka Hesap Dökümü",
+    fileType: FileType.BANK_STATEMENT,
+    description:
+      "Şirket hesabına ait son 3 aya ait kaşeli-imzalı banka dökümünü yükleyin.",
+  },
+];
+
+const SPECIAL_STATUS_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
+  {
+    id: "special-student",
+    category: "Öğrenci/Emekli/Çiftçi/18 yaş altı",
+    label: "Öğrenci Belgesi",
+    fileType: FileType.OTHER,
+    description:
+      "Öğrenciyseniz güncel ve barkodlu öğrenci belgesini yükleyin.",
+  },
+  {
+    id: "special-retired",
+    category: "Öğrenci/Emekli/Çiftçi/18 yaş altı",
+    label: "Emeklilik Belgesi",
+    fileType: FileType.OTHER,
+    description:
+      "Emekliyseniz emeklilik durumunu gösteren resmi belgeyi yükleyin.",
+  },
+  {
+    id: "special-farmer",
+    category: "Öğrenci/Emekli/Çiftçi/18 yaş altı",
+    label: "Çiftçilik Belgesi",
+    fileType: FileType.OTHER,
+    description:
+      "Çiftçiyseniz ziraat odası kaydı veya eşdeğer resmi belgenizi yükleyin.",
+  },
+  {
+    id: "special-consent",
+    category: "Öğrenci/Emekli/Çiftçi/18 yaş altı",
+    label: "18 Yaş Altı Muvafakatname",
+    fileType: FileType.OTHER,
+    description:
+      "18 yaş altı başvurularda noter onaylı muvafakatnameyi eksiksiz şekilde yükleyin.",
+  },
+];
+
+const SPONSOR_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
+  {
+    id: "sponsor-letter",
+    category: "Sponsor Evrakları",
+    label: "Sponsor Dilekçesi",
+    fileType: FileType.INTENT_LETTER,
+    description:
+      "Sponsorun masrafları üstlendiğini belirten imzalı sponsor dilekçesini yükleyin.",
+  },
+  {
+    id: "sponsor-id",
+    category: "Sponsor Evrakları",
+    label: "Sponsor Kimlik/Pasaport",
+    fileType: FileType.OTHER,
+    description:
+      "Sponsorun kimlik kartı veya pasaport kimlik sayfasını net ve okunur şekilde yükleyin.",
+  },
+  {
+    id: "sponsor-work-letter",
+    category: "Sponsor Evrakları",
+    label: "Sponsor İş Yeri Yazısı",
+    fileType: FileType.LETTER_OF_INTENT,
+    description:
+      "Sponsor çalışan ise iş yerinden antetli kağıda alınmış görev/izin yazısını yükleyin.",
+  },
+  {
+    id: "sponsor-payroll",
+    category: "Sponsor Evrakları",
+    label: "Sponsor Maaş Bordrosu",
+    fileType: FileType.BANK_STATEMENT,
+    description:
+      "Sponsor çalışan ise son 3 aya ait maaş bordrolarını yükleyin.",
+  },
+  {
+    id: "sponsor-bank",
+    category: "Sponsor Evrakları",
+    label: "Sponsor Banka Hesap Dökümü",
+    fileType: FileType.BANK_STATEMENT,
+    description:
+      "Sponsorun son 3 aya ait kaşeli-imzalı banka hesap dökümünü yükleyin.",
+  },
+];
+
+const REJECTED_AFTER_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
+  {
+    id: "rejected-letter",
+    category: "Ret sonrası",
+    label: "Ret Mektubu",
+    fileType: FileType.OTHER,
+    description:
+      "Daha önce ret aldıysanız konsolosluk ret mektubunu eksiksiz şekilde yükleyin.",
+  },
+  {
+    id: "rejected-new-intent",
+    category: "Ret sonrası",
+    label: "Güncel Niyet Mektubu",
+    fileType: FileType.INTENT_LETTER,
+    description:
+      "Ret sonrası yeni başvuruda, önceki red gerekçelerini ele alan güncel niyet mektubunu yükleyin.",
+  },
+  {
+    id: "rejected-financial-update",
+    category: "Ret sonrası",
+    label: "Güncel Finansal Belgeler",
+    fileType: FileType.BANK_STATEMENT,
+    description:
+      "Ret sonrası başvuruda güncellenmiş banka dökümü ve gelir evraklarını yeniden yükleyin.",
+  },
+];
+
+function hasCompanyOwnerProfile(detail: VisaApplicationDetail): boolean {
+  const employmentStatus =
+    detail.details?.employmentStatus?.trim().toLocaleLowerCase("tr-TR") ?? "";
+  const occupation =
+    detail.details?.occupation?.trim().toLocaleLowerCase("tr-TR") ?? "";
+
+  return (
+    Boolean(detail.details?.isEmployer) ||
+    employmentStatus === "işveren" ||
+    occupation.includes("şirket") ||
+    occupation.includes("işveren") ||
+    occupation.includes("esnaf")
+  );
+}
+
+function hasSpecialProfile(detail: VisaApplicationDetail): boolean {
+  const employmentStatus =
+    detail.details?.employmentStatus?.trim().toLocaleLowerCase("tr-TR") ?? "";
+  const occupation =
+    detail.details?.occupation?.trim().toLocaleLowerCase("tr-TR") ?? "";
+  const dob = detail.details?.dateOfBirth;
+
+  let isMinor = false;
+  if (dob) {
+    const birthDate = new Date(dob);
+    if (!Number.isNaN(birthDate.getTime())) {
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        age -= 1;
+      }
+      isMinor = age < 18;
+    }
+  }
+
+  return (
+    employmentStatus === "öğrenci" ||
+    employmentStatus === "emekli" ||
+    occupation.includes("çiftçi") ||
+    isMinor
+  );
+}
+
+function buildCustomerDocumentOptions(
+  detail: VisaApplicationDetail,
+): UploadDocumentOption[] {
+  const options: UploadDocumentOption[] = [...BASE_DOCUMENT_OPTIONS];
+
+  if (hasCompanyOwnerProfile(detail)) {
+    options.push(...EMPLOYER_DOCUMENT_OPTIONS);
+  } else if (hasSpecialProfile(detail)) {
+    options.push(...SPECIAL_STATUS_DOCUMENT_OPTIONS);
+  } else {
+    options.push(...EMPLOYEE_DOCUMENT_OPTIONS);
+  }
+
+  if (detail.details?.hasSponsor) {
+    options.push(...SPONSOR_DOCUMENT_OPTIONS);
+  }
+
+  const hasRejectedDocument = detail.documents.some(
+    (document) => Boolean(document.rejectionReason),
+  );
+  if (hasRejectedDocument) {
+    options.push(...REJECTED_AFTER_DOCUMENT_OPTIONS);
+  }
+
+  return options;
+}
 
 function Notice({ title, body }: { title: string; body: string }) {
   return (
@@ -133,7 +462,15 @@ export async function CustomerApplicationDetail({
   const stage = detail.currentStage;
   const canUpload =
     stage !== VisaStage.COMPLETED && stage !== VisaStage.CANCELLED;
+  const isPrepaid = detail.crmData?.paymentType === "PREPAID";
+  const hasAppointmentDate = Boolean(detail.crmData?.appointmentDate);
+  const hasAppointmentConfirmation = detail.documents.some(
+    (document) => document.fileType === FileType.APPOINTMENT_CONFIRMATION,
+  );
+  const customerPrepaidLocked =
+    isPrepaid && (!hasAppointmentDate || !hasAppointmentConfirmation);
   const showingForm = view === "form";
+  const customerDocumentOptions = buildCustomerDocumentOptions(detail);
 
   return (
     <div className="space-y-6">
@@ -151,7 +488,7 @@ export async function CustomerApplicationDetail({
             <h1 className="text-2xl font-semibold tracking-tight">
               Başvurunuz
             </h1>
-            <StageBadge stage={stage} />
+            <StageBadge stage={stage} customerView />
           </div>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             {STAGE_MESSAGE[stage]}
@@ -174,7 +511,11 @@ export async function CustomerApplicationDetail({
                 Schengen başvuru formunu aşağıdaki alandan doldurup kaydedin.
               </p>
               <Separator className="my-4" />
-              <ApplicationForm applicationId={detail.id} details={detail.details} />
+              <ApplicationForm
+                applicationId={detail.id}
+                details={detail.details}
+                targetCountry={detail.customer.targetCountry}
+              />
             </>
           ) : detail.details ? (
             <>
@@ -197,11 +538,19 @@ export async function CustomerApplicationDetail({
             <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
               <h2 className="text-sm font-medium">Belge Yükle</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Pasaportunuzu ve ekibimizin talep ettiği belgeleri yükleyin.
-                Dosyalar güvenli şekilde doğrudan depolama alanına gönderilir.
+                {customerPrepaidLocked
+                  ? "Ön ödemeli başvuruda randevu kesinleşene kadar yalnızca pasaport yükleyebilirsiniz."
+                  : "Pasaportunuzu ve ekibimizin talep ettiği belgeleri yükleyin. Dosyalar güvenli şekilde doğrudan depolama alanına gönderilir."}
               </p>
               <Separator className="my-4" />
-              <DocumentUploader applicationId={detail.id} />
+              <DocumentUploader
+                applicationId={detail.id}
+                defaultType={FileType.PASSPORT}
+                allowedTypes={
+                  customerPrepaidLocked ? [FileType.PASSPORT] : undefined
+                }
+                documentOptions={customerDocumentOptions}
+              />
             </section>
           ) : null}
 

@@ -146,7 +146,7 @@ export default function Home() {
         <section className="mt-4 rounded-lg border border-border/40 bg-card p-6 shadow-sm">
           <h2 className="text-sm font-medium">Nötr palet</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Tüm yüzeyler bu token'larla çizilir: gradyan yok, ağır gölge yok.
+            Tüm yüzeyler bu tokenlarla çizilir: gradyan yok, ağır gölge yok.
           </p>
           <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
             {SWATCHES.map((swatch) => (

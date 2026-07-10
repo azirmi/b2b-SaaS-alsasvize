@@ -5,9 +5,15 @@ import { redirect } from "next/navigation";
 
 import { API_BASE_URL } from "@/lib/api";
 import { ACCESS_TOKEN_COOKIE } from "@/lib/constants";
+import { COUNTRY_RULES } from "@/lib/countries";
 
 /** Mirrors backend ACCESS_TOKEN_MAX_AGE_MS (1 day), in seconds. */
 const TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24;
+const TOKEN_REMEMBER_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+
+interface OnboardingExtraApplicantInput {
+  fullName: string;
+}
 
 export interface AuthFormState {
   error?: string;
@@ -32,7 +38,10 @@ function safeNext(next: string): string {
  * This is what lets RSC forward the cookie back to the API — a cookie the backend
  * set on its own origin would be invisible to the Next server.
  */
-async function persistSession(setCookies: string[]): Promise<boolean> {
+async function persistSession(
+  setCookies: string[],
+  maxAgeSeconds: number,
+): Promise<boolean> {
   const tokenCookie = setCookies.find((entry) =>
     entry.startsWith(`${ACCESS_TOKEN_COOKIE}=`),
   );
@@ -50,7 +59,7 @@ async function persistSession(setCookies: string[]): Promise<boolean> {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: TOKEN_MAX_AGE_SECONDS,
+    maxAge: maxAgeSeconds,
   });
   return true;
 }
@@ -61,6 +70,7 @@ export async function login(
 ): Promise<AuthFormState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const rememberMe = formData.get("rememberMe") === "true";
   const next = safeNext(String(formData.get("next") ?? ""));
 
   if (!email || !password) {
@@ -71,14 +81,19 @@ export async function login(
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, rememberMe }),
       cache: "no-store",
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
       return { error: messageFrom(body) ?? "E-posta veya şifre hatalı." };
     }
-    if (!(await persistSession(response.headers.getSetCookie()))) {
+    if (
+      !(await persistSession(
+        response.headers.getSetCookie(),
+        rememberMe ? TOKEN_REMEMBER_MAX_AGE_SECONDS : TOKEN_MAX_AGE_SECONDS,
+      ))
+    ) {
       return {
         error: "Giriş başarılı ancak oturum oluşturulamadı. Lütfen tekrar deneyin.",
       };
@@ -99,20 +114,79 @@ export async function onboard(
   const fullName = String(formData.get("fullName") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const targetCountry = String(formData.get("targetCountry") ?? "").trim();
+  const appointmentCity = String(formData.get("appointmentCity") ?? "").trim();
   const acceptKvkk = formData.get("acceptKvkk") === "true";
   const acceptTerms = formData.get("acceptTerms") === "true";
+  const groupApplicantsRaw = String(formData.get("groupApplicants") ?? "[]");
   const passports = formData
     .getAll("passports")
     .filter((entry): entry is File => entry instanceof File && entry.size > 0);
 
-  if (!email || !password || !fullName || !phone || !targetCountry) {
+  let groupApplicants: OnboardingExtraApplicantInput[] = [];
+  try {
+    const parsed = JSON.parse(groupApplicantsRaw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return { error: "Başvuru kişi listesi geçersiz formatta." };
+    }
+
+    const parsedNames = parsed.map((item) => {
+      if (typeof item === "string") {
+        return item.trim();
+      }
+      if (item && typeof item === "object") {
+        const fullName = (item as { fullName?: unknown }).fullName;
+        return typeof fullName === "string" ? fullName.trim() : "";
+      }
+      return "";
+    });
+
+    if (parsedNames.some((name) => name.length === 0)) {
+      return { error: "Ek kişi ad soyad alanı boş bırakılamaz." };
+    }
+
+    groupApplicants = parsedNames.map((fullName) => ({ fullName }));
+  } catch {
+    return { error: "Başvuru kişi listesi çözümlenemedi." };
+  }
+
+  if (
+    !email ||
+    !password ||
+    !fullName ||
+    !phone ||
+    !targetCountry ||
+    !appointmentCity
+  ) {
     return { error: "Tüm alanların doldurulması zorunludur." };
   }
+
+  const countryRule = COUNTRY_RULES[targetCountry];
+  if (!countryRule) {
+    return { error: "Lütfen listeden geçerli bir hedef ülke seçin." };
+  }
+  if (!countryRule.cities.includes(appointmentCity)) {
+    return { error: "Seçilen ülke için randevu şehri geçersiz." };
+  }
+
   if (password.length < 8 || password.length > 72) {
     return { error: "Şifre 8 ile 72 karakter arasında olmalıdır." };
   }
   if (passports.length === 0) {
     return { error: "En az bir pasaport dosyası yüklemeniz gerekir." };
+  }
+  if (groupApplicants.some((item) => item.fullName.length > 120)) {
+    return { error: "Ek kişi ad soyad 120 karakteri aşamaz." };
+  }
+
+  const totalApplicants = groupApplicants.length + 1;
+  if (totalApplicants > 10) {
+    return { error: "Toplam başvuru kişi sayısı en fazla 10 olabilir." };
+  }
+  if (passports.length !== totalApplicants) {
+    return {
+      error:
+        "Yüklenen pasaport sayısı, sizinle birlikte toplam başvuru kişi sayısı ile aynı olmalıdır.",
+    };
   }
   if (!acceptKvkk) {
     return { error: "KVKK Aydınlatma Metni onayı zorunludur." };
@@ -131,6 +205,8 @@ export async function onboard(
     payload.set("fullName", fullName);
     payload.set("phone", phone);
     payload.set("targetCountry", targetCountry);
+    payload.set("appointmentCity", appointmentCity);
+    payload.set("groupApplicants", JSON.stringify(groupApplicants));
     payload.set("hasAcceptedKVKK", "true");
     payload.set("hasAcceptedTerms", "true");
     for (const passport of passports) {
@@ -159,7 +235,10 @@ export async function onboard(
     });
     const signedIn =
       loginResponse.ok &&
-      (await persistSession(loginResponse.headers.getSetCookie()));
+      (await persistSession(
+        loginResponse.headers.getSetCookie(),
+        TOKEN_MAX_AGE_SECONDS,
+      ));
     destination = signedIn ? "/dashboard" : "/login";
   } catch {
     return { error: "Sunucuya ulaşılamıyor. Lütfen tekrar deneyin." };

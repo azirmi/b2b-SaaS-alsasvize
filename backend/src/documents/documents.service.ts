@@ -38,6 +38,17 @@ export class DocumentsService {
         assignedSalesId: true,
         assignedDocId: true,
         assignedSecId: true,
+        crmData: {
+          select: {
+            paymentType: true,
+            appointmentDate: true,
+          },
+        },
+        documents: {
+          where: { fileType: FileType.APPOINTMENT_CONFIRMATION },
+          select: { id: true },
+          take: 1,
+        },
       },
     });
     if (!application) {
@@ -45,6 +56,7 @@ export class DocumentsService {
     }
 
     await this.assertCanUpload(application, actor);
+  this.assertCustomerPrepaidUploadAllowed(application, dto.fileType, actor);
 
     const isCustomer = actor.role === Role.CUSTOMER;
     const key = this.buildObjectKey(dto.applicationId, dto.fileName);
@@ -80,6 +92,7 @@ export class DocumentsService {
       where: { id },
       select: {
         fileUrl: true,
+        fileType: true,
         application: { select: { customerId: true } },
       },
     });
@@ -94,6 +107,12 @@ export class DocumentsService {
     ) {
       throw new ForbiddenException(
         'Yalnızca kendi başvurularınızdaki evrakları indirebilirsiniz',
+      );
+    }
+
+    if (actor.role === Role.SALES && document.fileType !== FileType.PASSPORT) {
+      throw new ForbiddenException(
+        'Satış birimi yalnızca pasaport belgelerini görüntüleyebilir',
       );
     }
 
@@ -286,6 +305,11 @@ export class DocumentsService {
       assignedSalesId: string | null;
       assignedDocId: string | null;
       assignedSecId: string | null;
+      crmData?: {
+        paymentType: string;
+        appointmentDate: Date | null;
+      } | null;
+      documents?: Array<{ id: string }>;
     },
     actor: AuthenticatedUser,
   ): Promise<void> {
@@ -337,6 +361,37 @@ export class DocumentsService {
       return;
     }
     throw new ForbiddenException('Bu başvuruya evrak yükleme yetkiniz bulunmuyor');
+  }
+
+  private assertCustomerPrepaidUploadAllowed(
+    application: {
+      crmData?: {
+        paymentType: string;
+        appointmentDate: Date | null;
+      } | null;
+      documents?: Array<{ id: string }>;
+    },
+    requestedFileType: FileType,
+    actor: AuthenticatedUser,
+  ): void {
+    if (actor.role !== Role.CUSTOMER) {
+      return;
+    }
+
+    const isPrepaid = application.crmData?.paymentType === 'PREPAID';
+    if (!isPrepaid) {
+      return;
+    }
+
+    const hasAppointmentDate = Boolean(application.crmData?.appointmentDate);
+    const hasAppointmentConfirmation =
+      (application.documents?.length ?? 0) > 0;
+    const locked = !hasAppointmentDate || !hasAppointmentConfirmation;
+    if (locked && requestedFileType !== FileType.PASSPORT) {
+      throw new ForbiddenException(
+        'Ön ödemeli başvuruda randevu kesinleşene kadar yalnızca pasaport yüklenebilir',
+      );
+    }
   }
 
   private buildObjectKey(applicationId: string, fileName: string): string {

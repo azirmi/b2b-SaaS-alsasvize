@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 
-import { AdminOverviewPanel } from "@/components/admin/admin-overview-panel";
 import { StageBadge } from "@/components/stage-badge";
 import {
   Table,
@@ -16,8 +15,6 @@ import { getSession, serverApi } from "@/lib/api.server";
 import { Role, VisaStage } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
 import type {
-  AdminApplicationRow,
-  AdminStats,
   AssignedApplication,
   VisaApplicationSummary,
 } from "@/lib/types";
@@ -159,7 +156,10 @@ export default async function DashboardPage() {
                           </Link>
                         </TableCell>
                         <TableCell>
-                          <StageBadge stage={application.currentStage} />
+                          <StageBadge
+                            stage={application.currentStage}
+                            customerView
+                          />
                         </TableCell>
                         <TableCell>
                           <Link
@@ -186,50 +186,7 @@ export default async function DashboardPage() {
 
   // ── Staff / admin overview ────────────────────────────────────────
   if (session.role === Role.ADMIN) {
-    let stats: AdminStats | null = null;
-    let initialApplications: AdminApplicationRow[] = [];
-    let adminError = false;
-    try {
-      [stats, initialApplications] = await Promise.all([
-        serverApi.get<AdminStats>("/admin/stats"),
-        serverApi.get<AdminApplicationRow[]>("/applications/all"),
-      ]);
-    } catch {
-      adminError = true;
-    }
-
-    if (adminError || !stats) {
-      return (
-        <div className="space-y-8">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Genel Bakış</h1>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Tüm birimlerdeki ve aşamalardaki başvuruların özeti.
-            </p>
-          </div>
-          <div className="rounded-lg border border-border/40 bg-card p-6 text-sm text-muted-foreground shadow-sm">
-            Analitik veriler şu anda yüklenemiyor. Hizmet tekrar erişilebilir
-            olduğunda sayfa otomatik yenilenecektir.
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Genel Bakış</h1>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            Tüm birimlerdeki ve aşamalardaki başvuruların özeti.
-          </p>
-        </div>
-
-        <AdminOverviewPanel
-          stats={stats}
-          initialApplications={initialApplications}
-        />
-      </div>
-    );
+    redirect("/dashboard/admin");
   }
 
   let queue: VisaApplicationSummary[] = [];

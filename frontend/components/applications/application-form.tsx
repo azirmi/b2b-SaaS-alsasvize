@@ -1,13 +1,22 @@
 "use client";
 
-import { useActionState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { Controller, type FieldErrors, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import { saveApplicationDetails } from "@/lib/actions/applications";
 import {
   APPLICATION_FORM_SECTIONS,
+  SPONSOR_SECTION_TITLE,
   type FormField,
 } from "@/lib/application-form";
+import {
+  createApplicationFormSchema,
+  toApplicationFormDefaults,
+  type ApplicationFormValues,
+} from "@/lib/validators/application-form";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,72 +30,145 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import type { ApplicationDetailsData, CrmActionState } from "@/lib/types";
 
-const INITIAL: CrmActionState = {};
+const EMPLOYER_FIELD_NAMES = new Set([
+  "employerName",
+  "employerAddress",
+  "employerPhone",
+]);
+
+function fieldErrorMessage(
+  errors: FieldErrors<ApplicationFormValues>,
+  name: keyof ApplicationFormValues,
+): string | null {
+  const error = errors[name];
+  if (!error?.message) {
+    return null;
+  }
+  return String(error.message);
+}
 
 function Field({
   field,
-  value,
+  control,
+  errors,
 }: {
   field: FormField;
-  value: string;
+  control: ReturnType<typeof useForm<ApplicationFormValues>>["control"];
+  errors: FieldErrors<ApplicationFormValues>;
 }) {
   const id = `af-${field.name}`;
   const required = field.required !== false;
-  const common = {
-    id,
-    name: field.name,
-    required,
-  } as const;
+  const error = fieldErrorMessage(
+    errors,
+    field.name as keyof ApplicationFormValues,
+  );
 
   return (
     <div className={field.full ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}>
       <Label htmlFor={id}>
         {field.label}
-        {!required ? (
+        {required ? (
+          <span className="ml-1 font-semibold text-red-600 dark:text-red-400">*</span>
+        ) : (
           <span className="ml-1 text-xs text-muted-foreground">(Opsiyonel)</span>
-        ) : null}
+        )}
       </Label>
-      {field.kind === "select" ? (
-        <Select name={field.name} defaultValue={value || undefined} required={required}>
-          <SelectTrigger id={id} className="w-full">
-            <SelectValue placeholder="Seçiniz" />
-          </SelectTrigger>
-          <SelectContent>
-            {field.options?.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : field.kind === "textarea" ? (
-        <Textarea
-          {...common}
-          defaultValue={value}
-          maxLength={field.maxLength}
-          placeholder={field.placeholder}
-          rows={3}
-        />
-      ) : field.kind === "number" ? (
-        <Input
-          {...common}
-          type="number"
-          inputMode="numeric"
-          defaultValue={value}
-          min={field.min}
-          max={field.max}
-          placeholder={field.placeholder}
-        />
-      ) : (
-        <Input
-          {...common}
-          type={field.kind}
-          defaultValue={value}
-          maxLength={field.maxLength}
-          placeholder={field.placeholder}
-          autoComplete="off"
-        />
-      )}
+      <Controller
+        control={control}
+        name={field.name as keyof ApplicationFormValues}
+        render={({ field: formField }) => {
+          const value = typeof formField.value === "string" ? formField.value : "";
+
+          if (field.kind === "select") {
+            return (
+              <Select
+                name={formField.name}
+                value={value}
+                onValueChange={formField.onChange}
+                required={required}
+              >
+                <SelectTrigger
+                  id={id}
+                  className={error ? "w-full border-red-500 focus-visible:ring-red-500/30" : "w-full"}
+                  aria-invalid={Boolean(error)}
+                >
+                  <SelectValue placeholder="Seçiniz" />
+                </SelectTrigger>
+                <SelectContent>
+                  {field.options?.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          if (field.kind === "textarea") {
+            return (
+              <Textarea
+                id={id}
+                name={formField.name}
+                value={value}
+                onChange={formField.onChange}
+                onBlur={formField.onBlur}
+                ref={formField.ref}
+                required={required}
+                maxLength={field.maxLength}
+                placeholder={field.placeholder}
+                rows={3}
+                aria-invalid={Boolean(error)}
+                className={error ? "border-red-500 focus-visible:ring-red-500/30" : undefined}
+              />
+            );
+          }
+
+          if (field.kind === "number") {
+            return (
+              <Input
+                id={id}
+                name={formField.name}
+                type="number"
+                inputMode="numeric"
+                value={value}
+                onChange={formField.onChange}
+                onBlur={formField.onBlur}
+                ref={formField.ref}
+                required={required}
+                min={field.min}
+                max={field.max}
+                placeholder={field.placeholder}
+                aria-invalid={Boolean(error)}
+                className={error ? "border-red-500 focus-visible:ring-red-500/30" : undefined}
+              />
+            );
+          }
+
+          return (
+            <Input
+              id={id}
+              name={formField.name}
+              type={field.kind}
+              value={value}
+              onChange={formField.onChange}
+              onBlur={formField.onBlur}
+              ref={formField.ref}
+              required={required}
+              maxLength={field.maxLength}
+              placeholder={field.placeholder}
+              autoComplete="off"
+              aria-invalid={Boolean(error)}
+              className={error ? "border-red-500 focus-visible:ring-red-500/30" : undefined}
+            />
+          );
+        }}
+      />
+      {error ? (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -99,33 +181,136 @@ function Field({
 export function ApplicationForm({
   applicationId,
   details,
+  targetCountry,
 }: {
   applicationId: string;
   details: ApplicationDetailsData | null;
+  targetCountry?: string | null;
 }) {
-  const action = saveApplicationDetails.bind(null, applicationId);
-  const [state, formAction, pending] = useActionState(action, INITIAL);
+  const [pending, startTransition] = useTransition();
+  const [state, setState] = useState<CrmActionState>({});
+  const schema = useMemo(
+    () => createApplicationFormSchema(targetCountry),
+    [targetCountry],
+  );
+
+  const form = useForm<ApplicationFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: toApplicationFormDefaults(details),
+    mode: "onBlur",
+  });
+
+  useEffect(() => {
+    form.reset(toApplicationFormDefaults(details));
+  }, [details, form]);
+
+  const isEmployer = form.watch("isEmployer");
+  const hasSponsor = form.watch("hasSponsor");
+
+  useEffect(() => {
+    if (!isEmployer) {
+      form.setValue("employerName", "", { shouldDirty: false });
+      form.setValue("employerAddress", "", { shouldDirty: false });
+      form.setValue("employerPhone", "", { shouldDirty: false });
+    }
+  }, [isEmployer, form]);
+
+  useEffect(() => {
+    if (!hasSponsor) {
+      form.setValue("sponsorFullName", "", { shouldDirty: false });
+      form.setValue("sponsorIdentity", "", { shouldDirty: false });
+      form.setValue("sponsorContact", "", { shouldDirty: false });
+      form.setValue("sponsorRelation", "", { shouldDirty: false });
+    }
+  }, [hasSponsor, form]);
+
+  function onSubmit(values: ApplicationFormValues) {
+    setState({});
+    startTransition(async () => {
+      const formData = new FormData();
+      for (const [key, value] of Object.entries(values)) {
+        formData.set(key, String(value ?? "").trim());
+      }
+      const result = await saveApplicationDetails(applicationId, {}, formData);
+      setState(result);
+    });
+  }
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" noValidate>
+      <fieldset className="space-y-4 rounded-lg border border-border/40 bg-card p-4">
+        <legend className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          Ek Bilgiler
+        </legend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Controller
+            control={form.control}
+            name="isEmployer"
+            render={({ field }) => (
+              <label className="flex items-start gap-2.5 rounded-md border border-border/40 bg-background px-3 py-2.5 text-sm">
+                <Checkbox
+                  checked={Boolean(field.value)}
+                  onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                  aria-label="İşverenim"
+                />
+                <span>
+                  <span className="block font-medium">İşverenim</span>
+                  <span className="block text-xs text-muted-foreground">
+                    İşveren bilgilerini aktif olarak beyan ediyorum.
+                  </span>
+                </span>
+              </label>
+            )}
+          />
+
+          <Controller
+            control={form.control}
+            name="hasSponsor"
+            render={({ field }) => (
+              <label className="flex items-start gap-2.5 rounded-md border border-border/40 bg-background px-3 py-2.5 text-sm">
+                <Checkbox
+                  checked={Boolean(field.value)}
+                  onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                  aria-label="Sponsorum Var"
+                />
+                <span>
+                  <span className="block font-medium">Sponsorum Var</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Sponsor bilgileri bölümünü doldurmak istiyorum.
+                  </span>
+                </span>
+              </label>
+            )}
+          />
+        </div>
+      </fieldset>
+
       {APPLICATION_FORM_SECTIONS.map((section) => (
+        !hasSponsor && section.title === SPONSOR_SECTION_TITLE ? null : (
         <fieldset key={section.title} className="space-y-4">
           <legend className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             {section.title}
           </legend>
           <div className="grid gap-4 sm:grid-cols-2">
             {section.fields.map((field) => {
-              const raw = details?.[field.name];
+              if (
+                !isEmployer &&
+                EMPLOYER_FIELD_NAMES.has(field.name)
+              ) {
+                return null;
+              }
               return (
                 <Field
                   key={field.name}
                   field={field}
-                  value={raw === undefined || raw === null ? "" : String(raw)}
+                  control={form.control}
+                  errors={form.formState.errors}
                 />
               );
             })}
           </div>
         </fieldset>
+        )
       ))}
 
       <Separator />

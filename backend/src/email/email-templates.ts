@@ -153,6 +153,22 @@ function paragraph(html: string): string {
   return `<p style="margin:0 0 16px 0;font-family:${FONT};font-size:15px;line-height:24px;color:${BODY};">${html}</p>`;
 }
 
+function actionButton(label: string, url: string): string {
+  return `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:4px 0 20px 0;"><tr><td><a href="${escapeHtml(
+    url,
+  )}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:11px 18px;font-family:${FONT};font-size:13px;font-weight:700;letter-spacing:0.2px;text-decoration:none;background:${INK};color:#ffffff;border-radius:8px;">${escapeHtml(
+    label,
+  )}</a></td></tr></table>`;
+}
+
+function customerLoginUrl(): string {
+  return (
+    process.env.CUSTOMER_LOGIN_URL ??
+    process.env.FRONTEND_APP_URL ??
+    'https://alsasvize.com/login'
+  );
+}
+
 // -----------------------------------------------------------------------------
 //  Visual stage tracker (the centrepiece)
 // -----------------------------------------------------------------------------
@@ -326,6 +342,7 @@ export function renderDocumentRejectedEmail(
   const ref = shortRef(input.applicationId);
   const subject = `İşlem gerekli: ${fileLabel} belgesini yeniden yükleyin`;
   const preheader = `${fileLabel} belgesi onaylanamadı. Lütfen düzeltilmiş sürümü yeniden yükleyin.`;
+  const loginUrl = customerLoginUrl();
 
   const contentHtml = [
     heading('Bir belgeniz için işlem gerekiyor'),
@@ -341,6 +358,7 @@ export function renderDocumentRejectedEmail(
     paragraph(
       'Panelinize giriş yapıp işaretlenen dosyayı kaldırın ve yerine yeni dosya yükleyin. Belge onaylandığında başvurunuz otomatik olarak ilerleyecektir.',
     ),
+    actionButton('Sisteme Giriş Yap', loginUrl),
   ].join('');
 
   const html = renderShell({ preheader, contentHtml, applicationRef: ref });
@@ -354,6 +372,7 @@ export function renderDocumentRejectedEmail(
     `Neden: ${input.reason}`,
     '',
     'Lütfen panelinize giriş yapın, işaretlenen dosyayı kaldırın ve düzeltilmiş sürümünü yükleyin. Belge onaylandığında başvurunuz otomatik olarak ilerler.',
+    `Sisteme Giriş Yap: ${loginUrl}`,
     '',
     `Referans #${ref}`,
     'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',
@@ -368,11 +387,13 @@ export function renderStageAdvancedEmail(
   const name = escapeHtml(input.customerName);
   const copy = STAGE_ADVANCED_COPY[input.newStage] ?? DEFAULT_STAGE_COPY;
   const ref = shortRef(input.applicationId);
+  const loginUrl = customerLoginUrl();
 
   const contentHtml = [
     heading(copy.headline),
     paragraph(`Merhaba ${name},`),
     paragraph(escapeHtml(copy.message)),
+    actionButton('Sisteme Giriş Yap', loginUrl),
     trackerSection(input.newStage),
   ].join('');
 
@@ -386,6 +407,7 @@ export function renderStageAdvancedEmail(
     '',
     `Merhaba ${input.customerName},`,
     copy.message,
+    `Sisteme Giriş Yap: ${loginUrl}`,
     '',
     `Referans #${ref}`,
     'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',

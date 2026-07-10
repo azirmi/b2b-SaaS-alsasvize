@@ -1,4 +1,7 @@
-import { APPLICATION_FORM_SECTIONS } from "@/lib/application-form";
+import {
+  APPLICATION_FORM_SECTIONS,
+  SPONSOR_SECTION_TITLE,
+} from "@/lib/application-form";
 import type { ApplicationDetailsData } from "@/lib/types";
 
 /**
@@ -13,7 +16,19 @@ export function ApplicationDetailsView({
 }) {
   return (
     <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-md border border-border/40 bg-muted/40 px-3 py-2.5">
+          <p className="text-xs text-muted-foreground">İşveren Durumu</p>
+          <p className="text-sm font-medium">{details.isEmployer ? "Evet" : "Hayır"}</p>
+        </div>
+        <div className="rounded-md border border-border/40 bg-muted/40 px-3 py-2.5">
+          <p className="text-xs text-muted-foreground">Sponsor Durumu</p>
+          <p className="text-sm font-medium">{details.hasSponsor ? "Var" : "Yok"}</p>
+        </div>
+      </div>
+
       {APPLICATION_FORM_SECTIONS.map((section) => (
+        !details.hasSponsor && section.title === SPONSOR_SECTION_TITLE ? null : (
         <div key={section.title} className="space-y-3">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             {section.title}
@@ -41,6 +56,7 @@ export function ApplicationDetailsView({
             })}
           </dl>
         </div>
+        )
       ))}
     </div>
   );

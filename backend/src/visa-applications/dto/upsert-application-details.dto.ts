@@ -1,6 +1,7 @@
 import {
-  IsIn,
+  IsBoolean,
   IsEmail,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -73,10 +74,15 @@ export class UpsertApplicationDetailsDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(120)
+  residenceCity!: string;
+
+  @IsString()
+  @IsNotEmpty()
   @MaxLength(500)
   registeredAddress!: string;
 
-  // ── Professional & education ─────────────────────────────────────────
+  // ── Professional & education ──────────────────────────────────────────
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
@@ -86,6 +92,9 @@ export class UpsertApplicationDetailsDto {
   @IsNotEmpty()
   @MaxLength(32)
   employmentStatus!: string;
+
+  @IsBoolean()
+  isEmployer!: boolean;
 
   @IsOptional()
   @IsString()
@@ -139,7 +148,7 @@ export class UpsertApplicationDetailsDto {
   @MaxLength(120)
   appointmentLocation!: string;
 
-  // ── Visa information ─────────────────────────────────────────────────
+  // ── Visa information ──────────────────────────────────────────────────
   @IsString()
   @IsNotEmpty()
   @IsIn(['Evet', 'Hayır'])
@@ -159,19 +168,22 @@ export class UpsertApplicationDetailsDto {
   @MaxLength(500)
   previousSchengenCountries?: string;
 
-  // ── Travel information ───────────────────────────────────────────────
-
+  // ── Travel information ────────────────────────────────────────────────
   @IsString()
   @IsNotEmpty()
   @MaxLength(1000)
   purposeOfTravel!: string;
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(160)
-  plannedTravelDates!: string;
+  @Matches(ISO_DATE, { message: 'plannedTravelStartDate must be a valid date' })
+  plannedTravelStartDate!: string;
 
-  // ── Sponsor information (optional) ───────────────────────────────────
+  @Matches(ISO_DATE, { message: 'plannedTravelEndDate must be a valid date' })
+  plannedTravelEndDate!: string;
+
+  // ── Sponsor information ───────────────────────────────────────────────
+  @IsBoolean()
+  hasSponsor!: boolean;
+
   @IsOptional()
   @IsString()
   @MaxLength(120)

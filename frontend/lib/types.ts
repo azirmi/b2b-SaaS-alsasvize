@@ -44,7 +44,9 @@ export interface CustomerProfile {
   role: Role;
   isActive: boolean;
   phone?: string | null;
+  residenceCity?: string | null;
   targetCountry?: string | null;
+  appointmentCity?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,6 +86,15 @@ export interface AuditLogEntry {
   createdAt: string;
 }
 
+/** Backend-calculated DOC checklist used for explicit missing/pending warnings. */
+export interface DocChecklistState {
+  requiredTypes: FileType[];
+  optionalTypes: FileType[];
+  missingTypes: FileType[];
+  pendingApprovalTypes: FileType[];
+  prepaidLocked: boolean;
+}
+
 /** Full application detail returned by `GET /applications/:id` (`APPLICATION_DETAIL_INCLUDE`). */
 export interface VisaApplicationDetail {
   id: string;
@@ -102,6 +113,9 @@ export interface VisaApplicationDetail {
   assignedSec: StaffProfile | null;
   documents: DocumentRecord[];
   details: ApplicationDetailsData | null;
+  applicationFormSubmitted: boolean;
+  salesReadonlyData?: SalesReadonlyData | null;
+  docChecklist: DocChecklistState;
   crmData: CrmData | null;
   auditLogs: AuditLogEntry[];
 }
@@ -121,14 +135,40 @@ export interface ActionResult {
 /** Sales CRM + finance record, persisted in `ApplicationCrmData`. */
 export interface CrmData {
   salesDate: string;
-  residenceCity: string;
+  appointmentCity: string | null;
+  appointmentDate: string | null;
   paymentType: "NORMAL" | "PREPAID";
   totalAmount: number;
   upfrontPaid: number | null;
+  dijizinKvkkVerified: boolean;
+  appointmentExpense?: number | null;
   receiptFileId: string | null;
   updatedById?: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** One active/inactive form definition from Dijizin's system catalog. */
+export interface DijizinSystemForm {
+  formId: string;
+  name: string;
+  isActive: boolean;
+}
+
+/** One form instance already sent to the current customer in Dijizin. */
+export interface DijizinCustomerForm {
+  formId: string;
+  name: string;
+  status: string | null;
+  sentAt: string | null;
+  answeredAt: string | null;
+}
+
+/** Snapshot payload for the Sales-side Dijizin panel. */
+export interface DijizinFormsSnapshot {
+  kvkkVerified: boolean;
+  availableForms: DijizinSystemForm[];
+  customerForms: DijizinCustomerForm[];
 }
 
 /** Free-form application metadata (the legacy `metadata` JSON column). */
@@ -153,10 +193,12 @@ export interface ApplicationDetailsData {
 
   email: string;
   phone: string;
+  residenceCity: string;
   registeredAddress: string;
 
   occupation: string;
   employmentStatus: string;
+  isEmployer: boolean;
   employerName?: string;
   employerAddress?: string;
   employerPhone?: string;
@@ -176,8 +218,12 @@ export interface ApplicationDetailsData {
   previousSchengenCountries?: string;
 
   purposeOfTravel: string;
-  plannedTravelDates: string;
+  travelStartDate?: string;
+  travelEndDate?: string;
+  plannedTravelStartDate: string;
+  plannedTravelEndDate: string;
 
+  hasSponsor: boolean;
   sponsorFullName?: string;
   sponsorIdentity?: string;
   sponsorContact?: string;
@@ -185,6 +231,15 @@ export interface ApplicationDetailsData {
 
   submittedAt?: string;
   updatedAt?: string;
+}
+
+/** Sales-safe context values exposed even when full form details are redacted. */
+export interface SalesReadonlyData {
+  residenceCity: string | null;
+  travelStartDate: string | null;
+  travelEndDate: string | null;
+  plannedTravelStartDate: string | null;
+  plannedTravelEndDate: string | null;
 }
 
 /** Result state for the CRM form's server action (drives inline form feedback). */
@@ -227,6 +282,24 @@ export interface AdminStats {
   completedCount: number;
 }
 
+/** Row for global calendar agenda (admin/doc). */
+export interface AppointmentCalendarRow {
+  applicationId: string;
+  appointmentDate: string;
+  appointmentCity: string;
+  customerName: string;
+  docStaffName: string | null;
+}
+
+/** Active sibling applications under the same customer account (DOC/admin batch ops). */
+export interface LinkedActiveApplication {
+  applicationId: string;
+  currentStage: VisaStage;
+  targetCountry: string;
+  appointmentCity: string | null;
+  appointmentDate: string | null;
+}
+
 /** Minimal assigned-staff projection embedded in the admin global table. */
 export interface AssignedStaffLite {
   id: string;
@@ -238,6 +311,78 @@ export interface AdminApplicationRow extends AssignedApplication {
   assignedSales: AssignedStaffLite | null;
   assignedDoc: AssignedStaffLite | null;
   assignedSec: AssignedStaffLite | null;
+}
+
+/** One SLA tracking row in the admin compliance panel. */
+export interface AdminComplianceRow {
+  applicationId: string;
+  customerName: string;
+  currentStage: VisaStage;
+  salesToDocAt: string;
+  docClaimAt: string | null;
+  waitMs: number;
+  status: "CLAIMED" | "WAITING";
+  docClaimedBy: string | null;
+  docAssignee: string | null;
+  isSlaBreached: boolean;
+}
+
+/** Payload from `GET /admin/compliance`. */
+export interface AdminComplianceData {
+  slaHours: number;
+  totalTransferred: number;
+  claimedCount: number;
+  waitingCount: number;
+  breachedCount: number;
+  avgClaimWaitMs: number;
+  maxOpenWaitMs: number;
+  rows: AdminComplianceRow[];
+}
+
+/** A finance metric block for one period. */
+export interface FinanceMetric {
+  totalIncome: number;
+  totalExpense: number;
+  netProfit: number;
+}
+
+/** Pending prepaid balance row for admin finance table. */
+export interface PendingPaymentRow {
+  applicationId: string;
+  customerName: string;
+  customerEmail: string;
+  currentStage: VisaStage;
+  salesDate: string | null;
+  totalAmount: number;
+  upfrontPaid: number;
+  remainingAmount: number;
+  appointmentExpense: number | null;
+  hasFinalReceipt: boolean;
+}
+
+/** Full finance row for every non-cancelled application. */
+export interface FinanceTransactionRow {
+  applicationId: string;
+  customerName: string;
+  customerEmail: string;
+  currentStage: VisaStage;
+  salesDate: string | null;
+  totalAmount: number;
+  appointmentExpense: number;
+  netProfit: number;
+}
+
+/** Payload from `GET /admin/finance`. */
+export interface AdminFinanceData {
+  generatedAt: string;
+  metrics: {
+    daily: FinanceMetric;
+    weekly: FinanceMetric;
+    monthly: FinanceMetric;
+    yearly: FinanceMetric;
+  };
+  pendingPayments: PendingPaymentRow[];
+  allTransactions: FinanceTransactionRow[];
 }
 
 /** Outcome of requesting a presigned document upload; the client then PUTs the file. */

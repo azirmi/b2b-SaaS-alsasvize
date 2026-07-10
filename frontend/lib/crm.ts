@@ -6,7 +6,7 @@ export type PaymentType = (typeof PAYMENT_TYPES)[number];
 
 /** Human labels for the payment plans (Turkish, enterprise copy). */
 export const PAYMENT_TYPE_LABEL: Record<PaymentType, string> = {
-  NORMAL: "Normal",
+  NORMAL: "Peşin Ödeme",
   PREPAID: "Ön Ödemeli",
 };
 
@@ -22,9 +22,9 @@ export function formatTl(amount: number | null | undefined): string {
 }
 
 /**
- * Mirrors the backend `isCrmComplete` gate: a sale date, residence city, a valid
- * payment type and a positive total — plus a valid upfront amount (0..total)
- * when the plan is prepaid. This is the client-side precondition for enabling
+ * Mirrors the backend `isCrmComplete` gate: a sale date, a valid payment type
+ * and a positive total — plus a valid upfront amount (0..total) when the plan
+ * is prepaid. This is the client-side precondition for enabling
  * "Send to Documents".
  */
 export function isCrmComplete(crm: CrmData | null | undefined): boolean {
@@ -32,15 +32,13 @@ export function isCrmComplete(crm: CrmData | null | undefined): boolean {
     return false;
   }
   const hasDate = typeof crm.salesDate === "string" && crm.salesDate.length > 0;
-  const hasCity =
-    typeof crm.residenceCity === "string" && crm.residenceCity.trim().length > 0;
   const validType =
     crm.paymentType === "NORMAL" || crm.paymentType === "PREPAID";
   const validTotal =
     typeof crm.totalAmount === "number" &&
     Number.isFinite(crm.totalAmount) &&
     crm.totalAmount > 0;
-  if (!hasDate || !hasCity || !validType || !validTotal) {
+  if (!hasDate || !validType || !validTotal) {
     return false;
   }
   if (crm.paymentType === "PREPAID") {

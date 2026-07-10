@@ -30,7 +30,7 @@ export default async function DashboardLayout({
               <ShieldCheck className="h-5 w-5" aria-hidden />
               <span className="text-sm font-semibold tracking-tight">Alsasvize</span>
             </Link>
-            {isStaff ? <DashboardNav /> : null}
+            {isStaff ? <DashboardNav role={session.role} /> : null}
           </div>
 
           <div className="flex items-center gap-3">

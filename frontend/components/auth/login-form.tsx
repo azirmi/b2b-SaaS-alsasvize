@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import { login, type AuthFormState } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -37,6 +38,16 @@ export function LoginForm({ next }: { next?: string }) {
           autoComplete="current-password"
           required
         />
+      </div>
+
+      <div className="flex items-center gap-2.5">
+        <Checkbox id="rememberMe" name="rememberMe" value="true" />
+        <Label
+          htmlFor="rememberMe"
+          className="text-sm leading-relaxed font-normal text-muted-foreground"
+        >
+          Beni hatırla
+        </Label>
       </div>
 
       {state.error ? (

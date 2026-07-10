@@ -1,0 +1,58 @@
+export const COUNTRY_RULES: Record<string, { minDays: number; cities: string[] }> = {
+  Danimarka: { minDays: 45, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Hırvatistan: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Malta: {
+    minDays: 15,
+    cities: [
+      'Ankara',
+      'İstanbul',
+      'İzmir',
+      'Bursa',
+      'Gaziantep',
+      'Antalya',
+      'Edirne',
+      'Bodrum',
+      'Trabzon',
+    ],
+  },
+  Almanya: {
+    minDays: 15,
+    cities: ['Ankara', 'İstanbul', 'İzmir', 'Bursa', 'Antalya', 'Gaziantep', 'Trabzon'],
+  },
+  İtalya: {
+    minDays: 15,
+    cities: ['Ankara', 'İstanbul', 'İzmir', 'Bursa', 'Antalya', 'Gaziantep', 'Trabzon'],
+  },
+  İngiltere: {
+    minDays: 21,
+    cities: ['Ankara', 'İstanbul', 'İzmir', 'Adana', 'Antalya', 'Bursa'],
+  },
+  Fransa: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir'] },
+  Amerika: { minDays: 0, cities: ['Ankara', 'İstanbul'] },
+  Yunanistan: {
+    minDays: 15,
+    cities: ['Ankara', 'İstanbul', 'İzmir', 'Edirne', 'Bursa', 'Antalya', 'Bodrum', 'Trabzon'],
+  },
+  Portekiz: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Romanya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Norveç: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Kanada: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Dubai: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  İsveç: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  İspanya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Hollanda: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Belçika: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Avusturya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  İsviçre: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Finlandiya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Polonya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Çekya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Macaristan: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Slovakya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Slovenya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Litvanya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Letonya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+  Estonya: { minDays: 15, cities: ['Ankara', 'İstanbul', 'İzmir', 'Antalya'] },
+};
+
+export const SUPPORTED_COUNTRIES = Object.keys(COUNTRY_RULES);

@@ -38,6 +38,18 @@ export const STAGE_LABEL: Record<VisaStage, string> = {
   CANCELLED: 'İptal Edildi',
 };
 
+export const STAGE_LABEL_CUSTOMER: Record<VisaStage, string> = {
+  SALES_POOL: 'Satış · Bekliyor Aşamasında',
+  SALES_PROCESS: 'Satış · İşleniyor Aşamasında',
+  DOC_POOL: 'Evrak · Bekliyor Aşamasında',
+  DOC_PROCESS: 'Evrak · İşleniyor Aşamasında',
+  SEC_POOL: 'Son İşlem · Bekliyor Aşamasında',
+  SEC_PROCESS: 'Son İşlem · İşleniyor Aşamasında',
+  COMPLETED: 'Tamamlandı',
+  PAUSED: 'Duraklatıldı',
+  CANCELLED: 'İptal Edildi',
+};
+
 /** Canonical happy-path order (terminal PAUSED/CANCELLED excluded). */
 export const STAGE_FLOW: VisaStage[] = [
   VisaStage.SALES_POOL,

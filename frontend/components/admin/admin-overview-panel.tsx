@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Search } from "lucide-react";
 
 import { AdminStatsCharts } from "@/components/admin/admin-stats-charts";
 import { StageBadge } from "@/components/stage-badge";
@@ -21,6 +21,25 @@ import { VisaStage } from "@/lib/enums";
 import { formatDuration, timeAgo } from "@/lib/format";
 import type { AdminApplicationRow, AdminStats } from "@/lib/types";
 
+type HeaderSortKey = "applicant" | "stage" | "assigned" | "system";
+type HeaderSortDirection = "asc" | "desc";
+
+type HeaderSortState =
+  | { key: HeaderSortKey; direction: HeaderSortDirection }
+  | null;
+
+const STAGE_ORDER: Record<VisaStage, number> = {
+  [VisaStage.SALES_POOL]: 1,
+  [VisaStage.SALES_PROCESS]: 2,
+  [VisaStage.DOC_POOL]: 3,
+  [VisaStage.DOC_PROCESS]: 4,
+  [VisaStage.SEC_POOL]: 5,
+  [VisaStage.SEC_PROCESS]: 6,
+  [VisaStage.COMPLETED]: 7,
+  [VisaStage.PAUSED]: 8,
+  [VisaStage.CANCELLED]: 9,
+};
+
 function stageHandler(app: AdminApplicationRow): string | null {
   switch (app.currentStage) {
     case VisaStage.SALES_PROCESS:
@@ -35,7 +54,10 @@ function stageHandler(app: AdminApplicationRow): string | null {
   }
 }
 
-function buildAllApplicationsPath(q: string, staffId: string | null): string {
+function buildAllApplicationsPath(
+  q: string,
+  staffId: string | null,
+): string {
   const params = new URLSearchParams();
   const query = q.trim();
 
@@ -79,6 +101,7 @@ export function AdminOverviewPanel({
 }) {
   const [search, setSearch] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [headerSort, setHeaderSort] = useState<HeaderSortState>(null);
   const [applications, setApplications] =
     useState<AdminApplicationRow[]>(initialApplications);
   const [isLoading, setIsLoading] = useState(false);
@@ -136,7 +159,105 @@ export function AdminOverviewPanel({
     };
   }, [search, selectedStaffId]);
 
-  const hasAnyFilter = Boolean(search.trim() || selectedStaffId);
+  const collator = useMemo(
+    () =>
+      new Intl.Collator("tr", {
+        sensitivity: "base",
+      }),
+    [],
+  );
+
+  const sortedApplications = useMemo(() => {
+    if (!headerSort) {
+      return applications;
+    }
+
+    const factor = headerSort.direction === "asc" ? 1 : -1;
+    const rows = [...applications];
+    rows.sort((a, b) => {
+      let compare = 0;
+
+      switch (headerSort.key) {
+        case "applicant": {
+          compare = collator.compare(a.customer.fullName, b.customer.fullName);
+          break;
+        }
+        case "stage": {
+          compare = STAGE_ORDER[a.currentStage] - STAGE_ORDER[b.currentStage];
+          if (compare === 0) {
+            compare = collator.compare(a.customer.fullName, b.customer.fullName);
+          }
+          break;
+        }
+        case "assigned": {
+          const aName = stageHandler(a) ?? "";
+          const bName = stageHandler(b) ?? "";
+          compare = collator.compare(aName, bName);
+          break;
+        }
+        case "system": {
+          compare =
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+        }
+      }
+
+      return compare * factor;
+    });
+
+    return rows;
+  }, [applications, collator, headerSort]);
+
+  function toggleHeaderSort(key: HeaderSortKey) {
+    setHeaderSort((current) => {
+      if (!current || current.key !== key) {
+        return { key, direction: "asc" };
+      }
+      if (current.direction === "asc") {
+        return { key, direction: "desc" };
+      }
+      return null;
+    });
+  }
+
+  function renderHeaderButton({
+    label,
+    columnKey,
+    align = "left",
+  }: {
+    label: string;
+    columnKey: HeaderSortKey;
+    align?: "left" | "right";
+  }) {
+    const active = headerSort?.key === columnKey;
+    const icon = !active ? (
+      <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden />
+    ) : headerSort.direction === "asc" ? (
+      <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+    ) : (
+      <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+    );
+
+    return (
+      <button
+        type="button"
+        onClick={() => toggleHeaderSort(columnKey)}
+        className={`inline-flex items-center gap-1.5 text-xs font-medium transition-colors ${
+          active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+        } ${align === "right" ? "ml-auto" : ""}`}
+        aria-label={`${label} sütununu sırala`}
+      >
+        <span>{label}</span>
+        {icon}
+      </button>
+    );
+  }
+
+  const hasAnyFilter = Boolean(
+    search.trim() ||
+      selectedStaffId ||
+      headerSort,
+  );
 
   return (
     <>
@@ -210,6 +331,7 @@ export function AdminOverviewPanel({
                 onClick={() => {
                   setSearch("");
                   setSelectedStaffId(null);
+                  setHeaderSort(null);
                 }}
               >
                 Sıfırla
@@ -237,21 +359,25 @@ export function AdminOverviewPanel({
             <TableHeader>
               <TableRow className="border-border/40 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Başvuran
+                  {renderHeaderButton({ label: "Başvuran", columnKey: "applicant" })}
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Aşama
+                  {renderHeaderButton({ label: "Aşama", columnKey: "stage" })}
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Sorumlu
+                  {renderHeaderButton({ label: "Sorumlu", columnKey: "assigned" })}
                 </TableHead>
                 <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                  Sistemde
+                  {renderHeaderButton({
+                    label: "Sistemde",
+                    columnKey: "system",
+                    align: "right",
+                  })}
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {applications.map((application) => {
+              {sortedApplications.map((application) => {
                 const handler = stageHandler(application);
                 return (
                   <TableRow key={application.id} className="border-border/40">

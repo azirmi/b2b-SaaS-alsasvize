@@ -17,4 +17,18 @@ export class AdminController {
   getStats() {
     return this.adminService.getStats();
   }
+
+  /** SLA/compliance tracking table for Sales->DOC queue delays. */
+  @Get('compliance')
+  @Roles(Role.ADMIN)
+  getCompliance() {
+    return this.adminService.getCompliance();
+  }
+
+  /** Finance dashboard: timeframe metrics and remaining prepaid balances. */
+  @Get('finance')
+  @Roles(Role.ADMIN)
+  getFinance() {
+    return this.adminService.getFinance();
+  }
 }
