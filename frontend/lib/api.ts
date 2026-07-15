@@ -1,5 +1,9 @@
+const apiBaseFromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
+
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  apiBaseFromEnv && apiBaseFromEnv.length > 0
+    ? apiBaseFromEnv.replace(/\/+$/, "")
+    : "/api";
 
 /** Thrown for any non-2xx API response. Carries the HTTP status and parsed body. */
 export class ApiError extends Error {
@@ -18,6 +22,8 @@ export interface ApiRequestInit extends Omit<RequestInit, "body"> {
   body?: unknown;
   /** Cookie header to forward — server-side only; see `lib/api.server.ts`. */
   cookie?: string;
+  /** Optional absolute API base URL override, mainly for server-side usage. */
+  baseUrl?: string;
 }
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
@@ -35,7 +41,9 @@ export async function apiFetch<T = unknown>(
   path: string,
   init: ApiRequestInit = {},
 ): Promise<T> {
-  const { body, cookie, headers, method = "GET", ...rest } = init;
+  const { body, cookie, headers, method = "GET", baseUrl, ...rest } = init;
+  const requestBaseUrl =
+    (baseUrl ?? API_BASE_URL).replace(/\/+$/, "") || API_BASE_URL;
 
   const finalHeaders = new Headers(headers);
   const sendsBody = !BODYLESS_METHODS.has(method.toUpperCase()) && body != null;
@@ -49,7 +57,7 @@ export async function apiFetch<T = unknown>(
     finalHeaders.set("cookie", cookie);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${requestBaseUrl}${path}`, {
     method,
     // Web cross-origin cookie auth; ignored (harmless) on the server.
     credentials: "include",

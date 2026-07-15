@@ -1,9 +1,46 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
-import { ApiError, apiFetch, type ApiRequestInit } from "./api";
+import { API_BASE_URL, ApiError, apiFetch, type ApiRequestInit } from "./api";
 import type { AuthenticatedUser } from "./types";
+
+const ABSOLUTE_URL_RE = /^https?:\/\//i;
+
+function firstForwardedValue(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const first = value.split(",", 1)[0]?.trim();
+  return first && first.length > 0 ? first : null;
+}
+
+async function resolvedServerApiBaseUrl(): Promise<string> {
+  if (ABSOLUTE_URL_RE.test(API_BASE_URL)) {
+    return API_BASE_URL;
+  }
+
+  const requestHeaders = await headers();
+  const forwardedProto = firstForwardedValue(
+    requestHeaders.get("x-forwarded-proto"),
+  );
+  const forwardedHost = firstForwardedValue(
+    requestHeaders.get("x-forwarded-host"),
+  );
+  const host = forwardedHost ?? firstForwardedValue(requestHeaders.get("host"));
+
+  if (!host) {
+    return API_BASE_URL;
+  }
+
+  const protocol = forwardedProto ?? "http";
+  return `${protocol}://${host}${API_BASE_URL}`;
+}
+
+export async function resolveServerApiUrl(path: string): Promise<string> {
+  return `${await resolvedServerApiBaseUrl()}${path}`;
+}
 
 /** Serializes the inbound request cookies into a forwardable `Cookie` header. */
 async function forwardedCookie(): Promise<string> {
@@ -19,7 +56,11 @@ export async function serverFetch<T = unknown>(
   path: string,
   init: ApiRequestInit = {},
 ): Promise<T> {
-  return apiFetch<T>(path, { ...init, cookie: await forwardedCookie() });
+  return apiFetch<T>(path, {
+    ...init,
+    cookie: await forwardedCookie(),
+    baseUrl: await resolvedServerApiBaseUrl(),
+  });
 }
 
 export const serverApi = {

@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { API_BASE_URL } from "@/lib/api";
+import { resolveServerApiUrl } from "@/lib/api.server";
 import { APPLICATION_TYPE_OPTIONS } from "@/lib/application-type";
 import { ACCESS_TOKEN_COOKIE } from "@/lib/constants";
 import { COUNTRY_RULES } from "@/lib/countries";
@@ -101,7 +101,8 @@ export async function login(
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    const loginUrl = await resolveServerApiUrl("/auth/login");
+    const response = await fetch(loginUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, rememberMe }),
@@ -255,7 +256,8 @@ export async function onboard(
       payload.append("passports", passport);
     }
 
-    const onboardResponse = await fetch(`${API_BASE_URL}/auth/onboard`, {
+    const onboardUrl = await resolveServerApiUrl("/auth/onboard");
+    const onboardResponse = await fetch(onboardUrl, {
       method: "POST",
       body: payload,
       cache: "no-store",
@@ -269,7 +271,8 @@ export async function onboard(
     }
 
     // Onboarding creates the account but does not sign in — do it now.
-    const loginResponse = await fetch(`${API_BASE_URL}/auth/login`, {
+    const loginUrl = await resolveServerApiUrl("/auth/login");
+    const loginResponse = await fetch(loginUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),

@@ -3,8 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 
-import { API_BASE_URL } from "@/lib/api";
 import { WORKFLOW_EVENTS, type WorkflowEventMap } from "@/lib/events";
+
+const socketBaseFromEnv = process.env.NEXT_PUBLIC_SOCKET_URL?.trim();
+const SOCKET_BASE_URL =
+  socketBaseFromEnv && socketBaseFromEnv.length > 0
+    ? socketBaseFromEnv.replace(/\/+$/, "")
+    : "/";
+
+function socketNamespaceUrl(namespace: string): string {
+  return SOCKET_BASE_URL === "/" ? namespace : `${SOCKET_BASE_URL}${namespace}`;
+}
 
 export type SocketEventHandlers = {
   [E in keyof WorkflowEventMap]?: (payload: WorkflowEventMap[E]) => void;
@@ -43,11 +52,13 @@ export function useSocket(
       return;
     }
 
-    const socket: Socket = io(`${API_BASE_URL}/events`, {
+    const socket: Socket = io(socketNamespaceUrl("/events"), {
       // Send the first-party auth cookie on the cross-origin handshake. The
       // default polling->websocket upgrade is used deliberately: the credentialed
       // polling handshake reliably carries the cookie, then upgrades to a socket.
       withCredentials: true,
+      secure: true,
+      transports: ["websocket", "polling"],
     });
 
     const onConnect = () => setConnected(true);
