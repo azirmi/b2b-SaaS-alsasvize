@@ -52,7 +52,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 2,
     type: DocAssistantDocumentType.VIZE_DILEKCESI_NIYET_YAZISI,
-    title: "2. Vize Dilekçesi / Niyet Yazısı",
+    title: "Vize Dilekçesi / Niyet Yazısı",
     constraint: "Zorunlu",
     desc:
       "Danışanın seyahat amacını, planlanan tarihlerini, mesleki/finansal durumunu ve geri dönüş niyetini açıklayan vize dilekçesi bu alandan yüklenir. Dilekçe, danışan profiline ve başvuru dosyasındaki evraklara uygun şekilde hazırlanmalıdır.",
@@ -62,7 +62,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 3,
     type: DocAssistantDocumentType.SEYAHAT_PLANI,
-    title: "3. Seyahat Planı",
+    title: "Seyahat Planı",
     constraint: "Opsiyonel",
     desc:
       "Danışanın seyahat tarihlerini, ülke/şehir geçişlerini, konaklama planını ve genel seyahat akışını gösteren seyahat planı bu alandan yüklenir. Planlanan tarihlerin otel, uçak ve sigorta belgeleriyle uyumlu olmasına dikkat edilmelidir.",
@@ -72,7 +72,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 4,
     type: DocAssistantDocumentType.UCAK_REZERVASYONU,
-    title: "4. Uçak Rezervasyonu",
+    title: "Uçak Rezervasyonu",
     constraint: "Opsiyonel",
     desc:
       "Danışan uçak biletini kendisi satın aldıysa ilgili belge danışan panelinden alınabilir. Danışan satın alma yapmadıysa, dosya asistanı tarafından hazırlanan uçak rezervasyonu bu alandan yüklenir. Belgede ad-soyad, seyahat tarihleri, güzergâh ve PNR/rezervasyon numarası görünmelidir.",
@@ -82,7 +82,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 5,
     type: DocAssistantDocumentType.OTEL_KONAKLAMA_REZERVASYONU,
-    title: "5. Otel / Konaklama Rezervasyonu",
+    title: "Otel / Konaklama Rezervasyonu",
     constraint: "Opsiyonel",
     desc:
       "Danışan otel rezervasyonunu kendisi satın aldıysa ilgili belge danışan panelinden alınabilir. Danışan satın alma yapmadıysa, dosya asistanı tarafından hazırlanan otel veya konaklama rezervasyonu bu alandan yüklenir. Belgede ad-soyad, konaklama tarihleri, tesis adı ve adres bilgileri görünmelidir.",
@@ -92,7 +92,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 6,
     type: DocAssistantDocumentType.SEYAHAT_SAGLIK_SIGORTASI,
-    title: "6. Seyahat Sağlık Sigortası",
+    title: "Seyahat Sağlık Sigortası",
     constraint: "Zorunlu",
     desc:
       "Danışanın seyahat tarihlerini kapsayan seyahat sağlık sigortası poliçesi dosya asistanı tarafından hazırlanır ve bu alandan yüklenir. Poliçede ad-soyad, tarih aralığı, teminat bilgisi ve geçerlilik bölgesi net şekilde görünmelidir.",
@@ -102,7 +102,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 7,
     type: DocAssistantDocumentType.SPONSORLUK_YAZISI,
-    title: "7. Sponsorluk Yazısı",
+    title: "Sponsorluk Yazısı",
     constraint: "Opsiyonel",
     desc:
       "Seyahat masrafları sponsor tarafından karşılanacaksa sponsorluk yazısı dosya asistanı tarafından hazırlanır ve bu alandan yüklenir. Yazıdaki sponsor bilgileri, danışan tarafından yüklenen sponsor evraklarıyla uyumlu olmalıdır.",
@@ -112,7 +112,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 8,
     type: DocAssistantDocumentType.EK_TURISTIK_DESTEK_BELGELERI,
-    title: "8. Ek Turistik Destek Belgeleri",
+    title: "Ek Turistik Destek Belgeleri",
     constraint: "Opsiyonel",
     desc:
       "Müze bileti, konser bileti, maç bileti, etkinlik kaydı veya turistik seyahat amacını destekleyen benzeri belgeler gerekli görülürse dosya asistanı tarafından hazırlanır, düzenlenir veya başvuru dosyasına eklenir. Bu alan yalnızca dosyayı destekleyici turistik belgeler için kullanılmalıdır.",
@@ -122,7 +122,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 9,
     type: DocAssistantDocumentType.RANDEVU_ONAYI,
-    title: "9. Randevu Onayı",
+    title: "Randevu Onayı",
     constraint: "Zorunlu",
     desc:
       "Başvuru merkezi veya konsolosluk randevu onay belgesi bu alandan yüklenir. Belgede danışanın adı, randevu tarihi, randevu saati, başvuru merkezi ve referans numarası görünmelidir.",
@@ -132,7 +132,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 10,
     type: DocAssistantDocumentType.BASVURU_TESLIM_FORMU,
-    title: "10. Başvuru Teslim Formu",
+    title: "Başvuru Teslim Formu",
     constraint: "Zorunlu",
     desc:
       "Başvuru dosyasının teslim edildiğini gösteren form veya teslim belgesi bu alandan yüklenir. Belgede danışan bilgileri, teslim tarihi ve başvuru merkezi bilgileri okunabilir olmalıdır.",
@@ -142,7 +142,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 11,
     type: DocAssistantDocumentType.VIZE_HARCI_SERVIS_BEDELI_DEKONTU,
-    title: "11. Vize Harcı / Servis Bedeli Dekontu",
+    title: "Vize Harcı / Servis Bedeli Dekontu",
     constraint: "Opsiyonel",
     desc:
       "Başvuru sürecinde oluşan vize harcı, servis bedeli veya başvuru merkezi ödeme dekontu bu alandan yüklenir. Bu alan yalnızca başvuru dosyasıyla ilgili resmi ödeme belgeleri için kullanılmalıdır.",
@@ -152,7 +152,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 12,
     type: DocAssistantDocumentType.KALAN_ODEME_DEKONTU,
-    title: "12. Kalan Ödeme Dekontu",
+    title: "Kalan Ödeme Dekontu",
     constraint: "Şartlı Zorunlu",
     desc:
       "Danışan kalan ödemeli bir süreçle başlatıldıysa, dosya teslim adımına geçilebilmesi için kalan ödeme dekontu dosya asistanı tarafından bu alana yüklenmelidir. Kalan ödeme dekontu yüklenmeden dosya teslim süreci tamamlanmamalıdır.",
@@ -162,7 +162,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 13,
     type: DocAssistantDocumentType.VIZE_SONUC_BELGESI,
-    title: "13. Onaylı Pasaport",
+    title: "Onaylı Pasaport",
     constraint: "Süreç Sonu",
     desc:
       "Başvuru sonucu açıklandıktan sonra onaylı pasaport bu alandan yüklenir. Bu belge yalnızca sonuç takibi ve danışan bilgilendirme süreci için kullanılmalıdır.",
@@ -172,7 +172,7 @@ const DOC_ASSISTANT_CARDS: DocAssistantCardDef[] = [
   {
     id: 16,
     type: DocAssistantDocumentType.DIGER_EK_OPERASYON_BELGESI,
-    title: "16. Diğer / Ek Operasyon Belgesi",
+    title: "Diğer / Ek Operasyon Belgesi",
     constraint: "Opsiyonel",
     desc:
       "Yukarıdaki kategorilere girmeyen ancak dosya sürecinde gerekli olabilecek ek operasyon belgeleri bu alandan yüklenir. Belge adının ve içeriğinin anlaşılır olmasına dikkat edilmelidir.",
@@ -469,7 +469,7 @@ export function DocAssistantDashboard({
       ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
-        {DOC_ASSISTANT_CARDS.map((card) => {
+        {DOC_ASSISTANT_CARDS.map((card, index) => {
           const status = statusByType[card.type];
           const statusMeta = STATUS_OPTIONS.find((option) => option.value === status);
           const isCardSaving = busyType === card.type;
@@ -483,7 +483,7 @@ export function DocAssistantDashboard({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
-                  <h3 className="text-sm font-medium tracking-tight">{card.title}</h3>
+                  <h3 className="text-sm font-medium tracking-tight">{`${index + 1}. ${card.title}`}</h3>
                 </div>
                 <Badge variant="outline" className="rounded-md text-[11px]">
                   {card.constraint}

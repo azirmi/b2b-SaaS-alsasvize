@@ -1,6 +1,31 @@
 import { z } from "zod";
 
 z.config(z.locales.tr());
+z.config({
+  customError: (issue) => {
+    const code = String((issue as { code?: string }).code ?? "");
+    const expected = String(
+      (issue as { expected?: string }).expected ?? "",
+    ).toLowerCase();
+
+    if (code === "invalid_date") {
+      return "Lütfen geçerli bir tarih giriniz.";
+    }
+
+    if (code === "invalid_type") {
+      if (expected === "date") {
+        return "Lütfen geçerli bir tarih giriniz.";
+      }
+      return "Bu alan zorunludur.";
+    }
+
+    if (code === "too_small" || code === "too_big") {
+      return "Geçersiz uzunluk.";
+    }
+
+    return undefined;
+  },
+});
 
 import {
   ALPHA_TEXT_RE,
@@ -177,7 +202,28 @@ const requiredIsoDate = (label: string) =>
   z
     .string()
     .trim()
-    .regex(ISO_DATE_RE, { message: `${label} geçerli bir tarih olmalıdır.` });
+    .min(1, { message: "Bu alan zorunludur." })
+    .regex(ISO_DATE_RE, { message: "Lütfen geçerli bir tarih giriniz." });
+
+const optionalIsoDate = () =>
+  z.preprocess(
+    (value) => {
+      if (value === null || value === undefined) {
+        return undefined;
+      }
+
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        return trimmed === "" ? undefined : trimmed;
+      }
+
+      return value;
+    },
+    z
+      .string()
+      .regex(ISO_DATE_RE, { message: "Geçerli bir tarih giriniz" })
+      .optional(),
+  );
 
 function buildApplicationFormSchema(targetCountry?: string | null) {
   const denmarkRuleActive =
@@ -227,7 +273,7 @@ function buildApplicationFormSchema(targetCountry?: string | null) {
       .refine((value) => value === "" || value === "Evet" || value === "Hayır", {
         message: "Parmak izi bilgisi yalnızca Evet veya Hayır olabilir.",
       }),
-    fingerprintDate: z.string().trim(),
+    fingerprintDate: optionalIsoDate(),
     schengenAppliedBefore: z
       .string()
       .trim()

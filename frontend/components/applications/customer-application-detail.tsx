@@ -8,12 +8,14 @@ import {
   type UploadDocumentOption,
 } from "@/components/documents/document-uploader";
 import { DeleteDocumentButton } from "@/components/documents/delete-document-button";
+import { ForceDownloadButton } from "@/components/documents/force-download-button";
 import { StageBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
+import { deriveDownloadFileName } from "@/lib/download";
 import { FileType, OcrStatus, VisaStage } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
 import {
@@ -550,6 +552,10 @@ export async function CustomerApplicationDetail({
                 <ul className="mt-3 divide-y divide-border/40">
                   {deliveredFiles.map((file) => {
                     const downloadUrl = urlById.get(file.documentId) ?? null;
+                    const fileName = deriveDownloadFileName(
+                      file.fileUrl,
+                      `${file.title}.pdf`,
+                    );
 
                     return (
                       <li
@@ -564,14 +570,10 @@ export async function CustomerApplicationDetail({
                         </div>
 
                         {downloadUrl ? (
-                          <a
-                            href={downloadUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex h-8 items-center rounded-md border border-border/60 px-3 text-xs font-medium transition-colors hover:bg-muted/60"
-                          >
-                            İndir
-                          </a>
+                          <ForceDownloadButton
+                            url={downloadUrl}
+                            filename={fileName}
+                          />
                         ) : (
                           <span className="text-xs text-muted-foreground">
                             İndirilemedi

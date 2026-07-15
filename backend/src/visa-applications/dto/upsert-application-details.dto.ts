@@ -7,6 +7,7 @@ import {
   IsString,
   Matches,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 
 /** ISO calendar date, e.g. 2026-07-06. */
@@ -39,7 +40,7 @@ export class UpsertApplicationDetailsDto {
   @MaxLength(32)
   nationalId!: string;
 
-  @Matches(ISO_DATE, { message: 'dateOfBirth must be a valid date' })
+  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
   dateOfBirth!: string;
 
   @IsString()
@@ -132,10 +133,10 @@ export class UpsertApplicationDetailsDto {
   @MaxLength(64)
   passportNumber!: string;
 
-  @Matches(ISO_DATE, { message: 'passportIssueDate must be a valid date' })
+  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
   passportIssueDate!: string;
 
-  @Matches(ISO_DATE, { message: 'passportExpiryDate must be a valid date' })
+  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
   passportExpiryDate!: string;
 
   @IsString()
@@ -154,8 +155,18 @@ export class UpsertApplicationDetailsDto {
   @IsIn(['Evet', 'Hayır'])
   fingerprintGiven!: string;
 
-  @IsOptional()
-  @Matches(ISO_DATE, { message: 'fingerprintDate must be a valid date' })
+  @ValidateIf((_, value) => {
+    if (value === null || value === undefined) {
+      return false;
+    }
+
+    if (typeof value !== 'string') {
+      return true;
+    }
+
+    return value.trim().length > 0;
+  })
+  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz' })
   fingerprintDate?: string;
 
   @IsString()
@@ -174,10 +185,10 @@ export class UpsertApplicationDetailsDto {
   @MaxLength(1000)
   purposeOfTravel!: string;
 
-  @Matches(ISO_DATE, { message: 'plannedTravelStartDate must be a valid date' })
+  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
   plannedTravelStartDate!: string;
 
-  @Matches(ISO_DATE, { message: 'plannedTravelEndDate must be a valid date' })
+  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
   plannedTravelEndDate!: string;
 
   // ── Sponsor information ───────────────────────────────────────────────

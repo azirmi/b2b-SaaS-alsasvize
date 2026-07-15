@@ -16,6 +16,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  LocalizedDatePickerInput,
+  LocalizedDateTimePickerInput,
+} from "@/components/ui/localized-date-picker";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -73,6 +77,15 @@ function formatDateTimeLabel(iso: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatIsoDateForUi(iso: string): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    return iso;
+  }
+
+  const [year, month, day] = iso.split("-");
+  return `${day}/${month}/${year}`;
 }
 
 export function AppointmentOpsForm({
@@ -209,13 +222,12 @@ export function AppointmentOpsForm({
 
           <div className="space-y-1.5">
             <Label htmlFor="appointmentDate">Randevu Tarih & Saat</Label>
-            <Input
+            <LocalizedDateTimePickerInput
               id="appointmentDate"
               name="appointmentDate"
-              type="datetime-local"
-              step={60}
               value={appointmentDate}
-              onChange={(event) => setAppointmentDate(event.target.value)}
+              onChange={setAppointmentDate}
+              placeholder="dd/MM/yyyy HH:mm"
               required
             />
           </div>
@@ -223,13 +235,13 @@ export function AppointmentOpsForm({
 
         <div className="space-y-1.5">
           <Label htmlFor="travelDate">Seyahat Başlangıç Tarihi (Zorla Güncelle)</Label>
-          <Input
+          <LocalizedDatePickerInput
             id="travelDate"
             name="travelDate"
-            type="date"
             value={travelDate}
-            onChange={(event) => setTravelDate(event.target.value)}
-            min={minTravelDate || undefined}
+            onChange={setTravelDate}
+            min={minTravelDate}
+            placeholder="dd/MM/yyyy"
             required
           />
           {countryRule ? (
@@ -403,7 +415,7 @@ export function AppointmentOpsForm({
         {travelDateInvalid ? (
           <p className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400">
             <AlertTriangle className="h-4 w-4" aria-hidden />
-            {`Dikkat: Seçilen ülkenin kuralları gereği seyahat tarihi en erken ${minTravelDate} olmalıdır.`}
+            {`Dikkat: Seçilen ülkenin kuralları gereği seyahat tarihi en erken ${formatIsoDateForUi(minTravelDate)} olmalıdır.`}
           </p>
         ) : null}
 

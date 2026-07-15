@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LocalizedDatePickerInput } from "@/components/ui/localized-date-picker";
 import {
   Select,
   SelectContent,
@@ -193,6 +194,23 @@ function Field({
                 rows={3}
                 aria-invalid={Boolean(error)}
                 className={error ? "border-red-500 focus-visible:ring-red-500/30" : undefined}
+              />
+            );
+          }
+
+          if (field.kind === "date") {
+            return (
+              <LocalizedDatePickerInput
+                id={id}
+                value={value}
+                onChange={formField.onChange}
+                required={required}
+                placeholder="dd/MM/yyyy"
+                className={
+                  error
+                    ? "border-red-500 focus-visible:ring-red-500/30"
+                    : undefined
+                }
               />
             );
           }

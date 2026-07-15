@@ -6,6 +6,7 @@ import { Check, FileUp, Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LocalizedDatePickerInput } from "@/components/ui/localized-date-picker";
 import {
   Select,
   SelectContent,
@@ -79,6 +80,9 @@ export function CrmForm({
   );
   const [total, setTotal] = useState<string>(
     crm?.totalAmount != null ? String(crm.totalAmount) : "",
+  );
+  const [salesDate, setSalesDate] = useState<string>(
+    crm?.salesDate ? crm.salesDate.slice(0, 10) : "",
   );
   const [upfront, setUpfront] = useState<string>(
     crm?.upfrontPaid != null ? String(crm.upfrontPaid) : "",
@@ -172,11 +176,12 @@ export function CrmForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="salesDate">Satış Tarihi</Label>
-            <Input
+            <LocalizedDatePickerInput
               id="salesDate"
               name="salesDate"
-              type="date"
-              defaultValue={crm?.salesDate ? crm.salesDate.slice(0, 10) : ""}
+              value={salesDate}
+              onChange={setSalesDate}
+              placeholder="dd/MM/yyyy"
               required
             />
           </div>
