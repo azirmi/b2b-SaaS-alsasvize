@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { AdminCompliancePanel } from "@/components/admin/admin-compliance-panel";
 import { AdminFinancePanel } from "@/components/admin/admin-finance-panel";
+import { AdminMasterTable } from "@/components/admin/admin-master-table";
 import { AdminOverviewPanel } from "@/components/admin/admin-overview-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getSession, serverApi } from "@/lib/api.server";
@@ -10,6 +11,7 @@ import type {
   AdminApplicationRow,
   AdminComplianceData,
   AdminFinanceData,
+  AdminMasterTableRow,
   AdminStats,
 } from "@/lib/types";
 
@@ -26,14 +28,16 @@ export default async function AdminDashboardPage() {
   let initialApplications: AdminApplicationRow[] = [];
   let compliance: AdminComplianceData | null = null;
   let finance: AdminFinanceData | null = null;
+  let masterTableRows: AdminMasterTableRow[] = [];
   let loadError = false;
 
   try {
-    [stats, initialApplications, compliance, finance] = await Promise.all([
+    [stats, initialApplications, compliance, finance, masterTableRows] = await Promise.all([
       serverApi.get<AdminStats>("/admin/stats"),
       serverApi.get<AdminApplicationRow[]>("/applications/all?sortBy=date&sortDirection=desc"),
       serverApi.get<AdminComplianceData>("/admin/compliance"),
       serverApi.get<AdminFinanceData>("/admin/finance"),
+      serverApi.get<AdminMasterTableRow[]>("/admin/master-table"),
     ]);
   } catch {
     loadError = true;
@@ -70,6 +74,7 @@ export default async function AdminDashboardPage() {
           <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
           <TabsTrigger value="finance">Finans & Muhasebe</TabsTrigger>
           <TabsTrigger value="compliance">Performans & Uyum</TabsTrigger>
+          <TabsTrigger value="master">Master Tablo</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -85,6 +90,10 @@ export default async function AdminDashboardPage() {
 
         <TabsContent value="compliance">
           <AdminCompliancePanel data={compliance} />
+        </TabsContent>
+
+        <TabsContent value="master">
+          <AdminMasterTable rows={masterTableRows} />
         </TabsContent>
       </Tabs>
     </div>

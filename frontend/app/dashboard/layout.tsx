@@ -1,14 +1,23 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import Image from "next/image";
 
+import { AdminMessageComposer } from "@/components/dashboard/admin-message-composer";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { RealtimeBridge } from "@/components/dashboard/realtime-bridge";
+import { StaffMessagesBell } from "@/components/dashboard/staff-messages-bell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/lib/actions/auth";
 import { getSession } from "@/lib/api.server";
 import { Role } from "@/lib/enums";
+
+const ROLE_BADGE_LABEL: Partial<Record<Role, string>> = {
+  [Role.ADMIN]: "Yönetici",
+  [Role.SALES]: "Satış",
+  [Role.DOC]: "Evrak",
+  [Role.SEC]: "Sekreterya",
+};
 
 export default async function DashboardLayout({
   children,
@@ -20,29 +29,43 @@ export default async function DashboardLayout({
     redirect("/login");
   }
   const isStaff = session.role !== Role.CUSTOMER;
+  const roleBadgeLabel = ROLE_BADGE_LABEL[session.role] ?? session.role;
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-3">
+        <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-4 px-4 py-2 sm:px-8">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" aria-hidden />
-              <span className="text-sm font-semibold tracking-tight">Alsasvize</span>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <Image
+                src="/logo.jpg"
+                alt="Alsasvize"
+                width={190}
+                height={64}
+                priority
+                className="h-16 w-auto object-contain"
+              />
             </Link>
             {isStaff ? <DashboardNav role={session.role} /> : null}
           </div>
 
           <div className="flex items-center gap-3">
             <RealtimeBridge enabled={isStaff} />
+            <AdminMessageComposer role={session.role} />
+            <StaffMessagesBell role={session.role} />
             <div className="hidden items-center gap-2 sm:flex">
               <span className="text-xs text-muted-foreground">{session.email}</span>
-              <Badge
-                variant="outline"
-                className="rounded-md font-mono text-[11px]"
-              >
-                {session.role}
-              </Badge>
+              {session.role !== Role.CUSTOMER ? (
+                <Badge
+                  variant="outline"
+                  className="rounded-md font-mono text-[11px]"
+                >
+                  {roleBadgeLabel}
+                </Badge>
+              ) : null}
             </div>
             <form action={logout}>
               <Button type="submit" variant="ghost" size="sm">
@@ -53,7 +76,7 @@ export default async function DashboardLayout({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-[1200px] flex-1 px-4 py-6 sm:px-8">{children}</main>
     </div>
   );
 }

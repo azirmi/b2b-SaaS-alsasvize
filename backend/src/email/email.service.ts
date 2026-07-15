@@ -2,8 +2,12 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createTransport, type Transporter } from 'nodemailer';
 import {
+  renderAppointmentFourDayReminderEmail,
+  renderDocAssistantStatusUpdatedEmail,
   renderDocumentRejectedEmail,
   renderStageAdvancedEmail,
+  type AppointmentFourDayReminderEmailInput,
+  type DocAssistantStatusUpdatedEmailInput,
   type DocumentRejectedEmailInput,
   type RenderedEmail,
   type StageAdvancedEmailInput,
@@ -62,6 +66,24 @@ export class EmailService implements OnModuleInit {
   /** Notifies a customer that their application advanced (incl. completion). */
   async sendStageAdvanced(input: StageAdvancedEmailInput): Promise<void> {
     await this.dispatch(input.to, () => renderStageAdvancedEmail(input));
+  }
+
+  /** Notifies a customer when a DOC assistant card status changes. */
+  async sendDocAssistantStatusUpdated(
+    input: DocAssistantStatusUpdatedEmailInput,
+  ): Promise<void> {
+    await this.dispatch(input.to, () =>
+      renderDocAssistantStatusUpdatedEmail(input),
+    );
+  }
+
+  /** Notifies customer four days before a confirmed appointment. */
+  async sendAppointmentFourDayReminder(
+    input: AppointmentFourDayReminderEmailInput,
+  ): Promise<void> {
+    await this.dispatch(input.to, () =>
+      renderAppointmentFourDayReminderEmail(input),
+    );
   }
 
   /**

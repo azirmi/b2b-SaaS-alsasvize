@@ -8,6 +8,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { AuthModule } from './auth/auth.module';
 import { DocumentsModule } from './documents/documents.module';
 import { EmailModule } from './email/email.module';
+import { MessagesModule } from './messages/messages.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SlaModule } from './sla/sla.module';
 import { UsersModule } from './users/users.module';
@@ -24,6 +25,7 @@ import { VisaApplicationsModule } from './visa-applications/visa-applications.mo
     EmailModule,
     AuthModule,
     UsersModule,
+    MessagesModule,
     VisaApplicationsModule,
     DocumentsModule,
     AuditLogsModule,

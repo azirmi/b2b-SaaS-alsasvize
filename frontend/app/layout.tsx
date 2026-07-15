@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: "Alsasvize — Vize Operasyonları",
   description:
     "Kurumsal vize başvuru yönetimi: departman havuzları, RBAC, gerçek zamanlı iş akışı ve değiştirilemez denetim kaydı.",
+  icons: {
+    icon: "/logo.jpg",
+  },
 };
 
 export default function RootLayout({

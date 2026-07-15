@@ -4,15 +4,38 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { API_BASE_URL } from "@/lib/api";
+import { APPLICATION_TYPE_OPTIONS } from "@/lib/application-type";
 import { ACCESS_TOKEN_COOKIE } from "@/lib/constants";
 import { COUNTRY_RULES } from "@/lib/countries";
+import { ApplicationType } from "@/lib/enums";
+import {
+  NAME_INPUT_RE,
+  maskNameInput,
+} from "@/lib/input-masks";
 
 /** Mirrors backend ACCESS_TOKEN_MAX_AGE_MS (1 day), in seconds. */
 const TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24;
 const TOKEN_REMEMBER_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const APPLICATION_TYPES = new Set<ApplicationType>(
+  APPLICATION_TYPE_OPTIONS.map((option) => option.value),
+);
 
 interface OnboardingExtraApplicantInput {
   fullName: string;
+}
+
+function normalizeOnboardPhone(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) {
+    return "";
+  }
+  if (digits.startsWith("90")) {
+    return `+${digits.slice(0, 12)}`;
+  }
+  if (digits.startsWith("0")) {
+    return `+90${digits.slice(1, 11)}`;
+  }
+  return `+90${digits.slice(0, 10)}`;
 }
 
 export interface AuthFormState {
@@ -111,10 +134,13 @@ export async function onboard(
 ): Promise<AuthFormState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const fullName = String(formData.get("fullName") ?? "").trim();
-  const phone = String(formData.get("phone") ?? "").trim();
+  const fullNameRaw = String(formData.get("fullName") ?? "").trim();
+  const phoneRaw = String(formData.get("phone") ?? "").trim();
+  const fullName = maskNameInput(fullNameRaw, 120);
+  const phone = normalizeOnboardPhone(phoneRaw);
   const targetCountry = String(formData.get("targetCountry") ?? "").trim();
   const appointmentCity = String(formData.get("appointmentCity") ?? "").trim();
+  const applicationType = String(formData.get("applicationType") ?? "").trim() as ApplicationType;
   const acceptKvkk = formData.get("acceptKvkk") === "true";
   const acceptTerms = formData.get("acceptTerms") === "true";
   const groupApplicantsRaw = String(formData.get("groupApplicants") ?? "[]");
@@ -131,11 +157,13 @@ export async function onboard(
 
     const parsedNames = parsed.map((item) => {
       if (typeof item === "string") {
-        return item.trim();
+        return maskNameInput(item.trim(), 120);
       }
       if (item && typeof item === "object") {
         const fullName = (item as { fullName?: unknown }).fullName;
-        return typeof fullName === "string" ? fullName.trim() : "";
+        return typeof fullName === "string"
+          ? maskNameInput(fullName.trim(), 120)
+          : "";
       }
       return "";
     });
@@ -155,7 +183,8 @@ export async function onboard(
     !fullName ||
     !phone ||
     !targetCountry ||
-    !appointmentCity
+    !appointmentCity ||
+    !applicationType
   ) {
     return { error: "Tüm alanların doldurulması zorunludur." };
   }
@@ -167,9 +196,21 @@ export async function onboard(
   if (!countryRule.cities.includes(appointmentCity)) {
     return { error: "Seçilen ülke için randevu şehri geçersiz." };
   }
+  if (!APPLICATION_TYPES.has(applicationType)) {
+    return { error: "Lütfen geçerli bir başvuru türü seçin." };
+  }
 
   if (password.length < 8 || password.length > 72) {
     return { error: "Şifre 8 ile 72 karakter arasında olmalıdır." };
+  }
+  if (!NAME_INPUT_RE.test(fullName)) {
+    return { error: "Ad soyad yalnızca İngilizce harf içermelidir." };
+  }
+  if (!/^\+90\d{10}$/.test(phone)) {
+    return { error: "Telefon numarası +90 ile başlamalı ve 10 haneli olmalıdır." };
+  }
+  if (groupApplicants.some((item) => !NAME_INPUT_RE.test(item.fullName))) {
+    return { error: "Ek kişi ad soyad alanı yalnızca İngilizce harf içermelidir." };
   }
   if (passports.length === 0) {
     return { error: "En az bir pasaport dosyası yüklemeniz gerekir." };
@@ -206,6 +247,7 @@ export async function onboard(
     payload.set("phone", phone);
     payload.set("targetCountry", targetCountry);
     payload.set("appointmentCity", appointmentCity);
+    payload.set("applicationType", applicationType);
     payload.set("groupApplicants", JSON.stringify(groupApplicants));
     payload.set("hasAcceptedKVKK", "true");
     payload.set("hasAcceptedTerms", "true");

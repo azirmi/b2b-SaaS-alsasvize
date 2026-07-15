@@ -262,15 +262,15 @@ export function AdminOverviewPanel({
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Tüm başvurular" value={stats.totalApplications} />
+        <StatCard label="Toplam Başvuru" value={stats.totalApplications} />
         <StatCard
-          label="İşlemde"
+          label="İşlemdeki Başvurular"
           value={inProcess}
           hint="Satış ve Evrak biriminde işlemde"
         />
-        <StatCard label="Tamamlanan" value={stats.completedCount} />
+        <StatCard label="Tamamlanan Başvurular" value={stats.completedCount} />
         <StatCard
-          label="Ort. işlem süresi"
+          label="Ortalama İşlem Süresi"
           value={formatDuration(stats.avgProcessingMs)}
           hint={`${stats.completedCount} tamamlanan`}
         />
@@ -307,7 +307,7 @@ export function AdminOverviewPanel({
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Müşteri, personel veya başvuru kimliği ile ara"
+                placeholder="Danışan, personel veya başvuru kimliği ile ara"
                 className="pl-8"
               />
             </div>
@@ -362,7 +362,7 @@ export function AdminOverviewPanel({
                   {renderHeaderButton({ label: "Başvuran", columnKey: "applicant" })}
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  {renderHeaderButton({ label: "Aşama", columnKey: "stage" })}
+                  {renderHeaderButton({ label: "Süreç Durumu", columnKey: "stage" })}
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
                   {renderHeaderButton({ label: "Sorumlu", columnKey: "assigned" })}

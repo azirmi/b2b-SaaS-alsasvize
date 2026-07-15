@@ -1,4 +1,14 @@
-import type { Department, FileType, OcrStatus, Role, VisaStage } from "./enums";
+import type {
+  ApplicationType,
+  Department,
+  DocAssistantConstraintLabel,
+  DocAssistantDocumentStatus,
+  DocAssistantDocumentType,
+  FileType,
+  OcrStatus,
+  Role,
+  VisaStage,
+} from "./enums";
 
 /** Authenticated principal returned by `GET /auth/me`. Mirrors backend `AuthenticatedUser`. */
 export interface AuthenticatedUser {
@@ -21,6 +31,7 @@ export interface ApplicationCustomer {
 export interface VisaApplicationSummary {
   id: string;
   currentStage: VisaStage;
+  applicationType: ApplicationType;
   customerId: string;
   assignedSalesId: string | null;
   assignedDocId: string | null;
@@ -68,6 +79,7 @@ export interface DocumentRecord {
   applicationId: string;
   uploadedById: string;
   fileType: FileType;
+  docAssistantType: DocAssistantDocumentType | null;
   fileUrl: string;
   isApproved: boolean;
   rejectionReason: string | null;
@@ -95,15 +107,41 @@ export interface DocChecklistState {
   prepaidLocked: boolean;
 }
 
+/** One card row persisted for the DOC assistant dashboard. */
+export interface DocAssistantItem {
+  id: string;
+  applicationId: string;
+  type: DocAssistantDocumentType;
+  constraintLabel: DocAssistantConstraintLabel;
+  status: DocAssistantDocumentStatus;
+  updatedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Snapshot of one file card delivered to the customer portal package. */
+export interface DeliveredCustomerFile {
+  cardType: DocAssistantDocumentType;
+  title: string;
+  documentId: string;
+  fileType: FileType;
+  fileUrl: string;
+  deliveredAt: string;
+}
+
 /** Full application detail returned by `GET /applications/:id` (`APPLICATION_DETAIL_INCLUDE`). */
 export interface VisaApplicationDetail {
   id: string;
   currentStage: VisaStage;
+  applicationType: ApplicationType;
   customerId: string;
   assignedSalesId: string | null;
   assignedDocId: string | null;
   assignedSecId: string | null;
   stageUpdatedAt: string;
+  isDeliveredToCustomer: boolean;
+  deliveredToCustomerAt: string | null;
+  deliveredToCustomerFiles: DeliveredCustomerFile[] | null;
   createdAt: string;
   updatedAt: string;
   metadata: ApplicationMetadata | null;
@@ -112,6 +150,7 @@ export interface VisaApplicationDetail {
   assignedDoc: StaffProfile | null;
   assignedSec: StaffProfile | null;
   documents: DocumentRecord[];
+  docAssistantItems: DocAssistantItem[];
   details: ApplicationDetailsData | null;
   applicationFormSubmitted: boolean;
   salesReadonlyData?: SalesReadonlyData | null;
@@ -137,11 +176,15 @@ export interface CrmData {
   salesDate: string;
   appointmentCity: string | null;
   appointmentDate: string | null;
+  appointmentNote?: string | null;
   paymentType: "NORMAL" | "PREPAID";
   totalAmount: number;
   upfrontPaid: number | null;
   dijizinKvkkVerified: boolean;
   appointmentExpense?: number | null;
+  hasVisaFee?: boolean;
+  visaFeeAmount?: number | null;
+  visaFeeReceiptDocumentId?: string | null;
   receiptFileId: string | null;
   updatedById?: string | null;
   createdAt?: string;
@@ -169,6 +212,7 @@ export interface DijizinFormsSnapshot {
   kvkkVerified: boolean;
   availableForms: DijizinSystemForm[];
   customerForms: DijizinCustomerForm[];
+  message?: string;
 }
 
 /** Free-form application metadata (the legacy `metadata` JSON column). */
@@ -285,6 +329,7 @@ export interface AdminStats {
 /** Row for global calendar agenda (admin/doc). */
 export interface AppointmentCalendarRow {
   applicationId: string;
+  applicationType: ApplicationType;
   appointmentDate: string;
   appointmentCity: string;
   customerName: string;
@@ -295,10 +340,13 @@ export interface AppointmentCalendarRow {
 export interface LinkedActiveApplication {
   applicationId: string;
   currentStage: VisaStage;
+  applicationType: ApplicationType;
   targetCountry: string;
   appointmentCity: string | null;
   appointmentDate: string | null;
 }
+
+export type DeliveryStatus = "TESLIM_EDILDI" | "BEKLIYOR" | "EKSIK";
 
 /** Minimal assigned-staff projection embedded in the admin global table. */
 export interface AssignedStaffLite {
@@ -337,6 +385,25 @@ export interface AdminComplianceData {
   avgClaimWaitMs: number;
   maxOpenWaitMs: number;
   rows: AdminComplianceRow[];
+}
+
+/** Flat row payload from `GET /admin/master-table` for the admin Excel-like grid. */
+export interface AdminMasterTableRow {
+  applicationId: string;
+  createdAt: string;
+  applicationType: ApplicationType;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  country: string;
+  totalAmount: number;
+  upfrontPaid: number | null;
+  paymentType: "NORMAL" | "PREPAID" | null;
+  appointmentDate: string | null;
+  appointmentNote: string | null;
+  deliveryStatus: DeliveryStatus;
+  salesStaff: string | null;
+  docStaff: string | null;
 }
 
 /** A finance metric block for one period. */

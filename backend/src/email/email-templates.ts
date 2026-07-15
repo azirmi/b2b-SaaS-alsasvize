@@ -50,6 +50,21 @@ export interface StageAdvancedEmailInput {
   applicationId: string;
 }
 
+export interface DocAssistantStatusUpdatedEmailInput {
+  to: string;
+  customerName: string;
+  documentName: string;
+  statusLabel: string;
+  applicationId: string;
+}
+
+export interface AppointmentFourDayReminderEmailInput {
+  to: string;
+  customerName: string;
+  appointmentDate: string;
+  applicationId: string;
+}
+
 // -----------------------------------------------------------------------------
 //  Customer-facing pipeline (4 milestones the customer actually cares about)
 // -----------------------------------------------------------------------------
@@ -86,6 +101,7 @@ const FILE_TYPE_LABEL: Record<FileType, string> = {
   [FileType.TRAVEL_PLAN]: 'Seyahat Planı',
   [FileType.HEALTH_INSURANCE]: 'Seyahat Sağlık Sigortası',
   [FileType.APPOINTMENT_CONFIRMATION]: 'Randevu Onayı',
+  [FileType.VISA_FEE_RECEIPT]: 'Vize Harcı Dekontu',
   [FileType.FINAL_RECEIPT]: 'Kalan Ödeme Dekontu',
   [FileType.OTHER]: 'Belge',
 };
@@ -167,6 +183,20 @@ function customerLoginUrl(): string {
     process.env.FRONTEND_APP_URL ??
     'https://alsasvize.com/login'
   );
+}
+
+function formatDateTimeTr(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString('tr-TR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -414,4 +444,101 @@ export function renderStageAdvancedEmail(
   ].join('\n');
 
   return { subject: copy.subject, html, text };
+}
+
+export function renderDocAssistantStatusUpdatedEmail(
+  input: DocAssistantStatusUpdatedEmailInput,
+): RenderedEmail {
+  const ref = shortRef(input.applicationId);
+  const loginUrl = customerLoginUrl();
+  const customerName = escapeHtml(input.customerName);
+  const documentName = escapeHtml(input.documentName);
+  const statusLabel = escapeHtml(input.statusLabel);
+
+  const subject = `${input.documentName} durumu güncellendi`;
+  const preheader = `${input.documentName} belgesi ${input.statusLabel} durumuna getirildi.`;
+
+  const contentHtml = [
+    heading('Belge durum güncellemesi'),
+    paragraph(`Merhaba ${customerName},`),
+    paragraph(
+      `Sayın ${customerName}, <strong style="color:${INK};font-weight:700;">${documentName}</strong> adlı belgenizin durumu <strong style="color:${INK};font-weight:700;">${statusLabel}</strong> olarak güncellenmiştir.`,
+    ),
+    calloutBox([
+      { label: 'Belge', value: input.documentName, strong: true },
+      { label: 'Yeni durum', value: input.statusLabel },
+    ]),
+    paragraph(
+      'Güncel durumu panelinizden takip edebilir, gerekli olduğunda belge süreci için yeni aksiyon alabilirsiniz.',
+    ),
+    actionButton('Sisteme Giriş Yap', loginUrl),
+  ].join('');
+
+  const html = renderShell({
+    preheader,
+    contentHtml,
+    applicationRef: ref,
+  });
+
+  const text = [
+    'Belge durum güncellemesi',
+    '',
+    `Sayın ${input.customerName}, ${input.documentName} adlı belgenizin durumu ${input.statusLabel} olarak güncellenmiştir.`,
+    '',
+    `Sisteme Giriş Yap: ${loginUrl}`,
+    '',
+    `Referans #${ref}`,
+    'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export function renderAppointmentFourDayReminderEmail(
+  input: AppointmentFourDayReminderEmailInput,
+): RenderedEmail {
+  const ref = shortRef(input.applicationId);
+  const loginUrl = customerLoginUrl();
+  const customerName = escapeHtml(input.customerName);
+  const appointmentLabel = formatDateTimeTr(input.appointmentDate);
+
+  const subject = 'Randevunuza 4 gün kaldı';
+  const preheader = `Randevu tarihinize 4 gün kaldı: ${appointmentLabel}`;
+
+  const contentHtml = [
+    heading('Randevunuza 4 gün kaldı'),
+    paragraph(`Merhaba ${customerName},`),
+    paragraph(
+      `Randevu tarihiniz yaklaşıyor. Planlanan randevu zamanınız: <strong style="color:${INK};font-weight:700;">${escapeHtml(
+        appointmentLabel,
+      )}</strong>.`,
+    ),
+    calloutBox([
+      { label: 'Bildirim', value: 'Randevunuza 4 gün kaldı', strong: true },
+      { label: 'Randevu', value: appointmentLabel },
+    ]),
+    paragraph(
+      'Panelinize giriş yaparak güncel belge ve süreç durumunuzu kontrol etmenizi öneririz.',
+    ),
+    actionButton('Sisteme Giriş Yap', loginUrl),
+  ].join('');
+
+  const html = renderShell({
+    preheader,
+    contentHtml,
+    applicationRef: ref,
+  });
+
+  const text = [
+    'Randevunuza 4 gün kaldı',
+    '',
+    `Merhaba ${input.customerName},`,
+    `Randevu tarihiniz yaklaşıyor: ${appointmentLabel}`,
+    `Sisteme Giriş Yap: ${loginUrl}`,
+    '',
+    `Referans #${ref}`,
+    'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',
+  ].join('\n');
+
+  return { subject, html, text };
 }

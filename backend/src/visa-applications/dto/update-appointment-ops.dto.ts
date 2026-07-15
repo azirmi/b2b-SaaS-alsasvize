@@ -1,5 +1,6 @@
 import {
   ArrayMaxSize,
+  IsBoolean,
   IsArray,
   IsDateString,
   IsNotEmpty,
@@ -7,10 +8,12 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class UpdateAppointmentOpsDto {
   @IsString()
@@ -24,10 +27,10 @@ export class UpdateAppointmentOpsDto {
   @IsDateString()
   travelDate!: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(500)
-  note?: string;
+  note!: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -37,6 +40,22 @@ export class UpdateAppointmentOpsDto {
 
   @IsUUID('4')
   appointmentConfirmationDocumentId!: string;
+
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  hasVisaFee!: boolean;
+
+  @ValidateIf((dto: UpdateAppointmentOpsDto) => dto.hasVisaFee)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  visaFeeAmount?: number;
+
+  @ValidateIf((dto: UpdateAppointmentOpsDto) => dto.hasVisaFee)
+  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'visaFeeReceiptDocumentId must be a valid document id',
+  })
+  visaFeeReceiptDocumentId?: string;
 
   @IsOptional()
   @IsArray()

@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { getSession, serverApi } from "@/lib/api.server";
 import { Role, VisaStage } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
@@ -63,6 +64,14 @@ function StatCard({
   );
 }
 
+function formatSinceStart(iso: string): string {
+  const ago = timeAgo(iso);
+  if (ago === "az önce") {
+    return "Süreç başlangıcı: az önce";
+  }
+  return `Süreç başlangıcı: ${ago} önce`;
+}
+
 export default async function DashboardPage() {
   const session = await getSession();
   if (!session) {
@@ -93,9 +102,9 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Genel Bakış</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Başvuru Panelim</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            Gönderdiğiniz tüm vize başvurularının güncel durumu.
+            Tüm başvuru süreçlerinizi ve güncel durumlarını tek ekrandan takip edin.
           </p>
         </div>
 
@@ -107,21 +116,21 @@ export default async function DashboardPage() {
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-3">
-              <StatCard label="Başvurular" value={stats.total} />
-              <StatCard label="Aktif" value={stats.active} />
-              <StatCard label="Tamamlanan" value={stats.completed} />
+              <StatCard label="Toplam Başvuru" value={stats.total} />
+              <StatCard label="Devam Eden Süreç" value={stats.active} />
+              <StatCard label="Tamamlanan Süreç" value={stats.completed} />
             </div>
 
             <section className="rounded-lg border border-border/40 bg-card shadow-sm">
               <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
-                <h2 className="text-sm font-medium">Son Başvurular</h2>
+                <h2 className="text-sm font-medium">Başvuru Süreçlerim</h2>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {recent.length} / {applications.length}
                 </span>
               </div>
               {recent.length === 0 ? (
                 <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                  Henüz gösterilecek bir başvuru yok.
+                  Henüz gösterilecek bir başvuru süreci yok.
                 </div>
               ) : (
                 <Table>
@@ -131,13 +140,13 @@ export default async function DashboardPage() {
                         Başvuru
                       </TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground">
-                        Aşama
+                        Süreç Durumu
                       </TableHead>
                       <TableHead className="text-xs font-medium text-muted-foreground">
                         Başvuru Formu
                       </TableHead>
                       <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                        Güncellendi
+                        Son Güncelleme
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -154,6 +163,9 @@ export default async function DashboardPage() {
                           >
                             Evrak Yükleme
                           </Link>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {APPLICATION_TYPE_LABEL[application.applicationType]}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <StageBadge
@@ -170,7 +182,7 @@ export default async function DashboardPage() {
                           </Link>
                         </TableCell>
                         <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                          {timeAgo(application.stageUpdatedAt)}
+                          {formatSinceStart(application.createdAt)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -222,13 +234,13 @@ export default async function DashboardPage() {
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
-              label="Kuyruğunuzda"
+              label="Havuzda Bekleyen"
               value={queueCount}
               hint="Alınmayı bekliyor"
               href="/dashboard/pool"
             />
             <StatCard
-              label="Size atanan"
+              label="Size Atanan"
               value={assigned.length}
               hint="Aktif işlemde"
               href="/dashboard/workspace"
@@ -254,7 +266,7 @@ export default async function DashboardPage() {
                   href="/dashboard/pool"
                   className="font-medium text-foreground underline-offset-4 hover:underline"
                 >
-                  iş havuzunu
+                  başvuru havuzunu
                 </Link>
                 kullanın.
               </div>
@@ -263,13 +275,13 @@ export default async function DashboardPage() {
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Başvuran
+                      Danışan
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Aşama
+                      Süreç Durumu
                     </TableHead>
                     <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                      Aşamada Geçen Süre
+                      Aşamadaki Süre
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -285,6 +297,9 @@ export default async function DashboardPage() {
                         </Link>
                         <div className="font-mono text-xs text-muted-foreground">
                           {application.customer.email}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {APPLICATION_TYPE_LABEL[application.applicationType]}
                         </div>
                       </TableCell>
                       <TableCell>

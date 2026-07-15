@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -9,6 +10,7 @@ import { EmailService } from '../email/email.service';
 import { Prisma } from '../generated/prisma/client';
 import { FileType, OcrStatus, Role } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { DOC_ASSISTANT_CATALOG_BY_TYPE } from '../visa-applications/doc-assistant-catalog';
 import { CreatePresignedUploadDto } from './dto/create-presigned-upload.dto';
 import { RejectDocumentDto } from './dto/reject-document.dto';
 import { StorageService } from './storage.service';
@@ -56,7 +58,25 @@ export class DocumentsService {
     }
 
     await this.assertCanUpload(application, actor);
-  this.assertCustomerPrepaidUploadAllowed(application, dto.fileType, actor);
+    this.assertCustomerPrepaidUploadAllowed(application, dto.fileType, actor);
+
+    if (dto.docAssistantType) {
+      if (actor.role !== Role.DOC && actor.role !== Role.ADMIN) {
+        throw new ForbiddenException(
+          'Dosya asistanı belge yüklemelerini yalnızca evrak birimi yapabilir',
+        );
+      }
+
+      const catalogItem = DOC_ASSISTANT_CATALOG_BY_TYPE[dto.docAssistantType];
+      if (!catalogItem) {
+        throw new BadRequestException('Geçersiz dosya asistanı belge türü');
+      }
+      if (catalogItem.uploadFileType !== dto.fileType) {
+        throw new BadRequestException(
+          'Belge türü ile dosya asistanı kartı eşleşmiyor',
+        );
+      }
+    }
 
     const isCustomer = actor.role === Role.CUSTOMER;
     const key = this.buildObjectKey(dto.applicationId, dto.fileName);
@@ -66,6 +86,7 @@ export class DocumentsService {
         application: { connect: { id: dto.applicationId } },
         uploadedBy: { connect: { id: actor.userId } },
         fileType: dto.fileType,
+        docAssistantType: dto.docAssistantType ?? null,
         fileUrl: key,
         // Smart auto-approve: trust staff/admin, gate customers.
         isApproved: !isCustomer,

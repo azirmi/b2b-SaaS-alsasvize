@@ -55,6 +55,15 @@ enum VisaStage {
   CANCELLED
 }
 
+/// Requested visa application category.
+enum ApplicationType {
+  TOURISTIC
+  COMMERCIAL
+  FAMILY_VISIT
+  EDUCATION
+  OTHER
+}
+
 /// Category of an uploaded document.
 enum FileType {
   PASSPORT
@@ -68,6 +77,7 @@ enum FileType {
   TRAVEL_PLAN
   HEALTH_INSURANCE
   APPOINTMENT_CONFIRMATION
+  VISA_FEE_RECEIPT
   FINAL_RECEIPT
   OTHER
 }
@@ -77,6 +87,48 @@ enum OcrStatus {
   PENDING
   PROCESSED
   FAILED
+}
+
+/// The 16 fixed document-assistant operation cards tracked per application.
+enum DocAssistantDocumentType {
+  BASVURU_FORMU_KONTROLU
+  VIZE_DILEKCESI_NIYET_YAZISI
+  SEYAHAT_PLANI
+  UCAK_REZERVASYONU
+  OTEL_KONAKLAMA_REZERVASYONU
+  SEYAHAT_SAGLIK_SIGORTASI
+  SPONSORLUK_YAZISI
+  EK_TURISTIK_DESTEK_BELGELERI
+  RANDEVU_ONAYI
+  BASVURU_TESLIM_FORMU
+  VIZE_HARCI_SERVIS_BEDELI_DEKONTU
+  KALAN_ODEME_DEKONTU
+  VIZE_SONUC_BELGESI
+  PASAPORT_TESLIM_IADE_BELGESI
+  RET_KARARI_RET_MEKTUBU
+  DIGER_EK_OPERASYON_BELGESI
+}
+
+/// Static business label of a doc-assistant card's necessity/constraint.
+enum DocAssistantConstraintLabel {
+  ZORUNLU
+  OPSIYONEL
+  SARTLI
+  SARTLI_ZORUNLU
+  KONTROL
+  SUREC_SONU
+}
+
+/// Operational status shown in the DOC assistant dashboard.
+enum DocAssistantDocumentStatus {
+  HAZIRLANACAK
+  HAZIRLANIYOR
+  KONTROL_EDILECEK
+  YUKLENDI
+  REVIZE_GEREKLI
+  DOSYAYA_EKLENDI
+  KALAN_ODEME_BEKLENIYOR
+  TESLIME_HAZIR
 }
 
 // ============================================================================
@@ -114,6 +166,13 @@ model User {
   // One-to-Many: audit-log entries performed by this user.
   auditLogs AuditLog[]
 
+  // One-to-Many: internal staff/admin messages sent and received by this user.
+  sentMessages     Message[] @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageReceiver")
+
+  // One-to-Many: status updates made by this user in DOC assistant cards.
+  docAssistantStatusUpdates ApplicationDocAssistantItem[] @relation("DocAssistantStatusUpdater")
+
   @@map("users")
 }
 
@@ -147,6 +206,7 @@ model VisaApplication {
   id           String    @id @default(uuid()) @db.Uuid
   customerId   String    @db.Uuid
   currentStage VisaStage @default(SALES_POOL)
+  applicationType ApplicationType @default(TOURISTIC)
 
   // Nullable assignments: empty while the application waits in a pool.
   assignedSalesId String? @db.Uuid
@@ -159,6 +219,11 @@ model VisaApplication {
 
   // Stamped by business logic on each stage transition (SLA / delay tracking).
   stageUpdatedAt DateTime @default(now())
+
+  // Delivery gate flags for the customer portal package release.
+  isDeliveredToCustomer  Boolean  @default(false)
+  deliveredToCustomerAt  DateTime?
+  deliveredToCustomerFiles Json?
 
   // Free-form structured data captured by staff (e.g. the Sales CRM data entry:
   // applicant details, target country and invoice totals) stored under `crm`.
@@ -180,6 +245,7 @@ model VisaApplication {
 
   // One-to-Many children.
   documents Document[]
+  docAssistantItems ApplicationDocAssistantItem[]
   auditLogs AuditLog[]
   onboardingApplicants OnboardingApplicant[]
 
@@ -272,6 +338,7 @@ model ApplicationCrmData {
   salesDate     DateTime // Date the sale was closed
   appointmentCity String? // Appointment city selected for the country workflow
   appointmentDate DateTime? // Confirmed appointment date selected by DOC
+  appointmentNote String?
 
   // ── Finance module ────────────────────────────────────────────────────
   paymentType String // 'NORMAL' | 'PREPAID' (Ön Ödemeli)
@@ -279,6 +346,9 @@ model ApplicationCrmData {
   upfrontPaid Float? // Amount paid upfront (only for PREPAID)
   dijizinKvkkVerified Boolean @default(false) // Dijizin KVKK OTP doğrulama durumu
   appointmentExpense Float? // Appointment cost paid by the company (gider)
+  hasVisaFee Boolean @default(false)
+  visaFeeAmount Float?
+  visaFeeReceiptDocumentId String? @db.Uuid
   receiptFileId String? @db.Uuid // Uploaded payment receipt (dekont) Document id
 
   updatedById String?  @db.Uuid // Actor who last saved the record
@@ -288,6 +358,28 @@ model ApplicationCrmData {
   application VisaApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@map("application_crm_data")
+}
+
+/// Persistent per-application status rows for the 16 document-assistant cards.
+model ApplicationDocAssistantItem {
+  id            String @id @default(uuid()) @db.Uuid
+  applicationId String @db.Uuid
+
+  type            DocAssistantDocumentType
+  constraintLabel DocAssistantConstraintLabel
+  status          DocAssistantDocumentStatus @default(HAZIRLANACAK)
+
+  updatedById String? @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  application VisaApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  updatedBy   User?           @relation("DocAssistantStatusUpdater", fields: [updatedById], references: [id])
+
+  @@unique([applicationId, type])
+  @@index([applicationId])
+  @@map("application_doc_assistant_items")
 }
 
 /// Group/family applicants collected during onboarding (customer + companions).
@@ -311,6 +403,7 @@ model Document {
   applicationId String     @db.Uuid
   uploadedById  String     @db.Uuid
   fileType      FileType
+  docAssistantType DocAssistantDocumentType?
   fileUrl       String // MinIO / S3 object key (presigned URLs are generated on demand)
   isApproved    Boolean    @default(false) // Document approval (Dosyacı Onayı)
   rejectionReason String? // Set when DOC staff reject the file; prompts a re-upload
@@ -340,4 +433,21 @@ model AuditLog {
   performedBy User            @relation(fields: [performedById], references: [id])
 
   @@map("audit_logs")
+}
+
+/// Internal direct message between staff/admin users.
+model Message {
+  id         String   @id @default(uuid()) @db.Uuid
+  senderId   String   @db.Uuid
+  receiverId String   @db.Uuid
+  content    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("MessageSender", fields: [senderId], references: [id])
+  receiver User @relation("MessageReceiver", fields: [receiverId], references: [id])
+
+  @@index([receiverId, isRead, createdAt])
+  @@index([senderId, createdAt])
+  @@map("messages")
 }

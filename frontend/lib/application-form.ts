@@ -81,7 +81,7 @@ export const APPLICATION_FORM_SECTIONS: readonly FormSection[] = [
         name: "nationalId",
         label: "T.C. Kimlik Numarası",
         kind: "text",
-        maxLength: 32,
+        maxLength: 11,
       },
       { name: "dateOfBirth", label: "Doğum Tarihi", kind: "date" },
       {
@@ -197,7 +197,7 @@ export const APPLICATION_FORM_SECTIONS: readonly FormSection[] = [
         name: "passportNumber",
         label: "Pasaport Numarası",
         kind: "text",
-        maxLength: 64,
+        maxLength: 9,
       },
       {
         name: "passportIssueDate",
@@ -231,6 +231,7 @@ export const APPLICATION_FORM_SECTIONS: readonly FormSection[] = [
         label: "Daha Önce Parmak İzi Verdiniz mi?",
         kind: "select",
         options: YES_NO_OPTIONS,
+        required: false,
       },
       {
         name: "fingerprintDate",

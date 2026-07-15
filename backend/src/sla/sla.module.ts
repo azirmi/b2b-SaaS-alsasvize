@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AppointmentReminderCron } from './appointment-reminder.cron';
 import { EventsModule } from '../events/events.module';
 import { SlaMonitorService } from './sla-monitor.service';
 
@@ -9,6 +10,6 @@ import { SlaMonitorService } from './sla-monitor.service';
  */
 @Module({
   imports: [EventsModule],
-  providers: [SlaMonitorService],
+  providers: [SlaMonitorService, AppointmentReminderCron],
 })
 export class SlaModule {}

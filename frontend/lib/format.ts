@@ -14,6 +14,24 @@ export function timeAgo(iso: string): string {
   return `${days} g`;
 }
 
+/** Human-friendly application reference shown instead of raw UUIDs in the UI. */
+export function formatApplicationRef(id: string): string {
+  const compact = (id ?? "").replace(/-/g, "").toUpperCase();
+  if (!compact) {
+    return "BASV-XXXX";
+  }
+  return `BASV-${compact.slice(0, 8)}`;
+}
+
+/** Customer-facing application number that never exposes a raw UUID. */
+export function formatCustomerFileNo(id: string): string {
+  const compact = (id ?? "").replace(/-/g, "").toUpperCase();
+  if (!compact) {
+    return "Dosya No: ASV-XXXXXX";
+  }
+  return `Dosya No: ASV-${compact.slice(0, 6)}`;
+}
+
 /** Compact ms duration for analytics (e.g. "3d 4h", "5h 12m", "42m"). */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) {

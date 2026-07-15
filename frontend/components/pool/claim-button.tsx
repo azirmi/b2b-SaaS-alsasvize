@@ -33,7 +33,7 @@ export function ClaimButton({ id }: { id: string }) {
         </span>
       ) : null}
       <Button size="sm" onClick={onClaim} disabled={pending}>
-        {pending ? "Alınıyor…" : "Al"}
+        {pending ? "Üzerime Alınıyor…" : "Üzerime Al"}
       </Button>
     </div>
   );

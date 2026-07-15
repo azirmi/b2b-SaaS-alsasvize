@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { getSession, serverApi } from "@/lib/api.server";
 import { Role, VisaStage } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
@@ -47,7 +48,7 @@ export default async function PoolPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">İş Havuzu</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Başvuru Havuzu</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             {isAdmin
               ? "Tüm birimlerde havuzda bekleyen başvurular."
@@ -75,13 +76,13 @@ export default async function PoolPage() {
             <TableHeader>
               <TableRow className="border-border/40 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Başvuran
+                  Danışan
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Aşama
+                  Süreç Durumu
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Bekleme
+                  Bekleme Süresi
                 </TableHead>
                 <TableHead className="text-right text-xs font-medium text-muted-foreground">
                   İşlem
@@ -100,6 +101,9 @@ export default async function PoolPage() {
                       </div>
                       <div className="font-mono text-xs text-muted-foreground">
                         {application.customer.email}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {APPLICATION_TYPE_LABEL[application.applicationType]}
                       </div>
                     </TableCell>
                     <TableCell>

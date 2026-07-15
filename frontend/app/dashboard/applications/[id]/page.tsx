@@ -6,7 +6,7 @@ import { AdminActions } from "@/components/applications/admin-actions";
 import { ApplicationDetailsView } from "@/components/applications/application-details-view";
 import { AppointmentOpsForm } from "@/components/applications/appointment-ops-form";
 import { CrmForm } from "@/components/applications/crm-form";
-import { DijizinPanel } from "@/components/applications/dijizin-panel";
+import { DocAssistantDashboard } from "@/components/applications/doc-assistant-dashboard";
 import { CustomerApplicationDetail } from "@/components/applications/customer-application-detail";
 import { DocumentReviewActions } from "@/components/applications/document-review-actions";
 import { StageActions } from "@/components/applications/stage-actions";
@@ -20,8 +20,8 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { getDijizinFormsSnapshot } from "@/lib/actions/applications";
 import { ApiError } from "@/lib/api";
+import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { getSession, serverApi } from "@/lib/api.server";
 import { isCrmComplete, formatTl, PAYMENT_TYPE_LABEL } from "@/lib/crm";
 import { Department, FileType, Role, VisaStage } from "@/lib/enums";
@@ -33,7 +33,6 @@ import {
   STAGE_LABEL,
 } from "@/lib/status";
 import type {
-  DijizinFormsSnapshot,
   DownloadUrlResponse,
   LinkedActiveApplication,
   StaffOption,
@@ -51,14 +50,6 @@ const PROCESS_STAGES = new Set<VisaStage>([
 
 const IMAGE_RE = /\.(jpe?g|png|webp|gif|avif|bmp|svg)$/i;
 
-/** Staff-safe document types for DOC workspace uploads. */
-const DOC_UPLOAD_TYPES: FileType[] = [
-  FileType.LETTER_OF_INTENT,
-  FileType.TRAVEL_PLAN,
-  FileType.HEALTH_INSURANCE,
-  FileType.FLIGHT_HOTEL_RESERVATION,
-];
-
 const ACTION_LABEL: Record<string, string> = {
   CREATED: "Oluşturuldu",
   CLAIMED: "Alındı",
@@ -72,6 +63,8 @@ const ACTION_LABEL: Record<string, string> = {
   DETAILS_UPDATED: "Başvuru formu güncellendi",
   DOCUMENT_APPROVED: "Belge onaylandı",
   DOCUMENT_REJECTED: "Belge reddedildi",
+  DOC_ASSISTANT_ITEM_INITIALIZED: "Dosya asistanı kaydı oluşturuldu",
+  DOC_ASSISTANT_STATUS_UPDATED: "Dosya asistanı durumu güncellendi",
   DIJIZIN_KVKK_SMS_SENT: "Dijizin KVKK SMS gönderildi",
   DIJIZIN_FORM_SENT: "Dijizin formu gönderildi",
   DIJIZIN_KVKK_VERIFIED: "Dijizin KVKK doğrulandı",
@@ -168,7 +161,15 @@ function CrmField({
   );
 }
 
-function Notice({ title, body }: { title: string; body: string }) {
+function Notice({
+  title,
+  body,
+  backLabel,
+}: {
+  title: string;
+  body: string;
+  backLabel: string;
+}) {
   return (
     <div className="space-y-4">
       <Link
@@ -176,7 +177,7 @@ function Notice({ title, body }: { title: string; body: string }) {
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Çalışma Alanım
+        {backLabel}
       </Link>
       <div className="rounded-lg border border-border/40 bg-card p-6 shadow-sm">
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
@@ -211,6 +212,9 @@ export default async function ApplicationDetailPage({
     );
   }
 
+  const workspaceLabel =
+    session.role === Role.ADMIN ? "Atanan Dosyalarım" : "Atanan Başvurularım";
+
   let detail: VisaApplicationDetail | null = null;
   let missing = false;
   let forbidden = false;
@@ -238,6 +242,7 @@ export default async function ApplicationDetailPage({
       <Notice
         title="Başvuru bulunamadı"
         body="Bu başvuru artık mevcut değil veya bağlantı güncel değil. Güncel başvurular için çalışma alanınıza dönün."
+        backLabel={workspaceLabel}
       />
     );
   }
@@ -246,6 +251,7 @@ export default async function ApplicationDetailPage({
       <Notice
         title="Erişim yok"
         body="Bu başvuru size atanmamış ve birim havuzunuzda bulunmuyor."
+        backLabel={workspaceLabel}
       />
     );
   }
@@ -254,6 +260,7 @@ export default async function ApplicationDetailPage({
       <Notice
         title="Başvuru yüklenemedi"
         body="Hizmete erişirken bir sorun oluştu. Hizmet tekrar erişilebilir olduğunda sayfa yenilenecektir."
+        backLabel={workspaceLabel}
       />
     );
   }
@@ -309,9 +316,8 @@ export default async function ApplicationDetailPage({
 
   const crm = detail.crmData ?? null;
   const crmComplete = isCrmComplete(crm);
-  const kvkkVerified = Boolean(crm?.dijizinKvkkVerified);
   const advanceBlockedByCrm =
-    stage === VisaStage.SALES_PROCESS && (!crmComplete || !kvkkVerified);
+    stage === VisaStage.SALES_PROCESS && !crmComplete;
 
   const appointmentCity =
     crm?.appointmentCity ?? detail.customer.appointmentCity ?? null;
@@ -379,6 +385,16 @@ export default async function ApplicationDetailPage({
       id: document.id,
       createdAt: document.createdAt,
     }));
+  const visaFeeReceiptDocuments = detail.documents
+    .filter((document) => document.fileType === FileType.VISA_FEE_RECEIPT)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    .map((document) => ({
+      id: document.id,
+      createdAt: document.createdAt,
+    }));
 
   const docAdvanceHintParts: string[] = [];
   if (missingRequiredLabels.length > 0) {
@@ -397,9 +413,7 @@ export default async function ApplicationDetailPage({
           label: advanceCfg.label,
           disabled: advanceDisabled,
           hint: advanceBlockedByCrm
-            ? !crmComplete
-              ? "Evrak aşamasına geçmeden önce CRM verilerini eksiksiz doldurup kaydedin."
-              : "Evrak aşamasına geçmeden önce Dijizin KVKK doğrulamasını tamamlayın."
+            ? "Evrak aşamasına geçmeden önce CRM verilerini eksiksiz doldurup kaydedin."
             : advanceBlockedByDocs
               ? docAdvanceHint
               : undefined,
@@ -412,18 +426,6 @@ export default async function ApplicationDetailPage({
     stage === VisaStage.SEC_PROCESS &&
     (isAdmin || detail.assignedSec?.user.id === session.userId);
 
-  let dijizinSnapshot: DijizinFormsSnapshot | null = null;
-  let dijizinError: string | null = null;
-  if (canEditCrm) {
-    const result = await getDijizinFormsSnapshot(detail.id);
-    if (result.ok && result.data) {
-      dijizinSnapshot = result.data;
-    } else if (!result.ok) {
-      dijizinError =
-        result.error ??
-        "Dijizin bilgileri yüklenemedi. Sayfayı yenileyip tekrar deneyin.";
-    }
-  }
 
   // Admin God-Mode: staff options for the reassign picker.
   let staffOptions: StaffOption[] = [];
@@ -454,24 +456,32 @@ export default async function ApplicationDetailPage({
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Çalışma Alanım
+        {workspaceLabel}
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          {isSales ? (
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Danışan Başvuru Detayı
+            </p>
+          ) : null}
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">
               {detail.customer.fullName}
             </h1>
             <StageBadge stage={stage} />
+            <Badge variant="outline" className="rounded-md text-[11px]">
+              {APPLICATION_TYPE_LABEL[detail.applicationType]}
+            </Badge>
           </div>
           <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {detail.customer.email} · {detail.id}
+            {detail.customer.email}
           </p>
         </div>
         <div className="text-right text-xs text-muted-foreground">
           <div>Açılış: {timeAgo(detail.createdAt)}</div>
-          <div>Aşamadaki süre: {timeAgo(detail.stageUpdatedAt)}</div>
+          <div>Aşamadaki Süre: {timeAgo(detail.stageUpdatedAt)}</div>
         </div>
       </div>
 
@@ -480,7 +490,7 @@ export default async function ApplicationDetailPage({
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
             <h2 className="text-sm font-medium">İş Akışı</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Mevcut aşama: {STAGE_LABEL[stage]}
+              Mevcut süreç durumu: {STAGE_LABEL[stage]}
             </p>
             <Separator className="my-4" />
             <StageActions
@@ -562,7 +572,7 @@ export default async function ApplicationDetailPage({
                   ) : null}
                   {crm.receiptFileId ? (
                     <div>
-                      <dt className="text-xs text-muted-foreground">Dekont</dt>
+                      <dt className="text-xs text-muted-foreground">Ödeme Dekontu</dt>
                       <dd className="text-sm">
                         {urlById.get(crm.receiptFileId) ? (
                           <a
@@ -571,7 +581,7 @@ export default async function ApplicationDetailPage({
                             rel="noopener noreferrer"
                             className="text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
                           >
-                            Görüntüle
+                            Detayları Görüntüle
                           </a>
                         ) : (
                           "Yüklü"
@@ -581,23 +591,6 @@ export default async function ApplicationDetailPage({
                   ) : null}
                 </dl>
               ) : null}
-            </section>
-          ) : null}
-
-          {canEditCrm ? (
-            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-              <DijizinPanel
-                applicationId={detail.id}
-                phone={crmPhone}
-                initialSnapshot={
-                  dijizinSnapshot ?? {
-                    kvkkVerified,
-                    availableForms: [],
-                    customerForms: [],
-                  }
-                }
-                initialError={dijizinError}
-              />
             </section>
           ) : null}
 
@@ -619,7 +612,7 @@ export default async function ApplicationDetailPage({
             <p className="mt-1 text-xs text-muted-foreground">
               {isSales
                 ? "Satış rolü yalnızca formun gönderim durumunu görebilir."
-                : "Müşteri tarafından gönderilen başvuru formu (salt okunur)."}
+                : "Danışan tarafından gönderilen başvuru formu (salt okunur)."}
             </p>
             <Separator className="my-4" />
             {isSales ? (
@@ -637,7 +630,7 @@ export default async function ApplicationDetailPage({
               <ApplicationDetailsView details={detail.details} />
             ) : (
               <p className="text-sm text-muted-foreground">
-                Müşteri henüz başvuru formunu göndermedi.
+                Danışan henüz başvuru formunu göndermedi.
               </p>
             )}
           </section>
@@ -668,7 +661,7 @@ export default async function ApplicationDetailPage({
 
             {detail.documents.length === 0 ? (
               <p className="mt-4 text-sm text-muted-foreground">
-                Müşteri henüz herhangi bir belge yüklemedi.
+                Danışan henüz herhangi bir belge yüklemedi.
               </p>
             ) : (
               <ul className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -713,7 +706,7 @@ export default async function ApplicationDetailPage({
                               )}
                             >
                               {document.isApproved
-                                ? "Onaylandı"
+                                ? "Belge Uygun"
                                 : document.rejectionReason
                                   ? "Reddedildi"
                                   : "Bekliyor"}
@@ -726,7 +719,7 @@ export default async function ApplicationDetailPage({
                               rel="noopener noreferrer"
                               className="block text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                             >
-                              Orijinali Aç
+                              Dosyayı Aç
                             </a>
                           ) : (
                             <span className="block text-xs text-muted-foreground">
@@ -771,15 +764,10 @@ export default async function ApplicationDetailPage({
                 </TabsList>
 
                 <TabsContent value="staff" className="space-y-4">
-                  <p className="text-xs text-muted-foreground">
-                    Evrak biriminin hazırladığı belgeleri yükleyin. Uçak ve otel
-                    rezervasyonu opsiyoneldir.
-                  </p>
-                  <DocumentUploader
+                  <DocAssistantDashboard
                     applicationId={detail.id}
-                    defaultType={FileType.FLIGHT_HOTEL_RESERVATION}
-                    allowedTypes={DOC_UPLOAD_TYPES}
-                    optionalTypes={[FileType.FLIGHT_HOTEL_RESERVATION]}
+                    items={detail.docAssistantItems}
+                    canEdit={canUseDocWorkspace}
                   />
                 </TabsContent>
 
@@ -832,7 +820,7 @@ export default async function ApplicationDetailPage({
                               rel="noopener noreferrer"
                               className="shrink-0 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
                             >
-                              Görüntüle
+                              Detayları Görüntüle
                             </a>
                           ) : null}
                         </div>
@@ -862,9 +850,16 @@ export default async function ApplicationDetailPage({
                     initialAppointmentCity={appointmentCity}
                     initialAppointmentDate={appointmentDate}
                     initialTravelDate={detail.details?.plannedTravelStartDate ?? null}
+                    initialAppointmentNote={crm?.appointmentNote ?? null}
                     initialAppointmentExpense={crm?.appointmentExpense ?? null}
+                    initialHasVisaFee={crm?.hasVisaFee ?? false}
+                    initialVisaFeeAmount={crm?.visaFeeAmount ?? null}
+                    initialVisaFeeReceiptDocumentId={
+                      crm?.visaFeeReceiptDocumentId ?? null
+                    }
                     linkedApplications={linkedApplications}
                     appointmentConfirmationDocuments={appointmentConfirmationDocuments}
+                    visaFeeReceiptDocuments={visaFeeReceiptDocuments}
                   />
                 </TabsContent>
               </Tabs>
@@ -875,7 +870,7 @@ export default async function ApplicationDetailPage({
             <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
               <h2 className="text-sm font-medium">Vize Sonuç Belgesi</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Onaylı vize sonuç belgesini yükleyin. Müşteri bu belgeyi kendi
+                Onaylı vize sonuç belgesini yükleyin. Danışan bu belgeyi kendi
                 başvuru ekranında görecektir.
               </p>
               <Separator className="my-4" />
@@ -890,33 +885,40 @@ export default async function ApplicationDetailPage({
           </Tabs>
 
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-            <h2 className="text-sm font-medium">Aktivite</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-medium">Aktivite</h2>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {detail.auditLogs.length} kayıt
+              </span>
+            </div>
             {detail.auditLogs.length === 0 ? (
               <p className="mt-4 text-sm text-muted-foreground">
                 Henüz aktivite kaydı yok.
               </p>
             ) : (
-              <ol className="mt-4 space-y-3">
+              <ol className="mt-4 space-y-2">
                 {detail.auditLogs.map((log) => {
                   const change = stageChangeText(log.details);
                   return (
                     <li
                       key={log.id}
-                      className="flex items-start justify-between gap-3 border-b border-border/40 pb-3 last:border-0 last:pb-0"
+                      className="rounded-md border border-border/40 bg-background px-3 py-2.5"
                     >
-                      <div className="min-w-0">
-                        <span className="text-sm font-medium">
-                          {humanizeAction(log.actionType)}
-                        </span>
-                        {change ? (
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {change}
-                          </span>
-                        ) : null}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            {humanizeAction(log.actionType)}
+                          </p>
+                          {change ? (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {change}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Badge variant="outline" className="shrink-0 rounded-md text-[11px]">
+                          {timeAgo(log.createdAt)}
+                        </Badge>
                       </div>
-                      <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
-                        {timeAgo(log.createdAt)}
-                      </span>
                     </li>
                   );
                 })}
@@ -927,7 +929,7 @@ export default async function ApplicationDetailPage({
 
         <div className="space-y-6">
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-            <h2 className="text-sm font-medium">Başvuran</h2>
+            <h2 className="text-sm font-medium">Danışan Bilgileri</h2>
             <dl className="mt-4 space-y-3">
               <div>
                 <dt className="text-xs text-muted-foreground">Ad Soyad</dt>

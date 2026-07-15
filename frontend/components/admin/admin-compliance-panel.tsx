@@ -59,7 +59,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
         <StatCard label="Claim Alınan" value={data.claimedCount} />
         <StatCard label="Kuyrukta Bekleyen" value={data.waitingCount} />
         <StatCard
-          label="Ort. Bekleme"
+          label="Ort. Bekleme Süresi"
           value={formatDuration(data.avgClaimWaitMs)}
           hint="Satıştan Evrak Claim anına kadar"
         />
@@ -90,7 +90,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                   Başvuru
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Aşama
+                  Süreç Durumu
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
                   Satış → Evrak Kuyruk
@@ -99,7 +99,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                   Evrak Claim
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Kuyrukta Bekleme
+                  Bekleme Süresi
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
                   Evrak Personeli
@@ -116,9 +116,6 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                     >
                       {row.customerName}
                     </Link>
-                    <div className="font-mono text-xs text-muted-foreground">
-                      {row.applicationId}
-                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
@@ -132,7 +129,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                             : "border-emerald-300/70 text-emerald-700 dark:border-emerald-700/60 dark:text-emerald-400",
                         )}
                       >
-                        {row.isSlaBreached ? "SLA İhlali" : "Uygun"}
+                        {row.isSlaBreached ? "SLA Aşıldı" : "Uygun"}
                       </Badge>
                     </div>
                   </TableCell>

@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+z.config(z.locales.tr());
+
+import {
+  ALPHA_TEXT_RE,
+  ASCII_MULTILINE_RE,
+  ASCII_SINGLE_LINE_RE,
+  NAME_INPUT_RE,
+  PASSPORT_NUMBER_RE,
+  PHONE_INPUT_RE,
+  TC_KIMLIK_RE,
+} from "@/lib/input-masks";
 import type { ApplicationDetailsData } from "@/lib/types";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,6 +32,98 @@ function addDaysIso(isoDate: string, days: number): string {
   return next.toISOString().slice(0, 10);
 }
 
+const requiredName = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, { message: `${label} zorunludur.` })
+    .max(maxLength, {
+      message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .regex(NAME_INPUT_RE, {
+      message: `${label} yalnızca İngilizce harf içermelidir.`,
+    });
+
+const optionalName = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .max(maxLength, {
+      message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .refine((value) => value === "" || NAME_INPUT_RE.test(value), {
+      message: `${label} yalnızca İngilizce harf içermelidir.`,
+    });
+
+const requiredAlphaText = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, { message: `${label} zorunludur.` })
+    .max(maxLength, {
+      message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .regex(ALPHA_TEXT_RE, {
+      message: `${label} yalnızca İngilizce harf içermelidir.`,
+    });
+
+const optionalAlphaText = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .max(maxLength, {
+      message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .refine((value) => value === "" || ALPHA_TEXT_RE.test(value), {
+      message: `${label} yalnızca İngilizce harf içermelidir.`,
+    });
+
+const requiredSingleLineText = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, { message: `${label} zorunludur.` })
+    .max(maxLength, {
+      message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .regex(ASCII_SINGLE_LINE_RE, {
+      message: `${label} yalnızca İngilizce karakter içerebilir.`,
+    });
+
+const optionalSingleLineText = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .max(maxLength, {
+      message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .refine((value) => value === "" || ASCII_SINGLE_LINE_RE.test(value), {
+      message: `${label} yalnızca İngilizce karakter içerebilir.`,
+    });
+
+const requiredMultilineText = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, { message: `${label} zorunludur.` })
+    .max(maxLength, {
+      message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .regex(ASCII_MULTILINE_RE, {
+      message: `${label} yalnızca İngilizce karakter içerebilir.`,
+    });
+
+const optionalMultilineText = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .max(maxLength, {
+      message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .refine((value) => value === "" || ASCII_MULTILINE_RE.test(value), {
+      message: `${label} yalnızca İngilizce karakter içerebilir.`,
+    });
+
 const requiredText = (label: string, maxLength: number) =>
   z
     .string()
@@ -30,12 +133,44 @@ const requiredText = (label: string, maxLength: number) =>
       message: `${label} en fazla ${maxLength} karakter olabilir.`,
     });
 
-const optionalText = (label: string, maxLength: number) =>
+const requiredPhone = (label: string, maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, { message: `${label} zorunludur.` })
+    .max(maxLength, {
+      message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .regex(PHONE_INPUT_RE, {
+      message: `${label} yalnızca rakam ve + içerebilir.`,
+    });
+
+const optionalPhone = (label: string, maxLength: number) =>
   z
     .string()
     .trim()
     .max(maxLength, {
       message: `${label} en fazla ${maxLength} karakter olabilir.`,
+    })
+    .refine((value) => value === "" || PHONE_INPUT_RE.test(value), {
+      message: `${label} yalnızca rakam ve + içerebilir.`,
+    });
+
+const requiredTcKimlik = () =>
+  z
+    .string()
+    .trim()
+    .regex(TC_KIMLIK_RE, {
+      message: "T.C. kimlik numarası 11 rakam olmalıdır.",
+    });
+
+const requiredPassportNumber = () =>
+  z
+    .string()
+    .trim()
+    .regex(PASSPORT_NUMBER_RE, {
+      message:
+        "Pasaport numarası U veya H ile başlamalı ve 8 rakam içermelidir.",
     });
 
 const requiredIsoDate = (label: string) =>
@@ -51,13 +186,13 @@ function buildApplicationFormSchema(targetCountry?: string | null) {
 
   return z
     .object({
-    firstName: requiredText("İlk adı", 80),
-    lastName: requiredText("Soy ismi", 80),
-    maidenSurname: optionalText("Kızlık soyadı", 80),
-    nationalId: requiredText("T.C. kimlik numarası", 32),
+    firstName: requiredName("İlk adı", 80),
+    lastName: requiredName("Soy ismi", 80),
+    maidenSurname: optionalName("Kızlık soyadı", 80),
+    nationalId: requiredTcKimlik(),
     dateOfBirth: requiredIsoDate("Doğum tarihi"),
-    placeOfBirth: requiredText("Doğum yeri", 120),
-    nationality: requiredText("Milliyet", 80),
+    placeOfBirth: requiredAlphaText("Doğum yeri", 120),
+    nationality: requiredAlphaText("Milliyet", 80),
     gender: requiredText("Cinsiyet", 32),
     maritalStatus: requiredText("Medeni durum", 32),
 
@@ -66,31 +201,31 @@ function buildApplicationFormSchema(targetCountry?: string | null) {
       .trim()
       .email({ message: "Geçerli bir e-posta adresi girin." })
       .max(160, { message: "E-posta en fazla 160 karakter olabilir." }),
-    phone: requiredText("Telefon numarası", 32),
-    residenceCity: requiredText("İkamet şehri", 120),
-    registeredAddress: requiredText("Kayıtlı adres", 500),
+    phone: requiredPhone("Telefon numarası", 32),
+    residenceCity: requiredAlphaText("İkamet şehri", 120),
+    registeredAddress: requiredMultilineText("Kayıtlı adres", 500),
 
-    occupation: requiredText("Meslek", 120),
+    occupation: requiredAlphaText("Meslek", 120),
     employmentStatus: requiredText("Çalışma durumu", 32),
     isEmployer: z.boolean(),
-    employerName: optionalText("İşveren adı", 160),
-    employerAddress: optionalText("İşveren adresi", 500),
-    employerPhone: optionalText("İşveren telefonu", 32),
-    educationInstitution: optionalText("Eğitim kurumu", 160),
-    educationLevel: optionalText("Eğitim seviyesi", 120),
+    employerName: optionalSingleLineText("İşveren adı", 160),
+    employerAddress: optionalMultilineText("İşveren adresi", 500),
+    employerPhone: optionalPhone("İşveren telefonu", 32),
+    educationInstitution: optionalSingleLineText("Eğitim kurumu", 160),
+    educationLevel: optionalAlphaText("Eğitim seviyesi", 120),
 
     passportType: requiredText("Pasaport türü", 32),
-    passportNumber: requiredText("Pasaport numarası", 64),
+    passportNumber: requiredPassportNumber(),
     passportIssueDate: requiredIsoDate("Pasaport veriliş tarihi"),
     passportExpiryDate: requiredIsoDate("Pasaport son kullanma tarihi"),
-    passportIssuePlace: requiredText("Pasaportun verildiği yer", 120),
-    appointmentLocation: requiredText("Randevu lokasyonu", 120),
+    passportIssuePlace: requiredAlphaText("Pasaportun verildiği yer", 120),
+    appointmentLocation: requiredAlphaText("Randevu lokasyonu", 120),
 
     fingerprintGiven: z
       .string()
       .trim()
-      .refine((value) => value === "Evet" || value === "Hayır", {
-        message: "Parmak izi bilgisi zorunludur.",
+      .refine((value) => value === "" || value === "Evet" || value === "Hayır", {
+        message: "Parmak izi bilgisi yalnızca Evet veya Hayır olabilir.",
       }),
     fingerprintDate: z.string().trim(),
     schengenAppliedBefore: z
@@ -99,17 +234,17 @@ function buildApplicationFormSchema(targetCountry?: string | null) {
       .refine((value) => value === "Evet" || value === "Hayır", {
         message: "Schengen başvuru bilgisi zorunludur.",
       }),
-    previousSchengenCountries: optionalText("Geçmiş vize ülkeleri", 500),
+    previousSchengenCountries: optionalMultilineText("Geçmiş vize ülkeleri", 500),
 
-    purposeOfTravel: requiredText("Seyahat amacı", 1000),
+    purposeOfTravel: requiredMultilineText("Seyahat amacı", 1000),
     plannedTravelStartDate: requiredIsoDate("Seyahat başlangıç tarihi"),
     plannedTravelEndDate: requiredIsoDate("Seyahat bitiş tarihi"),
 
     hasSponsor: z.boolean(),
-    sponsorFullName: optionalText("Sponsor adı", 120),
-    sponsorIdentity: optionalText("Sponsor kimliği", 120),
-    sponsorContact: optionalText("Sponsor iletişim bilgisi", 240),
-    sponsorRelation: optionalText("Yakınlık derecesi", 80),
+    sponsorFullName: optionalName("Sponsor adı", 120),
+    sponsorIdentity: optionalSingleLineText("Sponsor kimliği", 120),
+    sponsorContact: optionalMultilineText("Sponsor iletişim bilgisi", 240),
+    sponsorRelation: optionalAlphaText("Yakınlık derecesi", 80),
     })
     .superRefine((value, ctx) => {
       if (
@@ -234,7 +369,12 @@ export function toApplicationFormDefaults(
     passportIssuePlace: valueOrEmpty(details?.passportIssuePlace),
     appointmentLocation: valueOrEmpty(details?.appointmentLocation),
 
-    fingerprintGiven: details?.fingerprintGiven === "Evet" ? "Evet" : "Hayır",
+    fingerprintGiven:
+      details?.fingerprintGiven === "Evet"
+        ? "Evet"
+        : details?.fingerprintGiven === "Hayır"
+          ? "Hayır"
+          : "",
     fingerprintDate: valueOrEmpty(details?.fingerprintDate),
     schengenAppliedBefore:
       details?.schengenAppliedBefore === "Evet" ? "Evet" : "Hayır",

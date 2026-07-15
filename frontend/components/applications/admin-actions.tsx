@@ -77,7 +77,7 @@ export function AdminActions({
         <h2 className="text-sm font-medium">Yönetici İşlemleri</h2>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Yönetici override işlemleri. Tüm adımlar denetim kaydına yazılır.
+        Bu alanda yapılan yönetici işlemleri sistem kayıtlarına işlenir ve denetim amaçlı geriye dönük olarak izlenir.
       </p>
       <Separator className="my-4" />
 

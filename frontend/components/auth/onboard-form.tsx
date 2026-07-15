@@ -4,7 +4,9 @@ import { useActionState, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { onboard, type AuthFormState } from "@/lib/actions/auth";
+import { APPLICATION_TYPE_OPTIONS } from "@/lib/application-type";
 import { COUNTRY_RULES, SUPPORTED_COUNTRIES } from "@/lib/countries";
+import { maskNameInput } from "@/lib/input-masks";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -32,13 +34,37 @@ function newApplicant(): OnboardApplicantDraft {
   };
 }
 
+function normalizeTurkishPhoneLocal(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) {
+    return "";
+  }
+  if (digits.startsWith("90")) {
+    return digits.slice(2, 12);
+  }
+  if (digits.startsWith("0")) {
+    return digits.slice(1, 11);
+  }
+  return digits.slice(0, 10);
+}
+
 export function OnboardForm() {
   const [state, formAction, pending] = useActionState(onboard, INITIAL_STATE);
   const [acceptKvkk, setAcceptKvkk] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [targetCountry, setTargetCountry] = useState("");
+  const [applicationType, setApplicationType] = useState("");
   const [appointmentCity, setAppointmentCity] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phoneLocal, setPhoneLocal] = useState("");
   const [applicants, setApplicants] = useState<OnboardApplicantDraft[]>([]);
+
+  const selectedApplicationType = useMemo(
+    () =>
+      APPLICATION_TYPE_OPTIONS.find((option) => option.value === applicationType) ??
+      null,
+    [applicationType],
+  );
 
   const appointmentCities = useMemo(
     () => COUNTRY_RULES[targetCountry]?.cities ?? [],
@@ -57,7 +83,11 @@ export function OnboardForm() {
 
   function updateApplicant(id: string, value: string) {
     setApplicants((current) =>
-      current.map((item) => (item.id === id ? { ...item, fullName: value } : item)),
+      current.map((item) =>
+        item.id === id
+          ? { ...item, fullName: maskNameInput(value, 120) }
+          : item,
+      ),
     );
   }
 
@@ -78,8 +108,11 @@ export function OnboardForm() {
         <Input
           id="fullName"
           name="fullName"
+          value={fullName}
+          onChange={(event) => setFullName(maskNameInput(event.target.value, 120))}
           autoComplete="name"
           placeholder="Ayşe Yılmaz"
+          maxLength={120}
           required
         />
       </div>
@@ -98,16 +131,33 @@ export function OnboardForm() {
 
       <div className="space-y-2">
         <Label htmlFor="phone">Telefon</Label>
-        <Input
-          id="phone"
+        <div className="flex items-center rounded-md border border-input bg-transparent focus-within:ring-2 focus-within:ring-ring/40">
+          <span className="border-r border-border/60 px-3 text-sm text-muted-foreground">
+            +90
+          </span>
+          <Input
+            id="phone"
+            value={phoneLocal}
+            onChange={(event) =>
+              setPhoneLocal(normalizeTurkishPhoneLocal(event.target.value))
+            }
+            type="tel"
+            autoComplete="tel-national"
+            inputMode="numeric"
+            placeholder="5xxxxxxxxx"
+            maxLength={10}
+            className="border-0 focus-visible:ring-0"
+            required
+          />
+        </div>
+        <input
+          type="hidden"
           name="phone"
-          type="tel"
-          autoComplete="tel"
-          inputMode="tel"
-          placeholder="+90 5xx xxx xx xx"
-          maxLength={32}
-          required
+          value={phoneLocal ? `+90${phoneLocal}` : ""}
         />
+        <p className="text-xs text-muted-foreground">
+          Telefon numarasını başında 0 olmadan 10 hane girin.
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -132,6 +182,31 @@ export function OnboardForm() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="applicationType">Başvuru Türü</Label>
+        <Select
+          name="applicationType"
+          value={applicationType}
+          onValueChange={setApplicationType}
+          required
+        >
+          <SelectTrigger id="applicationType" className="w-full">
+            <SelectValue placeholder="Başvuru türü seçin" />
+          </SelectTrigger>
+          <SelectContent>
+            {APPLICATION_TYPE_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          {selectedApplicationType?.description ??
+            "Başvuru türü, dosyanın operasyon akışını doğru sınıfta takip etmemizi sağlar."}
+        </p>
       </div>
 
       <div className="space-y-2">

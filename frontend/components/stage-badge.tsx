@@ -1,10 +1,10 @@
 import { Badge } from '@/components/ui/badge';
 import { VisaStage } from '@/lib/enums';
 import {
+  getCustomerStageName,
   INTENT_CLASSES,
   STAGE_INTENT,
   STAGE_LABEL,
-  STAGE_LABEL_CUSTOMER,
 } from '@/lib/status';
 import { cn } from '@/lib/utils';
 
@@ -27,7 +27,7 @@ export function StageBadge({
         className,
       )}
     >
-      {customerView ? STAGE_LABEL_CUSTOMER[stage] : STAGE_LABEL[stage]}
+      {customerView ? getCustomerStageName(stage) : STAGE_LABEL[stage]}
     </Badge>
   );
 }

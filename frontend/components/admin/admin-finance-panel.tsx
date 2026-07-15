@@ -115,10 +115,10 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Müşteri
+                      Danışan
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Aşama
+                      Süreç Durumu
                     </TableHead>
                     <TableHead className="text-right text-xs font-medium text-muted-foreground">
                       Toplam
@@ -180,10 +180,10 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Müşteri
+                      Danışan
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Aşama
+                      Süreç Durumu
                     </TableHead>
                     <TableHead className="text-right text-xs font-medium text-muted-foreground">
                       Toplam Tutar

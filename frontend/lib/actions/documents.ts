@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
-import { FileType } from "@/lib/enums";
+import { type DocAssistantDocumentType, FileType } from "@/lib/enums";
 import type { ActionResult, DocumentUploadResult } from "@/lib/types";
 
 /** Guards the path param before it is interpolated into the API URL. */
@@ -97,6 +97,7 @@ export async function requestDocumentUpload(
   applicationId: string,
   fileType: FileType,
   fileName: string,
+  docAssistantType?: DocAssistantDocumentType,
 ): Promise<DocumentUploadResult> {
   if (!UUID_RE.test(applicationId)) {
     return { ok: false, error: "Geçersiz başvuru referansı." };
@@ -110,13 +111,26 @@ export async function requestDocumentUpload(
   }
 
   try {
+    const payload: {
+      applicationId: string;
+      fileName: string;
+      fileType: FileType;
+      docAssistantType?: DocAssistantDocumentType;
+    } = {
+      applicationId,
+      fileName: cleanName,
+      fileType,
+    };
+
+    if (docAssistantType) {
+      payload.docAssistantType = docAssistantType;
+    }
+
     const response = await serverApi.post<{
       document: { id: string };
       uploadUrl: string;
     }>("/documents/presigned-url", {
-      applicationId,
-      fileName: cleanName,
-      fileType,
+      ...payload,
     });
     return {
       ok: true,

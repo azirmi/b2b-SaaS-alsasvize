@@ -1,4 +1,5 @@
-import { IsOptional, IsUUID } from 'class-validator';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { ApplicationType } from '../../generated/prisma/enums';
 
 /** Payload for `POST /applications`. */
 export class CreateApplicationDto {
@@ -10,4 +11,8 @@ export class CreateApplicationDto {
   @IsOptional()
   @IsUUID()
   customerId?: string;
+
+  @IsOptional()
+  @IsEnum(ApplicationType)
+  applicationType?: ApplicationType;
 }

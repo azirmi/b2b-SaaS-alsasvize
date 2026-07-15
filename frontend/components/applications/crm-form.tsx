@@ -23,6 +23,7 @@ import {
   type PaymentType,
 } from "@/lib/crm";
 import { FileType } from "@/lib/enums";
+import { maskDecimalInput } from "@/lib/input-masks";
 import type { CrmActionState, CrmData } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -153,7 +154,7 @@ export function CrmForm({
       {/* Pulled read-only from the customer's application form / profile. */}
       <fieldset className="space-y-4">
         <legend className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          Müşteri Bilgileri
+          Danışan Bilgileri
         </legend>
         <div className="grid gap-4 sm:grid-cols-3">
           <ReadOnlyField label="Hedef Ülke" value={targetCountry} />
@@ -219,7 +220,9 @@ export function CrmForm({
                 step="0.01"
                 inputMode="decimal"
                 value={total}
-                onChange={(event) => setTotal(event.target.value)}
+                onChange={(event) =>
+                  setTotal(maskDecimalInput(event.target.value, 16))
+                }
                 placeholder="0"
                 className="pr-10"
                 required
@@ -244,7 +247,9 @@ export function CrmForm({
                   step="0.01"
                   inputMode="decimal"
                   value={upfront}
-                  onChange={(event) => setUpfront(event.target.value)}
+                  onChange={(event) =>
+                    setUpfront(maskDecimalInput(event.target.value, 16))
+                  }
                   placeholder="0"
                   className="pr-10"
                   required
@@ -274,7 +279,7 @@ export function CrmForm({
       {/* Payment receipt (dekont). */}
       <fieldset className="space-y-2">
         <legend className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          Dekont
+          Ödeme Dekontu
         </legend>
         {receiptFileId ? (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-muted/40 px-3 py-2.5">

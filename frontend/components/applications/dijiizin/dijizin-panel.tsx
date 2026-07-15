@@ -114,14 +114,21 @@ export function DijizinPanel({
     firstActiveFormId(initialSnapshot?.availableForms ?? []),
   );
   const [otpCode, setOtpCode] = useState("");
-  const [notice, setNotice] = useState<NoticeState | null>(
-    initialError
-      ? {
-          tone: "error",
-          text: initialError,
-        }
-      : null,
-  );
+  const [notice, setNotice] = useState<NoticeState | null>(() => {
+    if (initialError) {
+      return {
+        tone: "error",
+        text: initialError,
+      };
+    }
+    if (initialSnapshot?.message) {
+      return {
+        tone: "muted",
+        text: initialSnapshot.message,
+      };
+    }
+    return null;
+  });
   const [pending, startTransition] = useTransition();
 
   const activeForms = useMemo(
@@ -142,18 +149,21 @@ export function DijizinPanel({
     }
   }
 
-  async function refreshSnapshot(): Promise<boolean> {
+  async function refreshSnapshot(): Promise<{ ok: boolean; message?: string }> {
     const result = await getDijizinFormsSnapshot(applicationId);
     if (!result.ok || !result.data) {
       setNotice({
         tone: "error",
         text: result.error ?? "Dijizin form bilgileri yenilenemedi.",
       });
-      return false;
+      return { ok: false };
     }
 
     syncSnapshot(result.data);
-    return true;
+    return {
+      ok: true,
+      message: result.data.message,
+    };
   }
 
   function handleSendSms() {
@@ -229,14 +239,14 @@ export function DijizinPanel({
       if (!result.ok) {
         setNotice({
           tone: "error",
-          text: result.error ?? "Form müşteriye gönderilemedi.",
+          text: result.error ?? "Form danışana gönderilemedi.",
         });
         return;
       }
 
       setNotice({
         tone: "success",
-        text: result.message ?? "Form müşteriye başarıyla gönderildi.",
+        text: result.message ?? "Form danışana başarıyla gönderildi.",
       });
       await refreshSnapshot();
     });
@@ -245,11 +255,11 @@ export function DijizinPanel({
   function handleRefresh() {
     setNotice(null);
     startTransition(async () => {
-      const ok = await refreshSnapshot();
-      if (ok) {
+      const result = await refreshSnapshot();
+      if (result.ok) {
         setNotice({
           tone: "muted",
-          text: "Dijizin verileri güncellendi.",
+          text: result.message ?? "Dijizin verileri güncellendi.",
         });
       }
     });
@@ -261,7 +271,7 @@ export function DijizinPanel({
         <div>
           <h3 className="text-sm font-medium">Dijizin İşlemleri</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            KVKK doğrulamasını tamamlayın, ardından aktif Dijizin formlarını müşteriye gönderin.
+            KVKK doğrulamasını tamamlayın, ardından aktif Dijizin formlarını danışana gönderin.
           </p>
         </div>
         <Button
@@ -348,7 +358,7 @@ export function DijizinPanel({
           <h4 className="text-sm font-medium">B. Form İşlemleri</h4>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Aktif formu seçip müşteriye gönderin. Gönderim geçmişi aşağıda listelenir.
+          Aktif formu seçip danışana gönderin. Gönderim geçmişi aşağıda listelenir.
         </p>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
@@ -398,7 +408,7 @@ export function DijizinPanel({
         <div className="mt-4 rounded-md border border-border/40">
           {customerForms.length === 0 ? (
             <p className="px-3 py-3 text-xs text-muted-foreground">
-              Müşteriye henüz Dijizin formu gönderilmedi.
+              Danışana henüz Dijizin formu gönderilmedi.
             </p>
           ) : (
             <ul className="divide-y divide-border/40">

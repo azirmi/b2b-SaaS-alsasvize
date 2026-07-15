@@ -8,8 +8,18 @@ import { saveApplicationDetails } from "@/lib/actions/applications";
 import {
   APPLICATION_FORM_SECTIONS,
   SPONSOR_SECTION_TITLE,
+  type ApplicationFieldName,
   type FormField,
 } from "@/lib/application-form";
+import {
+  maskAlphaTextInput,
+  maskEnglishNoteInput,
+  maskEnglishTextInput,
+  maskNameInput,
+  maskPassportNumberInput,
+  maskPhoneInput,
+  maskTcKimlikInput,
+} from "@/lib/input-masks";
 import {
   createApplicationFormSchema,
   toApplicationFormDefaults,
@@ -35,6 +45,67 @@ const EMPLOYER_FIELD_NAMES = new Set([
   "employerAddress",
   "employerPhone",
 ]);
+
+const NAME_FIELD_NAMES = new Set<ApplicationFieldName>([
+  "firstName",
+  "lastName",
+  "maidenSurname",
+  "sponsorFullName",
+]);
+
+const TC_FIELD_NAMES = new Set<ApplicationFieldName>(["nationalId"]);
+
+const PASSPORT_FIELD_NAMES = new Set<ApplicationFieldName>(["passportNumber"]);
+
+const PHONE_FIELD_NAMES = new Set<ApplicationFieldName>([
+  "phone",
+  "employerPhone",
+]);
+
+const ALPHA_FIELD_NAMES = new Set<ApplicationFieldName>([
+  "placeOfBirth",
+  "nationality",
+  "residenceCity",
+  "occupation",
+  "educationLevel",
+  "passportIssuePlace",
+  "appointmentLocation",
+  "sponsorRelation",
+]);
+
+function maskFieldInput(field: FormField, value: string): string {
+  const maxLength = field.maxLength;
+
+  if (TC_FIELD_NAMES.has(field.name)) {
+    return maskTcKimlikInput(value);
+  }
+
+  if (PASSPORT_FIELD_NAMES.has(field.name)) {
+    return maskPassportNumberInput(value);
+  }
+
+  if (PHONE_FIELD_NAMES.has(field.name)) {
+    return maskPhoneInput(value, maxLength ?? 32);
+  }
+
+  if (NAME_FIELD_NAMES.has(field.name)) {
+    return maskNameInput(value, maxLength);
+  }
+
+  if (ALPHA_FIELD_NAMES.has(field.name)) {
+    return maskAlphaTextInput(value, maxLength);
+  }
+
+  if (field.kind === "textarea") {
+    return maskEnglishNoteInput(value, maxLength);
+  }
+
+  if (field.kind === "text") {
+    return maskEnglishTextInput(value, maxLength);
+  }
+
+  return value;
+}
 
 function fieldErrorMessage(
   errors: FieldErrors<ApplicationFormValues>,
@@ -111,7 +182,9 @@ function Field({
                 id={id}
                 name={formField.name}
                 value={value}
-                onChange={formField.onChange}
+                onChange={(event) =>
+                  formField.onChange(maskFieldInput(field, event.target.value))
+                }
                 onBlur={formField.onBlur}
                 ref={formField.ref}
                 required={required}
@@ -151,7 +224,13 @@ function Field({
               name={formField.name}
               type={field.kind}
               value={value}
-              onChange={formField.onChange}
+              onChange={(event) => {
+                const nextValue =
+                  field.kind === "text" || field.kind === "tel"
+                    ? maskFieldInput(field, event.target.value)
+                    : event.target.value;
+                formField.onChange(nextValue);
+              }}
               onBlur={formField.onBlur}
               ref={formField.ref}
               required={required}

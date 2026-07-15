@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { getSession, serverApi } from "@/lib/api.server";
 import { Role } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
@@ -27,6 +28,7 @@ export default async function WorkspacePage() {
   const isAdmin = session.role === Role.ADMIN;
   const isSales = session.role === Role.SALES;
   const wantsHistory = isAdmin || isSales;
+  const workspaceTitle = isAdmin ? "Atanan Dosyalarım" : "Atanan Başvurularım";
 
   // Assigned workspace + (for sales/admin) processed-sales history in parallel,
   // with isolated failure so one endpoint hiccuping never blanks the other.
@@ -48,11 +50,11 @@ export default async function WorkspacePage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Çalışma Alanım</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{workspaceTitle}</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             {isAdmin
-              ? "Tüm birimlerde şu anda işlemde olan başvurular."
-              : "Üzerinize aldığınız ve aktif olarak işlediğiniz başvurular."}
+              ? "Tüm birimlerde size atanan ve işlemde olan dosyalar."
+              : "Üzerinize atanan ve aktif olarak işlediğiniz başvurular."}
           </p>
         </div>
         <span className="text-xs text-muted-foreground tabular-nums">
@@ -72,7 +74,7 @@ export default async function WorkspacePage() {
             href="/dashboard/pool"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            iş havuzuna
+            başvuru havuzuna
           </Link>
           gidin.
         </div>
@@ -82,19 +84,19 @@ export default async function WorkspacePage() {
             <TableHeader>
               <TableRow className="border-border/40 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Başvuran
+                  Danışan
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
-                  Aşama
+                  Süreç Durumu
                 </TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground">
                   Evrak
                 </TableHead>
                 <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                  Aşamada
+                  Aşamadaki Süre
                 </TableHead>
                 <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                  <span className="sr-only">Aç</span>
+                  <span className="sr-only">Dosyayı Aç</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -110,6 +112,9 @@ export default async function WorkspacePage() {
                     </Link>
                     <div className="font-mono text-xs text-muted-foreground">
                       {application.customer.email}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {APPLICATION_TYPE_LABEL[application.applicationType]}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -131,7 +136,7 @@ export default async function WorkspacePage() {
                       href={`/dashboard/applications/${application.id}`}
                       className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
                     >
-                      Aç
+                      Dosyayı Aç
                       <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                     </Link>
                   </TableCell>
@@ -175,16 +180,16 @@ export default async function WorkspacePage() {
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Müşteri
+                      Danışan
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Aşama
+                      Süreç Durumu
                     </TableHead>
                     <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                      Güncellendi
+                      Son Güncelleme
                     </TableHead>
                     <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                      <span className="sr-only">Aç</span>
+                      <span className="sr-only">Dosyayı Aç</span>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -201,6 +206,9 @@ export default async function WorkspacePage() {
                         <div className="font-mono text-xs text-muted-foreground">
                           {application.customer.email}
                         </div>
+                        <div className="text-xs text-muted-foreground">
+                          {APPLICATION_TYPE_LABEL[application.applicationType]}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <StageBadge stage={application.currentStage} />
@@ -213,7 +221,7 @@ export default async function WorkspacePage() {
                           href={`/dashboard/applications/${application.id}`}
                           className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
                         >
-                          Görüntüle
+                          Detayları Görüntüle
                           <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                         </Link>
                       </TableCell>

@@ -23,7 +23,6 @@ const ACCEPT_SET = new Set([
 export const CUSTOMER_DOCUMENT_TYPES: FileType[] = [
   FileType.PASSPORT,
   FileType.BANK_STATEMENT,
-  FileType.INTENT_LETTER,
   FileType.CONSULATE_FORM,
   FileType.OTHER,
 ];
@@ -52,6 +51,8 @@ const DOCUMENT_INSTRUCTIONS: Record<FileType, string> = {
     "Seyahat süresini kapsayan sağlık sigortası poliçesini yükleyin.",
   APPOINTMENT_CONFIRMATION:
     "Randevu onay belgesini tarih ve saat bilgileri görünür olacak şekilde yükleyin.",
+  VISA_FEE_RECEIPT:
+    "Vize harcı ödeme dekontunu yükleyin. Tutar ve işlem tarihi görünür olmalıdır.",
   FINAL_RECEIPT:
     "Kalan ödeme dekontunu yükleyin. İşlem referans numarası görünür olmalıdır.",
   OTHER:
@@ -223,7 +224,7 @@ export function DocumentUploader({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <p className="text-sm font-medium">Belge seçin</p>
+        <p className="text-sm font-medium">Yüklemek İstediğiniz Belge Türünü Seçin</p>
         <div className="space-y-3">
           {groupedOptions.map(([category, categoryOptions]) => (
             <div key={category} className="space-y-2">

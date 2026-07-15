@@ -9,13 +9,16 @@ import { cn } from "@/lib/utils";
 type NavLink = { href: string; label: string };
 
 function linksForRole(role: RoleType): NavLink[] {
+  const workspaceLabel =
+    role === Role.ADMIN ? "Atanan Dosyalarım" : "Atanan Başvurularım";
+
   const links: NavLink[] = [
     {
       href: role === Role.ADMIN ? "/dashboard/admin" : "/dashboard",
       label: "Genel Bakış",
     },
-    { href: "/dashboard/pool", label: "İş Havuzu" },
-    { href: "/dashboard/workspace", label: "Çalışma Alanım" },
+    { href: "/dashboard/pool", label: "Başvuru Havuzu" },
+    { href: "/dashboard/workspace", label: workspaceLabel },
   ];
 
   if (role === Role.ADMIN || role === Role.DOC) {
@@ -30,23 +33,28 @@ export function DashboardNav({ role }: { role: RoleType }) {
   const pathname = usePathname();
   const links = linksForRole(role);
 
+  const isActive = (href: string): boolean => {
+    if (href === "/dashboard") {
+      return pathname === href;
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
   return (
     <nav className="hidden items-center gap-1 sm:flex">
       {links.map((link) => {
-        const active =
-          link.href === "/dashboard/admin"
-            ? pathname === "/dashboard/admin" || pathname === "/dashboard"
-            : pathname === link.href || pathname.startsWith(`${link.href}/`);
+        const active = isActive(link.href);
         return (
           <Link
             key={link.href}
             href={link.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-md px-2.5 py-1.5 text-sm transition-colors",
+              "rounded-md bg-transparent px-2.5 py-1.5 text-sm transition-colors",
               active
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-[#23345D] font-medium text-white"
+                : "text-gray-600 hover:bg-[#23345D]/10 hover:text-[#23345D]",
             )}
           >
             {link.label}

@@ -31,4 +31,11 @@ export class AdminController {
   getFinance() {
     return this.adminService.getFinance();
   }
+
+  /** Master table for admin operations with sortable/filterable flat row data. */
+  @Get('master-table')
+  @Roles(Role.ADMIN)
+  getMasterTable() {
+    return this.adminService.getMasterTable();
+  }
 }

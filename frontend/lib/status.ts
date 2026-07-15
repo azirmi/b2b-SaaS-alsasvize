@@ -27,28 +27,23 @@ export const STAGE_INTENT: Record<VisaStage, Intent> = {
 };
 
 export const STAGE_LABEL: Record<VisaStage, string> = {
-  SALES_POOL: 'Satış · Bekliyor',
-  SALES_PROCESS: 'Satış · İşleniyor',
-  DOC_POOL: 'Evrak · Bekliyor',
-  DOC_PROCESS: 'Evrak · İşleniyor',
-  SEC_POOL: 'Son İşlem · Bekliyor',
-  SEC_PROCESS: 'Son İşlem · İşleniyor',
-  COMPLETED: 'Tamamlandı',
-  PAUSED: 'Duraklatıldı',
-  CANCELLED: 'İptal Edildi',
+  SALES_POOL: 'Danışman Görüşmesi Bekleniyor',
+  SALES_PROCESS: 'İşlem Hazırlık Aşamasında',
+  DOC_POOL: 'Evrak Yüklemeniz Bekleniyor',
+  DOC_PROCESS: 'Evraklarınız Kontrol Ediliyor',
+  SEC_POOL: 'Başvuru Takibi Bekleniyor',
+  SEC_PROCESS: 'Başvuru Takip Aşamasında',
+  COMPLETED: 'Süreç Tamamlandı',
+  PAUSED: 'Süreç Geçici Olarak Bekletiliyor',
+  CANCELLED: 'Başvuru İptal Edildi',
 };
 
-export const STAGE_LABEL_CUSTOMER: Record<VisaStage, string> = {
-  SALES_POOL: 'Satış · Bekliyor Aşamasında',
-  SALES_PROCESS: 'Satış · İşleniyor Aşamasında',
-  DOC_POOL: 'Evrak · Bekliyor Aşamasında',
-  DOC_PROCESS: 'Evrak · İşleniyor Aşamasında',
-  SEC_POOL: 'Son İşlem · Bekliyor Aşamasında',
-  SEC_PROCESS: 'Son İşlem · İşleniyor Aşamasında',
-  COMPLETED: 'Tamamlandı',
-  PAUSED: 'Duraklatıldı',
-  CANCELLED: 'İptal Edildi',
-};
+export const STAGE_LABEL_CUSTOMER = STAGE_LABEL;
+
+/** Public-safe stage wording used only in customer-facing screens. */
+export function getCustomerStageName(internalStage: VisaStage): string {
+  return STAGE_LABEL[internalStage];
+}
 
 /** Canonical happy-path order (terminal PAUSED/CANCELLED excluded). */
 export const STAGE_FLOW: VisaStage[] = [
@@ -92,6 +87,7 @@ export const FILE_TYPE_LABEL: Record<FileType, string> = {
   TRAVEL_PLAN: 'Seyahat Planı',
   HEALTH_INSURANCE: 'Seyahat Sağlık Sigortası',
   APPOINTMENT_CONFIRMATION: 'Randevu Onayı',
+  VISA_FEE_RECEIPT: 'Vize Harcı Dekontu',
   FINAL_RECEIPT: 'Kalan Ödeme Dekontu',
   OTHER: 'Diğer',
 };

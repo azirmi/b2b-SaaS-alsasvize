@@ -22,12 +22,11 @@ import { ForceStageDto } from './dto/force-stage.dto';
 import { PauseApplicationDto } from './dto/pause-application.dto';
 import { ReassignApplicationDto } from './dto/reassign-application.dto';
 import { ResumeApplicationDto } from './dto/resume-application.dto';
-import { SendDijizinFormDto } from './dto/send-dijizin-form.dto';
 import { TransitionStageDto } from './dto/transition-stage.dto';
 import { UpdateApplicationCrmDto } from './dto/update-application-crm.dto';
 import { UpdateAppointmentOpsDto } from './dto/update-appointment-ops.dto';
+import { UpdateDocAssistantStatusDto } from './dto/update-doc-assistant-status.dto';
 import { UpsertApplicationDetailsDto } from './dto/upsert-application-details.dto';
-import { VerifyDijizinConsentDto } from './dto/verify-dijizin-consent.dto';
 import { VisaApplicationsService } from './visa-applications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 
@@ -107,51 +106,6 @@ export class VisaApplicationsController {
     return this.service.getLinkedActiveApplications(id, user);
   }
 
-  /** Sales CRM integration: sends Dijizin KVKK consent OTP over SMS. */
-  @Post(':id/dijizin/consent/sms')
-  @Roles(Role.SALES, Role.ADMIN)
-  @HttpCode(HttpStatus.OK)
-  sendDijizinConsentSms(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.service.sendDijizinConsentSms(id, user);
-  }
-
-  /** Sales CRM integration: verifies the Dijizin KVKK OTP and unlocks gating. */
-  @Post(':id/dijizin/consent/verify')
-  @Roles(Role.SALES, Role.ADMIN)
-  @HttpCode(HttpStatus.OK)
-  verifyDijizinConsent(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: VerifyDijizinConsentDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.service.verifyDijizinConsent(id, dto, user);
-  }
-
-  /** Sales CRM integration: active system forms + customer's sent forms. */
-  @Get(':id/dijizin/forms')
-  @Roles(Role.SALES, Role.ADMIN)
-  getDijizinForms(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.service.getDijizinForms(id, user);
-  }
-
-  /** Sales CRM integration: sends the selected Dijizin form to the customer. */
-  @Post(':id/dijizin/forms/send')
-  @Roles(Role.SALES, Role.ADMIN)
-  @HttpCode(HttpStatus.OK)
-  sendDijizinForm(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: SendDijizinFormDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.service.sendDijizinForm(id, dto, user);
-  }
-
   /** Full application detail. Per-record access is enforced in the service. */
   @Get(':id')
   findOne(
@@ -203,6 +157,27 @@ export class VisaApplicationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.updateAppointmentOps(id, dto, user);
+  }
+
+  /** DOC + admin: updates one document-assistant card status and notifies customer. */
+  @Patch(':id/doc-assistant/status')
+  @Roles(Role.DOC, Role.ADMIN)
+  updateDocAssistantStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateDocAssistantStatusDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateDocAssistantStatus(id, dto, user);
+  }
+
+  /** DOC + admin: validates mandatory assistant cards and delivers files to customer portal. */
+  @Patch(':id/deliver-to-customer')
+  @Roles(Role.DOC, Role.ADMIN)
+  deliverToCustomer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.deliverToCustomer(id, user);
   }
 
   /** Customer's comprehensive application form ("Başvuru Formu"). Owner/admin write; staff read-only. */

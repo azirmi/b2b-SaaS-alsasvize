@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import { StorageService } from '../documents/storage.service';
 import {
+  ApplicationType,
   FileType,
   OcrStatus,
   Role,
@@ -108,6 +109,7 @@ export class AuthService {
     phone: string,
     targetCountry: string,
     appointmentCity: string,
+    applicationType: ApplicationType,
     extraApplicants: OnboardingApplicantInput[],
     passports: Express.Multer.File[],
   ) {
@@ -211,6 +213,7 @@ export class AuthService {
         data: {
           customer: { connect: { id: user.id } },
           currentStage: VisaStage.SALES_POOL,
+          applicationType,
         },
       });
 
@@ -262,6 +265,7 @@ export class AuthService {
             method: 'Customer self-onboarded',
             newStage: VisaStage.SALES_POOL,
             targetCountry,
+            applicationType,
             appointmentCity,
             applicantCount: applicants.length,
             passportDocumentIds: documents.map((doc) => doc.id),

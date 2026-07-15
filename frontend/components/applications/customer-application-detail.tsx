@@ -11,30 +11,27 @@ import { DeleteDocumentButton } from "@/components/documents/delete-document-but
 import { StageBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
 import { FileType, OcrStatus, VisaStage } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
-import { FILE_TYPE_LABEL, INTENT_CLASSES, type Intent } from "@/lib/status";
-import type { DownloadUrlResponse, VisaApplicationDetail } from "@/lib/types";
+import {
+  FILE_TYPE_LABEL,
+  INTENT_CLASSES,
+  getCustomerStageName,
+  type Intent,
+} from "@/lib/status";
+import type {
+  DeliveredCustomerFile,
+  DownloadUrlResponse,
+  VisaApplicationDetail,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** Customer-facing, plain-language status for each pipeline stage. */
-const STAGE_MESSAGE: Record<VisaStage, string> = {
-  SALES_POOL: "Alındı. Satış ekibimizin başvuruyu üstlenmesi bekleniyor.",
-  SALES_PROCESS: "Başvurunuz satış ekibimiz tarafından hazırlanıyor.",
-  DOC_POOL: "Belge inceleme kuyruğunda bekliyor.",
-  DOC_PROCESS: "Belgeleriniz evrak ekibimiz tarafından inceleniyor.",
-  SEC_POOL: "Son işlem kuyruğunda bekliyor.",
-  SEC_PROCESS: "Başvurunuz son işlem aşamasında değerlendiriliyor.",
-  COMPLETED: "Başvurunuz tamamlandı.",
-  PAUSED: "Başvurunuz geçici olarak duraklatıldı.",
-  CANCELLED: "Bu başvuru iptal edildi.",
-};
-
 const OCR_BADGE: Record<OcrStatus, { label: string; intent: Intent }> = {
-  PENDING: { label: "OCR bekliyor", intent: "neutral" },
-  PROCESSED: { label: "OCR okundu", intent: "success" },
+  PENDING: { label: "Dijital Kontrol Bekliyor", intent: "neutral" },
+  PROCESSED: { label: "Dijital Evrak Okuma", intent: "success" },
   FAILED: { label: "OCR başarısız", intent: "danger" },
 };
 
@@ -105,14 +102,6 @@ const BASE_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
       "Seyahatinizde hangi tarihte hangi şehirde olacağınızı gösteren detaylı seyahat planını yükleyin.",
   },
   {
-    id: "intent-letter",
-    category: "Satın alınmış seyahat belgeleri",
-    label: "Niyet Mektubu",
-    fileType: FileType.INTENT_LETTER,
-    description:
-      "Seyahat amacınızı, planınızı ve geri dönüş niyetinizi açıklayan imzalı niyet mektubunu yükleyin.",
-  },
-  {
     id: "extra-document",
     category: "Ek belgeler",
     label: "Ek Destekleyici Belge",
@@ -128,7 +117,7 @@ const EMPLOYEE_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
     id: "employee-employment-letter",
     category: "Çalışanlar İçin Belgeler",
     label: "İş Yeri Yazısı",
-    fileType: FileType.LETTER_OF_INTENT,
+    fileType: FileType.OTHER,
     description:
       "Çalıştığınız kurumdan antetli kağıda, kaşeli-imzalı görev/izin yazısını yükleyin.",
   },
@@ -225,7 +214,7 @@ const SPONSOR_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
     id: "sponsor-letter",
     category: "Sponsor Evrakları",
     label: "Sponsor Dilekçesi",
-    fileType: FileType.INTENT_LETTER,
+    fileType: FileType.OTHER,
     description:
       "Sponsorun masrafları üstlendiğini belirten imzalı sponsor dilekçesini yükleyin.",
   },
@@ -241,7 +230,7 @@ const SPONSOR_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
     id: "sponsor-work-letter",
     category: "Sponsor Evrakları",
     label: "Sponsor İş Yeri Yazısı",
-    fileType: FileType.LETTER_OF_INTENT,
+    fileType: FileType.OTHER,
     description:
       "Sponsor çalışan ise iş yerinden antetli kağıda alınmış görev/izin yazısını yükleyin.",
   },
@@ -271,14 +260,6 @@ const REJECTED_AFTER_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
     fileType: FileType.OTHER,
     description:
       "Daha önce ret aldıysanız konsolosluk ret mektubunu eksiksiz şekilde yükleyin.",
-  },
-  {
-    id: "rejected-new-intent",
-    category: "Ret sonrası",
-    label: "Güncel Niyet Mektubu",
-    fileType: FileType.INTENT_LETTER,
-    description:
-      "Ret sonrası yeni başvuruda, önceki red gerekçelerini ele alan güncel niyet mektubunu yükleyin.",
   },
   {
     id: "rejected-financial-update",
@@ -362,6 +343,19 @@ function buildCustomerDocumentOptions(
   }
 
   return options;
+}
+
+function isDeliveredCustomerFile(value: unknown): value is DeliveredCustomerFile {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<DeliveredCustomerFile>;
+  return (
+    typeof candidate.documentId === "string" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.deliveredAt === "string"
+  );
 }
 
 function Notice({ title, body }: { title: string; body: string }) {
@@ -458,6 +452,9 @@ export async function CustomerApplicationDetail({
     }),
   );
   const urlById = new Map(downloads);
+  const deliveredFiles = Array.isArray(detail.deliveredToCustomerFiles)
+    ? detail.deliveredToCustomerFiles.filter(isDeliveredCustomerFile)
+    : [];
 
   const stage = detail.currentStage;
   const canUpload =
@@ -489,12 +486,12 @@ export async function CustomerApplicationDetail({
               Başvurunuz
             </h1>
             <StageBadge stage={stage} customerView />
+            <Badge variant="outline" className="rounded-md text-[11px]">
+              {APPLICATION_TYPE_LABEL[detail.applicationType]}
+            </Badge>
           </div>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            {STAGE_MESSAGE[stage]}
-          </p>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {detail.id}
+            Süreç durumu: {getCustomerStageName(stage)}
           </p>
         </div>
         <div className="text-right text-xs text-muted-foreground">
@@ -534,13 +531,67 @@ export async function CustomerApplicationDetail({
         </section>
       ) : (
         <>
+          {detail.isDeliveredToCustomer ? (
+            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-medium">Hazırlanan Başvuru Dosyanız</h2>
+                {detail.deliveredToCustomerAt ? (
+                  <span className="text-xs text-muted-foreground">
+                    İletim: {timeAgo(detail.deliveredToCustomerAt)}
+                  </span>
+                ) : null}
+              </div>
+
+              {deliveredFiles.length === 0 ? (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Hazırlanan dosyalar için indirme listesi henüz oluşturulmadı.
+                </p>
+              ) : (
+                <ul className="mt-3 divide-y divide-border/40">
+                  {deliveredFiles.map((file) => {
+                    const downloadUrl = urlById.get(file.documentId) ?? null;
+
+                    return (
+                      <li
+                        key={`${file.cardType}-${file.documentId}`}
+                        className="flex items-center justify-between gap-3 py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{file.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {FILE_TYPE_LABEL[file.fileType]}
+                          </p>
+                        </div>
+
+                        {downloadUrl ? (
+                          <a
+                            href={downloadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex h-8 items-center rounded-md border border-border/60 px-3 text-xs font-medium transition-colors hover:bg-muted/60"
+                          >
+                            İndir
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            İndirilemedi
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          ) : null}
+
           {canUpload ? (
             <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-medium">Belge Yükle</h2>
+              <h2 className="text-sm font-medium">Belgelerinizi Kontrol İçin Yükleyin</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 {customerPrepaidLocked
                   ? "Ön ödemeli başvuruda randevu kesinleşene kadar yalnızca pasaport yükleyebilirsiniz."
-                  : "Pasaportunuzu ve ekibimizin talep ettiği belgeleri yükleyin. Dosyalar güvenli şekilde doğrudan depolama alanına gönderilir."}
+                  : "Yüklemek İstediğiniz Belge Türünü Seçin ve belgelerinizi kontrol için iletin. Dosyalar güvenli şekilde doğrudan depolama alanına gönderilir."}
               </p>
               <Separator className="my-4" />
               <DocumentUploader
@@ -599,7 +650,7 @@ export async function CustomerApplicationDetail({
                           )}
                         >
                           {document.isApproved
-                            ? "Onaylandı"
+                            ? "Belge Uygun"
                             : document.rejectionReason
                               ? "Reddedildi"
                               : "İnceleme bekliyor"}
@@ -635,7 +686,7 @@ export async function CustomerApplicationDetail({
                         rel="noopener noreferrer"
                         className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
                       >
-                        Görüntüle
+                        Detayları Görüntüle
                       </a>
                     ) : (
                       <span className="text-xs text-muted-foreground">

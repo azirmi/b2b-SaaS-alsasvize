@@ -28,24 +28,50 @@ export interface DijizinCustomerForm {
   answeredAt: string | null;
 }
 
+export interface DijizinConsentCustomerInput {
+  mobilePhone: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface DijizinNormalizedCustomer {
+  mobilePhone: string;
+  subscriberPhone: string;
+  firstName: string;
+  lastName: string;
+}
+
+const DIJIZIN_CONSENT_STATUS = 'ONAY';
+const DIJIZIN_COUNTRY_CODE = '90';
+const DIJIZIN_LOCALE = 'tr';
+const DIJIZIN_RECIPIENT_TYPE = 'BIREYSEL';
+const DIJIZIN_SEND_METHOD = 'sms';
+const DIJIZIN_SOURCE = 'HS_EORTAM';
+const DIJIZIN_ORIGIN = 'https://alsasvize.com';
+const DIJIZIN_KVKK_TEXT_TYPE = 1;
+const DIJIZIN_ETK_TEXT_TYPE = 3;
+const DIJIZIN_ETK_TYPES = ['ARAMA', 'MESAJ', 'EPOSTA'] as const;
+
 @Injectable()
 export class DijizinService {
   private tokenCache: { token: string; expiresAt: number } | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
-  async sendConsentRequest(mobilePhone: string): Promise<{ message: string }> {
-    const form = new URLSearchParams();
-    form.set('mobile_phone', mobilePhone);
-    form.set('send_method', 'sms');
-    form.set('status', 'ONAY');
-    form.set('kvkk', '4');
+  async sendConsentRequest(
+    customerInput: DijizinConsentCustomerInput,
+  ): Promise<{ message: string }> {
+    const customer = this.normalizeCustomerInput(customerInput);
+    const { kvkkTextId, etkTextId } = await this.getValidTextIds();
 
-    const payload = await this.requestWithAuth('POST', '/api/consents', form);
+    const payload = await this.requestWithAuth(
+      'POST',
+      '/api/consents',
+      this.buildConsentSmsForm(customer, kvkkTextId, etkTextId),
+    );
 
     return {
-      message:
-        this.readMessage(payload) ??
+      message: this.readMessage(payload) ??
         'Dijizin KVKK onay kodu SMS olarak gonderildi.',
     };
   }
@@ -54,14 +80,16 @@ export class DijizinService {
     mobilePhone: string,
     code: string,
   ): Promise<{ message: string }> {
+    const { kvkkTextId } = await this.getValidTextIds();
+    const normalizedPhone = this.normalizeMobilePhone(mobilePhone);
     const form = new URLSearchParams();
-    form.set('status', 'ONAY');
-    form.set('kvkk', '4');
-    form.set('codes[4]', code);
+    form.set('status', DIJIZIN_CONSENT_STATUS);
+    form.set('kvkk', kvkkTextId);
+    form.set(`codes[${kvkkTextId}]`, code);
 
     const payload = await this.requestWithAuth(
       'POST',
-      `/api/consents/${encodeURIComponent(mobilePhone)}`,
+      `/api/consents/${encodeURIComponent(normalizedPhone)}`,
       form,
     );
 
@@ -81,13 +109,14 @@ export class DijizinService {
     mobilePhone: string,
     formId: string,
   ): Promise<{ message: string }> {
+    const normalizedPhone = this.normalizeMobilePhone(mobilePhone);
     const form = new URLSearchParams();
     form.set('form_id', formId);
     form.set('form_ids[]', formId);
 
     const payload = await this.requestWithAuth(
       'POST',
-      `/api/customers/${encodeURIComponent(mobilePhone)}/forms`,
+      `/api/customers/${encodeURIComponent(normalizedPhone)}/forms`,
       form,
     );
 
@@ -98,11 +127,142 @@ export class DijizinService {
   }
 
   async getCustomerForms(mobilePhone: string): Promise<DijizinCustomerForm[]> {
+    const normalizedPhone = this.normalizeMobilePhone(mobilePhone);
     const payload = await this.requestWithAuth(
       'GET',
-      `/api/customers/${encodeURIComponent(mobilePhone)}/forms`,
+      `/api/customers/${encodeURIComponent(normalizedPhone)}/forms`,
     );
     return this.mapCustomerForms(payload);
+  }
+
+  private normalizeCustomerInput(
+    input: DijizinConsentCustomerInput,
+  ): DijizinNormalizedCustomer {
+    return {
+      mobilePhone: this.normalizeMobilePhone(input.mobilePhone),
+      subscriberPhone: this.normalizeSubscriberPhone(input.mobilePhone),
+      firstName: this.normalizeNamePart(input.firstName, 'Customer'),
+      lastName: this.normalizeNamePart(input.lastName, 'User'),
+    };
+  }
+
+  private normalizeNamePart(value: string | undefined, fallback: string): string {
+    const normalized = value?.trim().replace(/\s+/g, ' ');
+    return normalized && normalized.length > 0 ? normalized : fallback;
+  }
+
+  private normalizeMobilePhone(value: string): string {
+    const digits = value.trim().replace(/\D/g, '');
+    if (digits.length === 0) {
+      return value.trim().replace(/^\+/, '');
+    }
+    if (digits.length === 10) {
+      // Turkish local format: 5xxxxxxxxx -> 905xxxxxxxxx
+      return `90${digits}`;
+    }
+    if (digits.length === 11 && digits.startsWith('0')) {
+      return `90${digits.slice(1)}`;
+    }
+    return digits;
+  }
+
+  private normalizeSubscriberPhone(value: string): string {
+    const digits = value.trim().replace(/\D/g, '');
+    if (digits.length === 10) {
+      return digits;
+    }
+    if (digits.length === 11 && digits.startsWith('0')) {
+      return digits.slice(1);
+    }
+    if (digits.length === 12 && digits.startsWith('90')) {
+      return digits.slice(2);
+    }
+    if (digits.length === 14 && digits.startsWith('0090')) {
+      return digits.slice(4);
+    }
+    if (digits.length > 10) {
+      return digits.slice(-10);
+    }
+
+    throw new BadGatewayException(
+      'Dijizin SMS gonderimi icin gecerli telefon formati bulunamadi.',
+    );
+  }
+
+  private buildConsentSmsForm(
+    customer: DijizinNormalizedCustomer,
+    kvkkTextId: string,
+    etkTextId: string,
+  ): URLSearchParams {
+    const form = new URLSearchParams();
+
+    form.set('first_name', customer.firstName);
+    form.set('last_name', customer.lastName);
+    form.set('country_code', DIJIZIN_COUNTRY_CODE);
+    form.set('mobile_phone', customer.subscriberPhone);
+    form.set('locale', DIJIZIN_LOCALE);
+    form.set('kvkk', kvkkTextId);
+    form.set('status', DIJIZIN_CONSENT_STATUS);
+    form.set('etk', etkTextId);
+    for (const type of DIJIZIN_ETK_TYPES) {
+      form.append('types[]', type);
+    }
+    form.set('recipient_type', DIJIZIN_RECIPIENT_TYPE);
+    form.set('send_method', DIJIZIN_SEND_METHOD);
+    form.set('source', DIJIZIN_SOURCE);
+    form.set('origin', DIJIZIN_ORIGIN);
+
+    return form;
+  }
+
+  private async getValidTextIds(): Promise<{
+    kvkkTextId: string;
+    etkTextId: string;
+  }> {
+    const payload = await this.requestWithAuth('GET', '/api/texts');
+    const rows = this.firstArray(payload, ['data', 'texts', 'items']);
+
+    let kvkkTextId: string | null = null;
+    let etkTextId: string | null = null;
+
+    for (const rowValue of rows) {
+      const row = this.asRecord(rowValue);
+      if (!row) {
+        continue;
+      }
+
+      const isActive = this.toActiveFlag(
+        row.active ?? row.is_active ?? row.status ?? row.state,
+      );
+      if (!isActive) {
+        continue;
+      }
+
+      const type = this.readNumber(row, ['type', 'text_type', 'textType']);
+      const textId = this.readIdentifier(row, ['id', 'text_id', 'textId', 'uuid']);
+      if (!type || !textId) {
+        continue;
+      }
+
+      if (type === DIJIZIN_KVKK_TEXT_TYPE && !kvkkTextId) {
+        kvkkTextId = textId;
+      }
+      if (type === DIJIZIN_ETK_TEXT_TYPE && !etkTextId) {
+        etkTextId = textId;
+      }
+
+      if (kvkkTextId && etkTextId) {
+        break;
+      }
+    }
+
+    if (!kvkkTextId || !etkTextId) {
+      throw new BadGatewayException(
+        'Dijizin aktif KVKK/ETK metin ID degerleri bulunamadi.',
+      );
+    }
+
+    return { kvkkTextId, etkTextId };
   }
 
   private async requestWithAuth(
@@ -110,6 +270,19 @@ export class DijizinService {
     path: string,
     form?: URLSearchParams,
   ): Promise<unknown> {
+    const result = await this.requestWithAuthResult(method, path, form);
+    if (!result.ok) {
+      this.throwProviderError(result);
+    }
+
+    return result.payload;
+  }
+
+  private async requestWithAuthResult(
+    method: 'GET' | 'POST' | 'PUT',
+    path: string,
+    form?: URLSearchParams,
+  ): Promise<HttpResult> {
     let token = await this.getAccessToken();
     let result = await this.request(method, path, token, form);
 
@@ -118,13 +291,18 @@ export class DijizinService {
       result = await this.request(method, path, token, form);
     }
 
-    if (!result.ok) {
-      throw new BadGatewayException(
-        `Dijizin istegi basarisiz oldu (${result.status}): ${result.message}`,
-      );
-    }
+    return result;
+  }
 
-    return result.payload;
+  private throwProviderError(result: HttpResult): never {
+    this.logDijizinApiError({
+      response: { data: result.payload },
+      message: result.message,
+    });
+    throw new BadGatewayException(
+      this.resolveProviderErrorMessage(result.payload) ??
+        `Dijizin istegi basarisiz oldu (${result.status}): ${result.message}`,
+    );
   }
 
   private async getAccessToken(forceRefresh = false): Promise<string> {
@@ -148,8 +326,13 @@ export class DijizinService {
 
     const login = await this.request('POST', '/api/auth/login', null, form);
     if (!login.ok) {
+      this.logDijizinApiError({
+        response: { data: login.payload },
+        message: login.message,
+      });
       throw new BadGatewayException(
-        `Dijizin kimlik dogrulama basarisiz (${login.status}): ${login.message}`,
+        this.resolveProviderErrorMessage(login.payload) ??
+          `Dijizin kimlik dogrulama basarisiz (${login.status}): ${login.message}`,
       );
     }
 
@@ -195,11 +378,55 @@ export class DijizinService {
         payload,
         message: (this.readMessage(payload) ?? raw) || 'Bilinmeyen hata',
       };
-    } catch {
-      throw new BadGatewayException('Dijizin servisine ulasilamadi.');
+    } catch (error) {
+      this.logDijizinApiError(error);
+      throw new BadGatewayException(
+        this.resolveProviderErrorMessageFromError(error) ??
+          'Dijizin servisine ulasilamadi.',
+      );
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private resolveProviderErrorMessage(payload: unknown): string | null {
+    const fromPayload = this.readMessage(payload);
+    if (fromPayload) {
+      return fromPayload;
+    }
+    if (typeof payload === 'string' && payload.trim().length > 0) {
+      return payload.trim();
+    }
+    return null;
+  }
+
+  private resolveProviderErrorMessageFromError(error: unknown): string | null {
+    const asAxiosLike = error as {
+      response?: { data?: unknown };
+      message?: string;
+    };
+
+    const providerMessage = this.resolveProviderErrorMessage(
+      asAxiosLike.response?.data,
+    );
+    if (providerMessage) {
+      return providerMessage;
+    }
+
+    const runtimeMessage = asAxiosLike.message;
+    if (typeof runtimeMessage === 'string' && runtimeMessage.trim().length > 0) {
+      return runtimeMessage.trim();
+    }
+
+    return null;
+  }
+
+  private logDijizinApiError(error: unknown): void {
+    const asAxiosLike = error as {
+      response?: { data?: unknown };
+      message?: string;
+    };
+    console.error('DIJIZIN API ERROR:', asAxiosLike.response?.data ?? asAxiosLike.message);
   }
 
   private headers(token: string | null, hasBody: boolean): Headers {
@@ -366,8 +593,46 @@ export class DijizinService {
 
     return (
       this.readString(root, ['message', 'error', 'detail']) ??
-      this.readString(this.asRecord(root.data), ['message', 'error', 'detail'])
+      this.readValidationMessage(root) ??
+      this.readString(this.asRecord(root.data), ['message', 'error', 'detail']) ??
+      this.readValidationMessage(this.asRecord(root.data))
     );
+  }
+
+  private readValidationMessage(record: JsonRecord | null): string | null {
+    if (!record) {
+      return null;
+    }
+
+    const errors = this.asRecord(record.errors);
+    if (!errors) {
+      return null;
+    }
+
+    for (const value of Object.values(errors)) {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value.trim();
+      }
+
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (typeof item === 'string' && item.trim().length > 0) {
+            return item.trim();
+          }
+        }
+      }
+
+      const nested = this.asRecord(value);
+      if (!nested) {
+        continue;
+      }
+      const nestedMessage = this.readValidationMessage({ errors: nested });
+      if (nestedMessage) {
+        return nestedMessage;
+      }
+    }
+
+    return null;
   }
 
   private firstArray(payload: unknown, keys: string[]): unknown[] {
@@ -452,6 +717,23 @@ export class DijizinService {
         }
       }
     }
+    return null;
+  }
+
+  private readIdentifier(
+    record: JsonRecord,
+    keys: string[],
+  ): string | null {
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value.trim();
+      }
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+      }
+    }
+
     return null;
   }
 }

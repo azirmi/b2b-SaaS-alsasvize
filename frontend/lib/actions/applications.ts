@@ -5,16 +5,27 @@ import { revalidatePath } from "next/cache";
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
 import { APPLICATION_FORM_FIELDS } from "@/lib/application-form";
-import type { Department, VisaStage } from "@/lib/enums";
+import {
+  ASCII_MULTILINE_RE,
+  maskEnglishNoteInput,
+} from "@/lib/input-masks";
+import type {
+  Department,
+  DocAssistantDocumentStatus,
+  DocAssistantDocumentType,
+  VisaStage,
+} from "@/lib/enums";
 import type {
   ActionResult,
   CrmActionState,
   DijizinFormsSnapshot,
 } from "@/lib/types";
+import { applicationFormSchema } from "@/lib/validators/application-form";
 
 /** Guards the path param before it is interpolated into the API URL. */
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MONEY_RE = /^\d+(?:[.,]\d{1,2})?$/;
 
 interface DijizinActionResult extends ActionResult {
   message?: string;
@@ -22,13 +33,6 @@ interface DijizinActionResult extends ActionResult {
 
 interface DijizinSnapshotResult extends ActionResult {
   data?: DijizinFormsSnapshot;
-}
-
-function mapActionError(error: unknown, fallback: string): ActionResult {
-  if (error instanceof ApiError) {
-    return { ok: false, error: error.message };
-  }
-  return { ok: false, error: fallback };
 }
 
 /**
@@ -142,6 +146,35 @@ export async function forceCancelApplication(
   );
 }
 
+/** Updates one DOC assistant card status for the given application. */
+export async function updateDocAssistantStatus(
+  id: string,
+  type: DocAssistantDocumentType,
+  status: DocAssistantDocumentStatus,
+): Promise<ActionResult> {
+  return runApplicationMutation(
+    id,
+    (applicationId) =>
+      serverApi.patch(`/applications/${applicationId}/doc-assistant/status`, {
+        type,
+        status,
+      }),
+    "Belge durumu güncellenemedi. Lütfen tekrar deneyin.",
+  );
+}
+
+/** DOC + admin: validates required cards and delivers prepared files to the customer portal. */
+export async function deliverToCustomer(
+  id: string,
+): Promise<ActionResult> {
+  return runApplicationMutation(
+    id,
+    (applicationId) =>
+      serverApi.patch(`/applications/${applicationId}/deliver-to-customer`),
+    "Dosyalar danışana iletilemedi. Lütfen tekrar deneyin.",
+  );
+}
+
 /** Reads Dijizin forms snapshot for the sales-side widget on the detail screen. */
 export async function getDijizinFormsSnapshot(
   id: string,
@@ -150,17 +183,10 @@ export async function getDijizinFormsSnapshot(
     return { ok: false, error: "Geçersiz başvuru referansı." };
   }
 
-  try {
-    const data = await serverApi.get<DijizinFormsSnapshot>(
-      `/applications/${id}/dijizin/forms`,
-    );
-    return { ok: true, data };
-  } catch (error) {
-    return mapActionError(
-      error,
-      "Dijizin form bilgileri alınamadı. Lütfen tekrar deneyin.",
-    );
-  }
+  return {
+    ok: false,
+    error: "Dijizin entegrasyonu devre dışı bırakıldı.",
+  };
 }
 
 /** Sends the Dijizin KVKK OTP SMS to the customer tied to this application. */
@@ -171,21 +197,10 @@ export async function sendDijizinConsentSms(
     return { ok: false, error: "Geçersiz başvuru referansı." };
   }
 
-  try {
-    const response = await serverApi.post<{ message?: string }>(
-      `/applications/${id}/dijizin/consent/sms`,
-    );
-    revalidatePath("/dashboard", "layout");
-    return {
-      ok: true,
-      message: response.message ?? "KVKK onay SMS'i gönderildi.",
-    };
-  } catch (error) {
-    return mapActionError(
-      error,
-      "KVKK onay SMS'i gönderilemedi. Lütfen tekrar deneyin.",
-    );
-  }
+  return {
+    ok: false,
+    error: "Dijizin entegrasyonu devre dışı bırakıldı.",
+  };
 }
 
 /** Verifies the Dijizin KVKK OTP and opens the Sales -> DOC gate. */
@@ -202,22 +217,10 @@ export async function verifyDijizinConsentCode(
     return { ok: false, error: "Doğrulama kodu yalnızca rakamlardan oluşmalıdır." };
   }
 
-  try {
-    const response = await serverApi.post<{ message?: string }>(
-      `/applications/${id}/dijizin/consent/verify`,
-      { code: normalizedCode },
-    );
-    revalidatePath("/dashboard", "layout");
-    return {
-      ok: true,
-      message: response.message ?? "KVKK doğrulaması başarıyla tamamlandı.",
-    };
-  } catch (error) {
-    return mapActionError(
-      error,
-      "KVKK doğrulaması tamamlanamadı. Lütfen tekrar deneyin.",
-    );
-  }
+  return {
+    ok: false,
+    error: "Dijizin entegrasyonu devre dışı bırakıldı.",
+  };
 }
 
 /** Sends one selected Dijizin form to the customer. */
@@ -234,22 +237,10 @@ export async function sendDijizinFormToCustomer(
     return { ok: false, error: "Gönderilecek formu seçin." };
   }
 
-  try {
-    const response = await serverApi.post<{ message?: string }>(
-      `/applications/${id}/dijizin/forms/send`,
-      { formId: normalizedFormId },
-    );
-    revalidatePath("/dashboard", "layout");
-    return {
-      ok: true,
-      message: response.message ?? "Form müşteriye başarıyla gönderildi.",
-    };
-  } catch (error) {
-    return mapActionError(
-      error,
-      "Form müşteriye gönderilemedi. Lütfen tekrar deneyin.",
-    );
-  }
+  return {
+    ok: false,
+    error: "Dijizin entegrasyonu devre dışı bırakıldı.",
+  };
 }
 
 /**
@@ -268,7 +259,8 @@ export async function saveCrm(
 
   const salesDate = String(formData.get("salesDate") ?? "").trim();
   const paymentType = String(formData.get("paymentType") ?? "").trim();
-  const totalAmount = Number(String(formData.get("totalAmount") ?? "").trim());
+  const totalRaw = String(formData.get("totalAmount") ?? "").trim();
+  const totalAmount = Number(totalRaw.replace(",", "."));
   const upfrontRaw = String(formData.get("upfrontPaid") ?? "").trim();
   const receiptFileId = String(formData.get("receiptFileId") ?? "").trim();
 
@@ -277,6 +269,9 @@ export async function saveCrm(
   }
   if (paymentType !== "NORMAL" && paymentType !== "PREPAID") {
     return { error: "Ödeme türünü seçin." };
+  }
+  if (!MONEY_RE.test(totalRaw)) {
+    return { error: "Toplam tutar yalnızca rakam içermelidir." };
   }
   if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
     return { error: "Toplam tutar pozitif bir değer olmalıdır." };
@@ -289,7 +284,10 @@ export async function saveCrm(
   };
 
   if (paymentType === "PREPAID") {
-    const upfrontPaid = Number(upfrontRaw);
+    if (!MONEY_RE.test(upfrontRaw)) {
+      return { error: "Ön ödeme tutarı yalnızca rakam içermelidir." };
+    }
+    const upfrontPaid = Number(upfrontRaw.replace(",", "."));
     if (!Number.isFinite(upfrontPaid) || upfrontPaid < 0) {
       return { error: "Ön ödeme tutarı geçerli olmalıdır." };
     }
@@ -339,6 +337,11 @@ export async function saveAppointmentOps(
   const appointmentExpenseRaw = String(
     formData.get("appointmentExpense") ?? "",
   ).trim();
+  const hasVisaFee = String(formData.get("hasVisaFee") ?? "").trim() === "true";
+  const visaFeeAmountRaw = String(formData.get("visaFeeAmount") ?? "").trim();
+  const visaFeeReceiptDocumentId = String(
+    formData.get("visaFeeReceiptDocumentId") ?? "",
+  ).trim();
   const appointmentConfirmationDocumentId = String(
     formData.get("appointmentConfirmationDocumentId") ?? "",
   ).trim();
@@ -363,6 +366,12 @@ export async function saveAppointmentOps(
   if (!UUID_RE.test(appointmentConfirmationDocumentId)) {
     return { error: "Randevu onay belgesi seçimi zorunludur." };
   }
+  if (!note) {
+    return { error: "Randevu notu zorunludur." };
+  }
+  if (note && !ASCII_MULTILINE_RE.test(note)) {
+    return { error: "Not alanı yalnızca İngilizce karakter içerebilir." };
+  }
 
   for (const linkedId of linkedApplicationIds) {
     if (!UUID_RE.test(linkedId)) {
@@ -377,8 +386,12 @@ export async function saveAppointmentOps(
   const appointmentDateIso = appointmentDateValue.toISOString();
 
   let appointmentExpense: number | undefined;
+  let visaFeeAmount: number | undefined;
 
   if (appointmentExpenseRaw) {
+    if (!MONEY_RE.test(appointmentExpenseRaw)) {
+      return { error: "Randevu maliyeti yalnızca rakam içermelidir." };
+    }
     const normalized = appointmentExpenseRaw.replace(",", ".");
     const parsed = Number(normalized);
     if (!Number.isFinite(parsed) || parsed < 0) {
@@ -387,26 +400,48 @@ export async function saveAppointmentOps(
     appointmentExpense = parsed;
   }
 
+  if (hasVisaFee) {
+    if (!MONEY_RE.test(visaFeeAmountRaw)) {
+      return { error: "Vize harcı tutarı yalnızca rakam içermelidir." };
+    }
+    const normalized = visaFeeAmountRaw.replace(",", ".");
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return { error: "Vize harcı için geçerli bir tutar girin." };
+    }
+    visaFeeAmount = parsed;
+
+    if (!UUID_RE.test(visaFeeReceiptDocumentId)) {
+      return { error: "Vize harcı dekontu seçimi zorunludur." };
+    }
+  }
+
   const payload: {
     appointmentCity: string;
     appointmentDate: string;
     travelDate: string;
+    note: string;
+    hasVisaFee: boolean;
+    visaFeeAmount?: number;
+    visaFeeReceiptDocumentId?: string;
     appointmentConfirmationDocumentId: string;
     linkedApplicationIds: string[];
-    note?: string;
     appointmentExpense?: number;
   } = {
     appointmentCity,
     appointmentDate: appointmentDateIso,
     travelDate,
+    note: maskEnglishNoteInput(note, 500),
+    hasVisaFee,
     appointmentConfirmationDocumentId,
     linkedApplicationIds: linkedApplicationIds.filter((linkedId) => linkedId !== id),
   };
-  if (note) {
-    payload.note = note;
-  }
   if (appointmentExpense !== undefined) {
     payload.appointmentExpense = appointmentExpense;
+  }
+  if (hasVisaFee) {
+    payload.visaFeeAmount = visaFeeAmount;
+    payload.visaFeeReceiptDocumentId = visaFeeReceiptDocumentId;
   }
 
   try {
@@ -439,28 +474,33 @@ export async function saveApplicationDetails(
   const isEmployer = String(formData.get("isEmployer") ?? "").trim() === "true";
   const hasSponsor = String(formData.get("hasSponsor") ?? "").trim() === "true";
 
-  const payload: Record<string, string | number | boolean> = {
+  const candidatePayload: Record<string, string | boolean> = {
     isEmployer,
     hasSponsor,
   };
+
   for (const field of APPLICATION_FORM_FIELDS) {
-    const raw = String(formData.get(field.name) ?? "").trim();
-    const required = field.required !== false;
-    if (!raw && required) {
-      return { error: "Lütfen tüm alanları eksiksiz doldurun." };
-    }
-    if (!raw && !required) {
-      continue;
-    }
-    if (field.kind === "number") {
-      const value = Number(raw);
-      if (!Number.isInteger(value)) {
-        return { error: "Sayısal alanlar için geçerli bir sayı giriniz." };
-      }
-      payload[field.name] = value;
-    } else {
-      payload[field.name] = raw;
-    }
+    candidatePayload[field.name] = String(formData.get(field.name) ?? "").trim();
+  }
+
+  const parsedPayload = applicationFormSchema.safeParse(candidatePayload);
+  if (!parsedPayload.success) {
+    return {
+      error:
+        parsedPayload.error.issues[0]?.message ??
+        "Lütfen form alanlarını kontrol ederek tekrar deneyin.",
+    };
+  }
+
+  const payload: Record<string, string | number | boolean> = {
+    ...parsedPayload.data,
+  };
+
+  if (payload.fingerprintGiven === "") {
+    payload.fingerprintGiven = "Hayır";
+  }
+  if (payload.fingerprintGiven !== "Evet") {
+    payload.fingerprintDate = "";
   }
 
   if (!isEmployer) {

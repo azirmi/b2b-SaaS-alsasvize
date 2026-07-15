@@ -14,6 +14,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
+import { ApplicationType } from '../generated/prisma/enums';
 import {
   ACCESS_TOKEN_COOKIE,
   ACCESS_TOKEN_MAX_AGE_MS,
@@ -28,6 +29,7 @@ import type { AuthenticatedUser } from './interfaces/jwt-payload.interface';
 
 /** Upper bound on passports accepted per onboarding (customer + family/friends). */
 const MAX_PASSPORT_FILES = 10;
+const APPLICATION_TYPES = new Set(Object.values(ApplicationType));
 
 interface OnboardingExtraApplicantInput {
   fullName: string;
@@ -52,6 +54,7 @@ export class AuthController {
    * Full customer auto-onboarding (multipart/form-data).
    *
     * Accepts `email`, `password`, `fullName`, `phone`, `targetCountry`, `appointmentCity`,
+    * `applicationType`,
     * `groupApplicants` (JSON array of only extra full names),
    * `hasAcceptedKVKK`, `hasAcceptedTerms` as text fields and one or more
    * `passports` file uploads (customer + family/friends). Creates the user,
@@ -69,6 +72,7 @@ export class AuthController {
     @Body('phone') phone: string,
     @Body('targetCountry') targetCountry: string,
     @Body('appointmentCity') appointmentCity: string,
+    @Body('applicationType') applicationType: string,
     @Body('groupApplicants') groupApplicantsRaw: string,
     @Body('hasAcceptedKVKK') hasAcceptedKVKK: string,
     @Body('hasAcceptedTerms') hasAcceptedTerms: string,
@@ -114,6 +118,17 @@ export class AuthController {
     ) {
       throw new BadRequestException('Randevu şehri alanı zorunludur');
     }
+    if (
+      !applicationType ||
+      typeof applicationType !== 'string' ||
+      applicationType.trim().length === 0
+    ) {
+      throw new BadRequestException('Başvuru türü alanı zorunludur');
+    }
+    const normalizedApplicationType = applicationType.trim();
+    if (!APPLICATION_TYPES.has(normalizedApplicationType as ApplicationType)) {
+      throw new BadRequestException('Geçersiz başvuru türü seçimi');
+    }
     // Booleans arrive as strings over multipart — both consents must be "true".
     if (hasAcceptedKVKK !== 'true') {
       throw new BadRequestException('KVKK Aydınlatma Metni onayı zorunludur.');
@@ -147,6 +162,7 @@ export class AuthController {
       phone.trim(),
       targetCountry.trim(),
       appointmentCity.trim(),
+      normalizedApplicationType as ApplicationType,
       extraApplicants,
       passports,
     );

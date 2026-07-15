@@ -27,6 +27,7 @@ const ACTIVE_PRODUCTIVITY_DEPARTMENTS: Department[] = [
 const DEFAULT_DOC_CLAIM_SLA_HOURS = 2;
 
 type FinancePeriodKey = 'daily' | 'weekly' | 'monthly' | 'yearly';
+type DeliveryStatus = 'TESLIM_EDILDI' | 'BEKLIYOR' | 'EKSIK';
 
 function isVisaStage(value: unknown): value is VisaStage {
   return typeof value === 'string' && Object.values(VisaStage).includes(value as VisaStage);
@@ -54,12 +55,142 @@ function mapPipelineCounts(
   }));
 }
 
+function resolveDeliveryStatus(
+  documents: Array<{ isApproved: boolean; rejectionReason: string | null }>,
+): DeliveryStatus {
+  if (documents.length === 0) {
+    return 'BEKLIYOR';
+  }
+  if (documents.some((document) => Boolean(document.rejectionReason))) {
+    return 'EKSIK';
+  }
+  if (documents.some((document) => !document.isApproved)) {
+    return 'BEKLIYOR';
+  }
+  return 'TESLIM_EDILDI';
+}
+
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
+
+  /** Flat admin master table rows (Excel-like frontend grid source). */
+  async getMasterTable() {
+    const applications = await this.prisma.visaApplication.findMany({
+      where: {
+        crmData: {
+          isNot: null,
+        },
+        currentStage: {
+          notIn: [VisaStage.CANCELLED],
+        },
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        applicationType: true,
+        customer: {
+          select: {
+            fullName: true,
+            phone: true,
+            targetCountry: true,
+          },
+        },
+        details: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+        crmData: {
+          select: {
+            totalAmount: true,
+            upfrontPaid: true,
+            paymentType: true,
+            appointmentDate: true,
+            appointmentNote: true,
+          },
+        },
+        documents: {
+          select: {
+            isApproved: true,
+            rejectionReason: true,
+          },
+        },
+        salesStaff: {
+          select: {
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+        assignedSales: {
+          select: {
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+        assignedDoc: {
+          select: {
+            user: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return applications.map((application) => {
+      const trimmedFullName = application.customer.fullName.trim();
+      const fullNameParts = trimmedFullName.length
+        ? trimmedFullName.split(/\s+/)
+        : [];
+
+      const fallbackFirstName = fullNameParts[0] ?? '';
+      const fallbackLastName =
+        fullNameParts.length > 1 ? fullNameParts.slice(1).join(' ') : '';
+
+      const firstName = application.details?.firstName ?? fallbackFirstName;
+      const lastName = application.details?.lastName ?? fallbackLastName;
+
+      return {
+        applicationId: application.id,
+        createdAt: application.createdAt.toISOString(),
+        applicationType: application.applicationType,
+        firstName,
+        lastName,
+        phone: application.details?.phone ?? application.customer.phone ?? '',
+        country: application.customer.targetCountry ?? '',
+        totalAmount: application.crmData?.totalAmount ?? 0,
+        upfrontPaid: application.crmData?.upfrontPaid ?? null,
+        paymentType: application.crmData?.paymentType ?? null,
+        appointmentDate: application.crmData?.appointmentDate
+          ? application.crmData.appointmentDate.toISOString()
+          : null,
+        appointmentNote: application.crmData?.appointmentNote ?? null,
+        deliveryStatus: resolveDeliveryStatus(application.documents),
+        salesStaff:
+          application.salesStaff?.user.fullName ??
+          application.assignedSales?.user.fullName ??
+          null,
+        docStaff: application.assignedDoc?.user.fullName ?? null,
+      };
+    });
+  }
 
   /**
    * Business analytics for the owner dashboard:

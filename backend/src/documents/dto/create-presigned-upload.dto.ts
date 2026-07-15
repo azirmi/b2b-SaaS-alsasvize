@@ -1,11 +1,12 @@
 import {
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
-import { FileType } from '../../generated/prisma/enums';
+import { DocAssistantDocumentType, FileType } from '../../generated/prisma/enums';
 
 /** Payload for `POST /documents/presigned-url`. */
 export class CreatePresignedUploadDto {
@@ -19,4 +20,8 @@ export class CreatePresignedUploadDto {
 
   @IsEnum(FileType)
   fileType: FileType;
+
+  @IsOptional()
+  @IsEnum(DocAssistantDocumentType)
+  docAssistantType?: DocAssistantDocumentType;
 }
