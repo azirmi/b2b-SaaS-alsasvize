@@ -1,8 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '../generated/prisma/client';
-import { Department, FileType, VisaStage } from '../generated/prisma/enums';
+import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
+import { Department, FileType, Role, VisaStage } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 
 const SALES_PIPELINE_STAGES: VisaStage[] = [
   VisaStage.SALES_POOL,
@@ -25,6 +33,9 @@ const ACTIVE_PRODUCTIVITY_DEPARTMENTS: Department[] = [
 ];
 
 const DEFAULT_DOC_CLAIM_SLA_HOURS = 2;
+const BCRYPT_SALT_ROUNDS = 12;
+
+type StaffRole = 'SALES' | 'DOC' | 'SEC';
 
 type FinancePeriodKey = 'daily' | 'weekly' | 'monthly' | 'yearly';
 type DeliveryStatus = 'TESLIM_EDILDI' | 'BEKLIYOR' | 'EKSIK';
@@ -70,12 +81,212 @@ function resolveDeliveryStatus(
   return 'TESLIM_EDILDI';
 }
 
+function isStaffRole(role: Role): role is StaffRole {
+  return role === Role.SALES || role === Role.DOC || role === Role.SEC;
+}
+
+function toDepartment(role: StaffRole): Department {
+  switch (role) {
+    case Role.SALES:
+      return Department.SALES;
+    case Role.DOC:
+      return Department.DOC;
+    case Role.SEC:
+      return Department.SEC;
+    default: {
+      const _never: never = role;
+      throw new Error(`Beklenmeyen personel rolü: ${_never}`);
+    }
+  }
+}
+
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
+
+  /** User management list source for the admin "Kullanıcılar" panel. */
+  getUsers() {
+    return this.prisma.user.findMany({
+      omit: { password: true },
+      include: {
+        staffProfile: {
+          select: {
+            id: true,
+            department: true,
+            isAvailable: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Creates a staff/customer account from the admin panel in one transaction. */
+  async createUser(dto: CreateAdminUserDto, _actor: AuthenticatedUser) {
+    const email = dto.email.trim().toLowerCase();
+    const fullName = dto.fullName.trim();
+    const hashedPassword = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            fullName,
+            role: dto.role,
+            isActive: true,
+          },
+          omit: { password: true },
+        });
+
+        const staffProfile = isStaffRole(dto.role)
+          ? await tx.staff.create({
+              data: {
+                userId: user.id,
+                department: toDepartment(dto.role),
+                isAvailable: true,
+              },
+              select: {
+                id: true,
+                department: true,
+                isAvailable: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            })
+          : null;
+
+        return {
+          ...user,
+          staffProfile,
+        };
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Bu e-posta ile kayıtlı bir kullanıcı zaten var');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Hard-deletes a user with relation cleanup to avoid FK failures.
+   * CUSTOMER deletion also clears owned applications and dependent rows.
+   */
+  async deleteUser(id: string, actor: AuthenticatedUser) {
+    if (id === actor.userId) {
+      throw new BadRequestException('Kendi hesabınızı silemezsiniz');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          staffProfile: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException(`Kullanıcı bulunamadı: ${id}`);
+      }
+
+      let deletedApplications = 0;
+
+      if (user.role === Role.CUSTOMER) {
+        const customerApplications = await tx.visaApplication.findMany({
+          where: { customerId: user.id },
+          select: { id: true },
+        });
+
+        const applicationIds = customerApplications.map((application) => application.id);
+        deletedApplications = applicationIds.length;
+
+        if (applicationIds.length > 0) {
+          await tx.document.deleteMany({
+            where: { applicationId: { in: applicationIds } },
+          });
+
+          await tx.auditLog.deleteMany({
+            where: { applicationId: { in: applicationIds } },
+          });
+
+          await tx.visaApplication.deleteMany({
+            where: { id: { in: applicationIds } },
+          });
+        }
+      }
+
+      if (user.staffProfile) {
+        await Promise.all([
+          tx.visaApplication.updateMany({
+            where: { assignedSalesId: user.staffProfile.id },
+            data: { assignedSalesId: null },
+          }),
+          tx.visaApplication.updateMany({
+            where: { assignedDocId: user.staffProfile.id },
+            data: { assignedDocId: null },
+          }),
+          tx.visaApplication.updateMany({
+            where: { assignedSecId: user.staffProfile.id },
+            data: { assignedSecId: null },
+          }),
+          tx.visaApplication.updateMany({
+            where: { salesStaffId: user.staffProfile.id },
+            data: { salesStaffId: null },
+          }),
+        ]);
+
+        await tx.staff.delete({ where: { id: user.staffProfile.id } });
+      }
+
+      await tx.applicationDocAssistantItem.updateMany({
+        where: { updatedById: user.id },
+        data: { updatedById: null },
+      });
+
+      await tx.message.deleteMany({
+        where: {
+          OR: [{ senderId: user.id }, { receiverId: user.id }],
+        },
+      });
+
+      await tx.document.deleteMany({
+        where: { uploadedById: user.id },
+      });
+
+      await tx.auditLog.deleteMany({
+        where: { performedById: user.id },
+      });
+
+      await tx.user.delete({ where: { id: user.id } });
+
+      return {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        deletedApplications,
+        deleted: true,
+      };
+    });
+  }
 
   /** Flat admin master table rows (Excel-like frontend grid source). */
   async getMasterTable() {

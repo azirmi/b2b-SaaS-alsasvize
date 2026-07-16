@@ -452,6 +452,35 @@ export interface AdminFinanceData {
   allTransactions: FinanceTransactionRow[];
 }
 
+/** Roles creatable from the admin "Kullanıcılar" panel. */
+export type AdminCreatableRole = Exclude<Role, "ADMIN">;
+
+/** User row returned by `GET /admin/users`. */
+export interface AdminUserRecord {
+  id: string;
+  email: string;
+  fullName: string;
+  role: Role;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  staffProfile: {
+    id: string;
+    department: Department;
+    isAvailable: boolean;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+}
+
+/** Payload for `POST /admin/users`. */
+export interface AdminCreateUserPayload {
+  email: string;
+  password: string;
+  fullName: string;
+  role: AdminCreatableRole;
+}
+
 /** Outcome of requesting a presigned document upload; the client then PUTs the file. */
 export type DocumentUploadResult =
   | { ok: true; uploadUrl: string; documentId: string }

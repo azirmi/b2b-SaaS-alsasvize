@@ -5,6 +5,7 @@ import { AdminCompliancePanel } from "@/components/admin/admin-compliance-panel"
 import { AdminFinancePanel } from "@/components/admin/admin-finance-panel";
 import { AdminMasterTable } from "@/components/admin/admin-master-table";
 import { AdminOverviewPanel } from "@/components/admin/admin-overview-panel";
+import { AdminUsersPanel } from "@/components/admin/admin-users-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getSession, serverApi } from "@/lib/api.server";
 import { Role } from "@/lib/enums";
@@ -14,6 +15,7 @@ import type {
   AdminFinanceData,
   AdminMasterTableRow,
   AdminStats,
+  AdminUserRecord,
 } from "@/lib/types";
 
 export default async function AdminDashboardPage() {
@@ -30,15 +32,17 @@ export default async function AdminDashboardPage() {
   let compliance: AdminComplianceData | null = null;
   let finance: AdminFinanceData | null = null;
   let masterTableRows: AdminMasterTableRow[] = [];
+  let users: AdminUserRecord[] = [];
   let loadError = false;
 
   try {
-    [stats, initialApplications, compliance, finance, masterTableRows] = await Promise.all([
+    [stats, initialApplications, compliance, finance, masterTableRows, users] = await Promise.all([
       serverApi.get<AdminStats>("/admin/stats"),
       serverApi.get<AdminApplicationRow[]>("/applications/all?sortBy=date&sortDirection=desc"),
       serverApi.get<AdminComplianceData>("/admin/compliance"),
       serverApi.get<AdminFinanceData>("/admin/finance"),
       serverApi.get<AdminMasterTableRow[]>("/admin/master-table"),
+      serverApi.get<AdminUserRecord[]>("/admin/users"),
     ]);
   } catch {
     loadError = true;
@@ -84,6 +88,9 @@ export default async function AdminDashboardPage() {
           <TabsTrigger value="master" className="flex-none">
             Master Tablo
           </TabsTrigger>
+          <TabsTrigger value="users" className="flex-none">
+            Kullanıcılar
+          </TabsTrigger>
           <TabsTrigger value="calendar" className="flex-none">
             Takvim
           </TabsTrigger>
@@ -106,6 +113,10 @@ export default async function AdminDashboardPage() {
 
         <TabsContent value="master">
           <AdminMasterTable rows={masterTableRows} />
+        </TabsContent>
+
+        <TabsContent value="users">
+          <AdminUsersPanel initialUsers={users} currentUserId={session.userId} />
         </TabsContent>
 
         <TabsContent value="calendar">
