@@ -382,8 +382,8 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
         </Select>
       </div>
 
-      <div className="mx-auto w-full">
-        <Table className="w-full table-fixed border border-border/40 text-xs sm:text-sm [&_td]:whitespace-normal [&_td]:break-words [&_td]:px-2 [&_td]:py-1 [&_td]:align-top [&_th]:h-auto [&_th]:whitespace-normal [&_th]:px-2 [&_th]:py-1">
+      <div className="mx-auto w-full max-w-full">
+        <Table className="w-max min-w-[1240px] table-auto border border-border/40 text-xs sm:text-sm [&_td]:whitespace-nowrap [&_td]:px-2 [&_td]:py-1 [&_td]:align-top [&_th]:h-auto [&_th]:whitespace-nowrap [&_th]:px-2 [&_th]:py-1">
           <TableHeader>
             <TableRow className="border-border/40 bg-muted/40 hover:bg-muted/40">
               <TableHead>
@@ -539,7 +539,9 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
                       </div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      <span className="whitespace-normal break-words">{row.appointmentNote || "-"}</span>
+                      <span className="inline-block max-w-[20rem] truncate align-bottom">
+                        {row.appointmentNote || "-"}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-0.5 text-xs">

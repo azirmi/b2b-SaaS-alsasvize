@@ -457,17 +457,44 @@ export async function CustomerApplicationDetail({
   const deliveredFiles = Array.isArray(detail.deliveredToCustomerFiles)
     ? detail.deliveredToCustomerFiles.filter(isDeliveredCustomerFile)
     : [];
+  const metadata = detail.metadata;
+  const metadataFullName =
+    metadata && typeof metadata.fullName === "string"
+      ? metadata.fullName
+      : null;
+  const metadataEmail =
+    metadata && typeof metadata.email === "string" ? metadata.email : null;
+  const metadataPhone =
+    metadata && typeof metadata.phone === "string" ? metadata.phone : null;
 
   const stage = detail.currentStage;
-  const canUpload =
+  const canEditForm =
     stage !== VisaStage.COMPLETED && stage !== VisaStage.CANCELLED;
   const isPrepaid = detail.crmData?.paymentType === "PREPAID";
-  const hasAppointmentDate = Boolean(detail.crmData?.appointmentDate);
-  const hasAppointmentConfirmation = detail.documents.some(
-    (document) => document.fileType === FileType.APPOINTMENT_CONFIRMATION,
+  const hasSalesPaymentRecord = Boolean(
+    detail.crmData &&
+      detail.crmData.salesDate &&
+      Number.isFinite(detail.crmData.totalAmount) &&
+      detail.crmData.totalAmount > 0,
   );
-  const customerPrepaidLocked =
-    isPrepaid && (!hasAppointmentDate || !hasAppointmentConfirmation);
+  const hasAppointmentDate = Boolean(detail.crmData?.appointmentDate);
+  const hasFullPayment = Boolean(
+    hasSalesPaymentRecord &&
+      (detail.crmData?.paymentType === "NORMAL" ||
+        (isPrepaid &&
+          typeof detail.crmData?.upfrontPaid === "number" &&
+          detail.crmData.upfrontPaid >= detail.crmData.totalAmount)),
+  );
+  const hasPartialPaymentWithAppointment = Boolean(
+    hasSalesPaymentRecord &&
+      isPrepaid &&
+      typeof detail.crmData?.upfrontPaid === "number" &&
+      detail.crmData.upfrontPaid > 0 &&
+      detail.crmData.upfrontPaid < detail.crmData.totalAmount &&
+      hasAppointmentDate,
+  );
+  const canUpload =
+    canEditForm && (hasFullPayment || hasPartialPaymentWithAppointment);
   const showingForm = view === "form";
   const customerDocumentOptions = buildCustomerDocumentOptions(detail);
 
@@ -504,7 +531,7 @@ export async function CustomerApplicationDetail({
       {showingForm ? (
         <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
           <h2 className="text-sm font-medium">Başvuru Formu</h2>
-          {canUpload ? (
+          {canEditForm ? (
             <>
               <p className="mt-1 text-xs text-muted-foreground">
                 Schengen başvuru formunu aşağıdaki alandan doldurup kaydedin.
@@ -514,6 +541,12 @@ export async function CustomerApplicationDetail({
                 applicationId={detail.id}
                 details={detail.details}
                 targetCountry={detail.customer.targetCountry}
+                customerPrefill={{
+                  fullName: detail.customer.fullName || metadataFullName,
+                  email: detail.customer.email || metadataEmail,
+                  phone: detail.customer.phone || metadataPhone,
+                  nationalId: detail.details?.nationalId ?? null,
+                }}
               />
             </>
           ) : detail.details ? (
@@ -587,24 +620,28 @@ export async function CustomerApplicationDetail({
             </section>
           ) : null}
 
-          {canUpload ? (
-            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-medium">Belgelerinizi Kontrol İçin Yükleyin</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {customerPrepaidLocked
-                  ? "Ön ödemeli başvuruda randevu kesinleşene kadar yalnızca pasaport yükleyebilirsiniz."
-                  : "Yüklemek İstediğiniz Belge Türünü Seçin ve belgelerinizi kontrol için iletin. Dosyalar güvenli şekilde doğrudan depolama alanına gönderilir."}
-              </p>
-              <Separator className="my-4" />
-              <DocumentUploader
-                applicationId={detail.id}
-                defaultType={FileType.PASSPORT}
-                allowedTypes={
-                  customerPrepaidLocked ? [FileType.PASSPORT] : undefined
-                }
-                documentOptions={customerDocumentOptions}
-              />
-            </section>
+          {canEditForm ? (
+            canUpload ? (
+              <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+                <h2 className="text-sm font-medium">Belgelerinizi Kontrol İçin Yükleyin</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Yüklemek İstediğiniz Belge Türünü Seçin ve belgelerinizi kontrol için iletin. Dosyalar güvenli şekilde doğrudan depolama alanına gönderilir.
+                </p>
+                <Separator className="my-4" />
+                <DocumentUploader
+                  applicationId={detail.id}
+                  defaultType={FileType.PASSPORT}
+                  documentOptions={customerDocumentOptions}
+                />
+              </section>
+            ) : (
+              <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+                <h2 className="text-sm font-medium">Belgelerinizi Kontrol İçin Yükleyin</h2>
+                <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
+                  Evrak yükleme adımı ödeme ve randevu işlemleri tamamlandıktan sonra açılacaktır.
+                </p>
+              </section>
+            )
           ) : null}
 
           <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
@@ -617,7 +654,11 @@ export async function CustomerApplicationDetail({
 
         {detail.documents.length === 0 ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            Henüz belge yok. Başlamak için yukarıdan pasaportunuzu yükleyin.
+            {canUpload
+              ? "Henüz belge yok. Başlamak için yukarıdan pasaportunuzu yükleyin."
+              : canEditForm
+                ? "Evrak yükleme adımı ödeme ve randevu işlemleri tamamlandıktan sonra açılacaktır."
+                : "Bu başvuru için henüz belge bulunmuyor."}
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-border/40">

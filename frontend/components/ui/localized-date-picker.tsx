@@ -10,6 +10,8 @@ registerLocale("tr", tr);
 const BASE_INPUT_CLASS =
   "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-sm dark:bg-input/30";
 
+const YEAR_DROPDOWN_ITEM_COUNT = 111;
+
 function parseIsoDate(value: string): Date | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -98,6 +100,9 @@ export function LocalizedDatePickerInput({
         selected={selected}
         onChange={(nextDate: Date | null) => onChange(formatIsoDate(nextDate))}
         locale="tr"
+        showYearDropdown
+        scrollableYearDropdown
+        yearDropdownItemNumber={YEAR_DROPDOWN_ITEM_COUNT}
         dateFormat="dd/MM/yyyy"
         placeholderText={placeholder}
         minDate={minDate ?? undefined}
@@ -141,6 +146,9 @@ export function LocalizedDateTimePickerInput({
         selected={selected}
         onChange={(nextDate: Date | null) => onChange(formatIsoDateTime(nextDate))}
         locale="tr"
+        showYearDropdown
+        scrollableYearDropdown
+        yearDropdownItemNumber={YEAR_DROPDOWN_ITEM_COUNT}
         showTimeSelect
         timeFormat="HH:mm"
         timeIntervals={5}

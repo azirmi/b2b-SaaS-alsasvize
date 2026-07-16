@@ -60,11 +60,16 @@ const ACTION_LABEL: Record<string, string> = {
   RESUMED: "Devam ettirildi",
   SLA_BREACH: "SLA ihlali",
   CRM_UPDATED: "CRM güncellendi",
+  DETAILS_SUBMITTED: "Başvuru formu gönderildi",
   DETAILS_UPDATED: "Başvuru formu güncellendi",
   DOCUMENT_APPROVED: "Belge onaylandı",
   DOCUMENT_REJECTED: "Belge reddedildi",
+  DOCUMENT_DELETED: "Belge silindi",
   DOC_ASSISTANT_ITEM_INITIALIZED: "Dosya asistanı kaydı oluşturuldu",
   DOC_ASSISTANT_STATUS_UPDATED: "Dosya asistanı durumu güncellendi",
+  APPOINTMENT_OPS_UPDATED: "Randevu işlemleri güncellendi",
+  FORCE_STAGE_CHANGED: "Aşama zorla değiştirildi",
+  DELIVERED_TO_CUSTOMER: "Danışana teslim edildi",
   DIJIZIN_KVKK_SMS_SENT: "Dijizin KVKK SMS gönderildi",
   DIJIZIN_FORM_SENT: "Dijizin formu gönderildi",
   DIJIZIN_KVKK_VERIFIED: "Dijizin KVKK doğrulandı",
@@ -595,16 +600,25 @@ export default async function ApplicationDetailPage({
           ) : null}
 
           <Tabs defaultValue="form" className="gap-6">
-            <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="form">
+            <TabsList className="h-auto w-full flex-col items-stretch gap-2 rounded-xl border border-border/70 bg-muted/60 p-2 sm:h-9 sm:w-auto sm:flex-row sm:items-center sm:gap-1 sm:rounded-lg sm:p-1">
+              <TabsTrigger
+                value="form"
+                className="h-auto w-full justify-start gap-2 px-4 py-3 text-left text-sm font-semibold leading-snug whitespace-normal text-foreground/80 data-active:bg-background data-active:text-foreground data-active:shadow-sm data-active:ring-1 data-active:ring-border/70 sm:h-7 sm:w-auto sm:justify-center sm:px-3 sm:py-1 sm:text-sm"
+              >
                 <ClipboardList aria-hidden />
                 Başvuru Formu
               </TabsTrigger>
-              <TabsTrigger value="documents">
+              <TabsTrigger
+                value="documents"
+                className="h-auto w-full justify-start gap-2 px-4 py-3 text-left text-sm font-semibold leading-snug whitespace-normal text-foreground/80 data-active:bg-background data-active:text-foreground data-active:shadow-sm data-active:ring-1 data-active:ring-border/70 sm:h-7 sm:w-auto sm:justify-center sm:px-3 sm:py-1 sm:text-sm"
+              >
                 <FileText aria-hidden />
                 Evrak Yükleme
               </TabsTrigger>
-              <TabsTrigger value="activity">
+              <TabsTrigger
+                value="activity"
+                className="h-auto w-full justify-start gap-2 px-4 py-3 text-left text-sm font-semibold leading-snug whitespace-normal text-foreground/80 data-active:bg-background data-active:text-foreground data-active:shadow-sm data-active:ring-1 data-active:ring-border/70 sm:h-7 sm:w-auto sm:justify-center sm:px-3 sm:py-1 sm:text-sm"
+              >
                 <History aria-hidden />
                 Aktivite
               </TabsTrigger>

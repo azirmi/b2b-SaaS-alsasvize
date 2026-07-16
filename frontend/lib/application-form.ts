@@ -128,6 +128,7 @@ export const APPLICATION_FORM_SECTIONS: readonly FormSection[] = [
         kind: "textarea",
         full: true,
         maxLength: 500,
+        placeholder: "Örn: ... Mah. ... Sok. ... Bina No:... İlçe/İl",
       },
     ],
   },

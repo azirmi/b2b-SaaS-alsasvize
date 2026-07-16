@@ -83,7 +83,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
             Satıştan evrak kuyruğuna geçen bir dosya bulunamadı.
           </div>
         ) : (
-          <Table>
+          <Table className="min-w-[920px]">
             <TableHeader>
               <TableRow className="border-border/40 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">

@@ -169,13 +169,13 @@ export default async function CalendarPage({
             Takvim verileri şu anda yüklenemiyor.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="w-full max-w-full overflow-x-auto">
             <div className="min-w-[980px]">
               <div className="grid grid-cols-7 overflow-hidden rounded-lg border border-border/40">
                 {WEEKDAY_LABELS.map((label) => (
                   <div
                     key={label}
-                    className="border-b border-border/40 bg-muted/50 px-3 py-2 text-xs font-medium tracking-wide text-muted-foreground"
+                    className="border-b border-border/40 bg-muted/50 px-3 py-2 text-xs font-medium tracking-wide whitespace-nowrap text-muted-foreground"
                   >
                     {label}
                   </div>

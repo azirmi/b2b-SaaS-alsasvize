@@ -111,7 +111,7 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
                 Kalan ödeme bekleyen başvuru bulunmuyor.
               </div>
             ) : (
-              <Table>
+              <Table className="min-w-[920px]">
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="text-xs font-medium text-muted-foreground">
@@ -176,7 +176,7 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
                 İşlem kaydı bulunmuyor.
               </div>
             ) : (
-              <Table>
+              <Table className="min-w-[920px]">
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="text-xs font-medium text-muted-foreground">

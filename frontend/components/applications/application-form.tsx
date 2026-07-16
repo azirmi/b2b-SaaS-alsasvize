@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Controller, type FieldErrors, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,6 +26,7 @@ import {
   toApplicationFormDefaults,
   type ApplicationFormValues,
 } from "@/lib/validators/application-form";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -40,6 +42,13 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import type { ApplicationDetailsData, CrmActionState } from "@/lib/types";
+
+interface ApplicationFormPrefill {
+  fullName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  nationalId?: string | null;
+}
 
 const EMPLOYER_FIELD_NAMES = new Set([
   "employerName",
@@ -73,6 +82,59 @@ const ALPHA_FIELD_NAMES = new Set<ApplicationFieldName>([
   "appointmentLocation",
   "sponsorRelation",
 ]);
+
+const UPPERCASE_FIELD_KINDS = new Set(["text", "tel"]);
+
+const UPPERCASE_FIELD_NAMES = new Set<ApplicationFieldName>(
+  APPLICATION_FORM_SECTIONS.flatMap((section) =>
+    section.fields
+      .filter((field) => UPPERCASE_FIELD_KINDS.has(field.kind))
+      .map((field) => field.name),
+  ),
+);
+
+function toUppercaseInput(value: string): string {
+  return value.toLocaleUpperCase("tr-TR");
+}
+
+function splitFullName(
+  fullName: string | null | undefined,
+): { firstName: string; lastName: string } {
+  const trimmed = (fullName ?? "").trim();
+  if (!trimmed) {
+    return { firstName: "", lastName: "" };
+  }
+
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: "" };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function withCustomerPrefill(
+  defaults: ApplicationFormValues,
+  prefill?: ApplicationFormPrefill,
+): ApplicationFormValues {
+  if (!prefill) {
+    return defaults;
+  }
+
+  const { firstName, lastName } = splitFullName(prefill.fullName);
+
+  return {
+    ...defaults,
+    firstName: defaults.firstName || firstName,
+    lastName: defaults.lastName || lastName,
+    email: defaults.email || (prefill.email ?? ""),
+    phone: defaults.phone || (prefill.phone ?? ""),
+    nationalId: defaults.nationalId || (prefill.nationalId ?? ""),
+  };
+}
 
 function maskFieldInput(field: FormField, value: string): string {
   const maxLength = field.maxLength;
@@ -150,6 +212,7 @@ function Field({
         name={field.name as keyof ApplicationFormValues}
         render={({ field: formField }) => {
           const value = typeof formField.value === "string" ? formField.value : "";
+          const shouldUppercase = UPPERCASE_FIELD_NAMES.has(field.name);
 
           if (field.kind === "select") {
             return (
@@ -247,7 +310,9 @@ function Field({
                   field.kind === "text" || field.kind === "tel"
                     ? maskFieldInput(field, event.target.value)
                     : event.target.value;
-                formField.onChange(nextValue);
+                formField.onChange(
+                  shouldUppercase ? toUppercaseInput(nextValue) : nextValue,
+                );
               }}
               onBlur={formField.onBlur}
               ref={formField.ref}
@@ -256,7 +321,10 @@ function Field({
               placeholder={field.placeholder}
               autoComplete="off"
               aria-invalid={Boolean(error)}
-              className={error ? "border-red-500 focus-visible:ring-red-500/30" : undefined}
+              className={cn(
+                shouldUppercase && "uppercase",
+                error && "border-red-500 focus-visible:ring-red-500/30",
+              )}
             />
           );
         }}
@@ -279,10 +347,12 @@ export function ApplicationForm({
   applicationId,
   details,
   targetCountry,
+  customerPrefill,
 }: {
   applicationId: string;
   details: ApplicationDetailsData | null;
   targetCountry?: string | null;
+  customerPrefill?: ApplicationFormPrefill;
 }) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<CrmActionState>({});
@@ -290,16 +360,20 @@ export function ApplicationForm({
     () => createApplicationFormSchema(targetCountry),
     [targetCountry],
   );
+  const formDefaults = useMemo(
+    () => withCustomerPrefill(toApplicationFormDefaults(details), customerPrefill),
+    [details, customerPrefill],
+  );
 
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: toApplicationFormDefaults(details),
+    defaultValues: formDefaults,
     mode: "onBlur",
   });
 
   useEffect(() => {
-    form.reset(toApplicationFormDefaults(details));
-  }, [details, form]);
+    form.reset(formDefaults);
+  }, [formDefaults, form]);
 
   const isEmployer = form.watch("isEmployer");
   const hasSponsor = form.watch("hasSponsor");
@@ -326,7 +400,14 @@ export function ApplicationForm({
     startTransition(async () => {
       const formData = new FormData();
       for (const [key, value] of Object.entries(values)) {
-        formData.set(key, String(value ?? "").trim());
+        const normalizedValue = String(value ?? "").trim();
+        const shouldUppercase = UPPERCASE_FIELD_NAMES.has(
+          key as ApplicationFieldName,
+        );
+        formData.set(
+          key,
+          shouldUppercase ? toUppercaseInput(normalizedValue) : normalizedValue,
+        );
       }
       const result = await saveApplicationDetails(applicationId, {}, formData);
       setState(result);
@@ -417,9 +498,14 @@ export function ApplicationForm({
           {pending ? "Kaydediliyor…" : "Formu Kaydet"}
         </Button>
         {state.ok ? (
-          <span className="text-sm text-emerald-700 dark:text-emerald-400">
-            Form kaydedildi.
-          </span>
+          <>
+            <span className="text-sm text-emerald-700 dark:text-emerald-400">
+              Form kaydedildi.
+            </span>
+            <Button asChild>
+              <Link href="/dashboard">Ana Ekrana Dön</Link>
+            </Button>
+          </>
         ) : null}
         {state.error ? (
           <span

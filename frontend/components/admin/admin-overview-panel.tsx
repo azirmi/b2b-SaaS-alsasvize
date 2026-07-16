@@ -355,7 +355,7 @@ export function AdminOverviewPanel({
             Mevcut filtreyle eşleşen başvuru bulunamadı.
           </div>
         ) : (
-          <Table>
+          <Table className="min-w-[760px]">
             <TableHeader>
               <TableRow className="border-border/40 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">
