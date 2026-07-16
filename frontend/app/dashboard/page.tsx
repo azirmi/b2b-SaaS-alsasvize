@@ -219,7 +219,7 @@ export default async function DashboardPage() {
                                 href={`/dashboard/applications/${application.id}`}
                                 className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
                               >
-                                Evrak Yükleme
+                                Evrak yükleme başlat
                               </Link>
                               <div className="mt-1 text-xs text-muted-foreground">
                                 {APPLICATION_TYPE_LABEL[application.applicationType]}
@@ -236,7 +236,7 @@ export default async function DashboardPage() {
                                 href={`/dashboard/applications/${application.id}?view=form`}
                                 className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
                               >
-                                Başvuru Formu
+                                Başvuru formu doldur
                               </Link>
                             </TableCell>
                             <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
