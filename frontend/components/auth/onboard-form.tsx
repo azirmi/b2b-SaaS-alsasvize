@@ -6,7 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { onboard, type AuthFormState } from "@/lib/actions/auth";
 import { APPLICATION_TYPE_OPTIONS } from "@/lib/application-type";
 import { COUNTRY_RULES, SUPPORTED_COUNTRIES } from "@/lib/countries";
-import { maskNameInput } from "@/lib/input-masks";
+import { maskNameInput, normalizeEnglishChars } from "@/lib/input-masks";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,10 @@ function normalizeTurkishPhoneLocal(value: string): string {
   return digits.slice(0, 10);
 }
 
+function toUppercaseAscii(value: string): string {
+  return normalizeEnglishChars(value).toUpperCase();
+}
+
 export function OnboardForm() {
   const [state, formAction, pending] = useActionState(onboard, INITIAL_STATE);
   const [acceptKvkk, setAcceptKvkk] = useState(false);
@@ -82,10 +86,11 @@ export function OnboardForm() {
   );
 
   function updateApplicant(id: string, value: string) {
+    const masked = maskNameInput(value, 120);
     setApplicants((current) =>
       current.map((item) =>
         item.id === id
-          ? { ...item, fullName: maskNameInput(value, 120) }
+          ? { ...item, fullName: toUppercaseAscii(masked) }
           : item,
       ),
     );
@@ -109,10 +114,17 @@ export function OnboardForm() {
           id="fullName"
           name="fullName"
           value={fullName}
-          onChange={(event) => setFullName(maskNameInput(event.target.value, 120))}
+          onChange={(event) => {
+            const masked = maskNameInput(event.target.value, 120);
+            setFullName(toUppercaseAscii(masked));
+          }}
           autoComplete="name"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
           placeholder="Ayşe Yılmaz"
           maxLength={120}
+          className="uppercase"
           required
         />
       </div>
@@ -299,8 +311,12 @@ export function OnboardForm() {
                   onChange={(event) =>
                     updateApplicant(applicant.id, event.target.value)
                   }
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder="Ek Kişi Ad Soyad"
                   maxLength={120}
+                  className="uppercase"
                   required
                 />
               </div>

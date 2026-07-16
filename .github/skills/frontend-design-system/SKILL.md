@@ -20,6 +20,21 @@ Building or restyling anything under `frontend/`: dashboards, work pools, applic
 4. **Monochrome dominance.** The canvas is neutral (`background`, `foreground`, `muted`, `border`). Accent hues appear **only** as semantic status.
 5. **Primitives over hand-rolled HTML.** Reach for shadcn/ui + Radix for every standard control. Icons: `lucide-react`, sized `h-4 w-4` inline / `h-5 w-5` standalone.
 
+## Mobile Interaction Rules (critical)
+
+- Mobile-first always: base classes for mobile, then scale with `md:` / `lg:`.
+- Do not "solve" mobile table overflow with plain `overflow-x-auto` on a data table container. Use a responsive split:
+  - `md+`: normal table with `thead`.
+  - mobile: card rows (`flex flex-col`) with explicit label/value pairs.
+- Avoid viewport breakage patterns on narrow devices:
+  - No negative horizontal margins (`-mx-*`) on content containers.
+  - No hard fixed widths (`w-[600px]`, etc.) for primary layout blocks.
+  - No parent `overflow-hidden` that clips actionable content.
+- If horizontal tabs overflow on mobile, wrap only the tab strip with:
+  - `flex w-full overflow-x-auto whitespace-nowrap scrollbar-hide`
+- Heavy non-shrinking components (calendar/scheduler/timeline) must be wrapped in a local scroll cage (`w-full overflow-x-auto`) with an inner `min-w-*`.
+- Conditional rendering in mobile cards must be clean: never show empty labels, duplicate values, or decorative placeholders.
+
 ## Design Tokens
 
 Use the shadcn CSS-variable tokens — never raw hex or arbitrary `text-[#…]`.
@@ -122,23 +137,56 @@ export function StageBadge({ stage }: { stage: VisaStage }) {
 Dense rows, hairline separators, muted header, `tabular-nums` for aligned figures. Use the shadcn `Table` primitive; do not build `<table>` by hand.
 
 ```tsx
-<Table>
-  <TableHeader>
-    <TableRow className="border-border/40 hover:bg-transparent">
-      <TableHead className="text-xs font-medium text-muted-foreground">Applicant</TableHead>
-      <TableHead className="text-xs font-medium text-muted-foreground">Stage</TableHead>
-      <TableHead className="text-right text-xs font-medium text-muted-foreground">Age</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    <TableRow className="border-border/40">
-      <TableCell className="font-medium">{app.customerName}</TableCell>
-      <TableCell><StageBadge stage={app.currentStage} /></TableCell>
-      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{age}</TableCell>
-    </TableRow>
-  </TableBody>
-</Table>
+<div className="w-full">
+  {/* Desktop/tablet table */}
+  <div className="hidden md:block">
+    <Table>
+      <TableHeader>
+        <TableRow className="border-border/40 hover:bg-transparent">
+          <TableHead className="text-xs font-medium text-muted-foreground">Applicant</TableHead>
+          <TableHead className="text-xs font-medium text-muted-foreground">Stage</TableHead>
+          <TableHead className="text-right text-xs font-medium text-muted-foreground">Age</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow className="border-border/40">
+          <TableCell className="font-medium">{app.customerName}</TableCell>
+          <TableCell><StageBadge stage={app.currentStage} /></TableCell>
+          <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">{age}</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </div>
+
+  {/* Mobile table-to-cards pattern */}
+  <div className="space-y-3 md:hidden">
+    {apps.map((app) => (
+      <article key={app.id} className="rounded-lg border border-border/40 bg-card p-4 shadow-sm">
+        <dl className="space-y-2">
+          {app.customerName ? (
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-xs text-muted-foreground">Applicant</dt>
+              <dd className="text-sm font-medium text-right">{app.customerName}</dd>
+            </div>
+          ) : null}
+          <div className="flex items-start justify-between gap-3">
+            <dt className="text-xs text-muted-foreground">Stage</dt>
+            <dd><StageBadge stage={app.currentStage} /></dd>
+          </div>
+          {typeof app.age === 'number' ? (
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-xs text-muted-foreground">Age</dt>
+              <dd className="font-mono text-xs tabular-nums text-muted-foreground">{app.age}</dd>
+            </div>
+          ) : null}
+        </dl>
+      </article>
+    ))}
+  </div>
+</div>
 ```
+
+Do not use a desktop `<Table>` plus `overflow-x-auto` as the only mobile fallback for operational data grids.
 
 ### Primary Action + Dialog
 
@@ -172,7 +220,12 @@ Keep `cn()` from `@/lib/utils` for class merging. Extend a component by wrapping
 - [ ] Headings `tracking-tight`; secondary text `text-muted-foreground`.
 - [ ] Color appears only via the semantic status map — canvas stays monochrome.
 - [ ] Every standard control is a shadcn/Radix primitive; icons are `lucide-react`.
-- [ ] Layout is responsive (mobile-first → `md:`/`lg:`) and keyboard-focusable.
+- [ ] Layout is responsive (mobile-first -> `md:`/`lg:`) and keyboard-focusable.
+- [ ] Mobile data tables use table-to-cards; no plain `overflow-x-auto` table fallback.
+- [ ] Overflowing tabs use a local horizontal scroll strip (`flex w-full overflow-x-auto whitespace-nowrap scrollbar-hide`).
+- [ ] Calendar-like components are wrapped in `w-full overflow-x-auto` with inner `min-w-*`.
+- [ ] No viewport cut-offs from negative margins, hard widths, or parent clipping.
+- [ ] Mobile cards never show empty labels or duplicate values.
 
 ## Anti-Patterns (AI slop to reject)
 

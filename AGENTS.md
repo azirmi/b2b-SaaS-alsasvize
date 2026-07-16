@@ -5,8 +5,10 @@ Enterprise workflow platform that moves a customer's visa application through de
 ## Monorepo Layout
 
 - [backend/](backend) — NestJS 11 + Prisma 7 + PostgreSQL REST API (mobile-ready). **This is where all current code lives.**
-- [frontend/](frontend) — **empty**; Next.js (App Router) + React + Tailwind PWA is planned, not scaffolded.
+- [frontend/](frontend) — Next.js 16 (App Router) + React + Tailwind PWA (active codebase).
 - [docker-compose.yml](docker-compose.yml) — local-only Postgres + MinIO. Backend/frontend deploy as separate containers (Coolify VPS).
+
+Frontend work must follow [.github/instructions/frontend.instructions.md](.github/instructions/frontend.instructions.md) and the [frontend-design-system skill](.github/skills/frontend-design-system/SKILL.md).
 
 ## Essential Commands (run from `backend/`)
 
@@ -72,4 +74,3 @@ These are required by the product spec but absent from the codebase today:
 - **Real-time (Socket.io):** the authenticated [EventsGateway](backend/src/events/events.gateway.ts) now emits `applicationClaimed` + `stageChanged` post-commit. Still TODO: emit events on **document approval** ([documents.service.ts](backend/src/documents/documents.service.ts)) and on pause/resume/reassign/cancel.
 - **SLA cron:** [SlaMonitorService](backend/src/sla/sla-monitor.service.ts) runs a `@nestjs/schedule` cron every 5 min that auto-reverts stalled `SALES_PROCESS` apps to `SALES_POOL` (env `SLA_SALES_PROCESS_HOURS`, default 2h): atomic mutation + `SLA_BREACH` audit in one `$transaction`, then emits `stageChanged` + `slaBreached` post-commit. Extend the `rules` array for DOC/SEC. The 48h `SLA_THRESHOLD_HOURS` dashboard query still lives in [audit-logs.service.ts](backend/src/audit-logs/audit-logs.service.ts).
 - **OCR:** passports are queued with `ocrStatus: PENDING`, but no processor consumes the queue.
-- **Frontend:** scaffold the Next.js App Router + Tailwind PWA in `frontend/` (React, TypeScript, shadcn/ui, Lucide, socket.io-client), authenticating against the cookie-based API. Follow the frontend conventions in [.github/instructions/frontend.instructions.md](.github/instructions/frontend.instructions.md), build UI with the [frontend-design-system skill](.github/skills/frontend-design-system/SKILL.md), and use the [Frontend Architect agent](.github/agents/frontend-architect.agent.md) for the work.

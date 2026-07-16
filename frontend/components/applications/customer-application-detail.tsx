@@ -495,6 +495,7 @@ export async function CustomerApplicationDetail({
   );
   const canUpload =
     canEditForm && (hasFullPayment || hasPartialPaymentWithAppointment);
+  const formLockedByCrm = canEditForm && !canUpload;
   const showingForm = view === "form";
   const customerDocumentOptions = buildCustomerDocumentOptions(detail);
 
@@ -509,9 +510,9 @@ export async function CustomerApplicationDetail({
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight">
               Başvurunuz
             </h1>
             <StageBadge stage={stage} customerView />
@@ -523,7 +524,7 @@ export async function CustomerApplicationDetail({
             Süreç durumu: {getCustomerStageName(stage)}
           </p>
         </div>
-        <div className="text-right text-xs text-muted-foreground">
+        <div className="w-full text-left text-xs text-muted-foreground sm:w-auto sm:text-right">
           <div>Açılış: {timeAgo(detail.createdAt)}</div>
         </div>
       </div>
@@ -532,6 +533,11 @@ export async function CustomerApplicationDetail({
         <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
           <h2 className="text-sm font-medium">Başvuru Formu</h2>
           {canEditForm ? (
+            formLockedByCrm ? (
+              <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
+                Ödeme ve CRM kaydı tamamlanmadan başvuru formu doldurulamaz.
+              </p>
+            ) : (
             <>
               <p className="mt-1 text-xs text-muted-foreground">
                 Schengen başvuru formunu aşağıdaki alandan doldurup kaydedin.
@@ -549,6 +555,7 @@ export async function CustomerApplicationDetail({
                 }}
               />
             </>
+            )
           ) : detail.details ? (
             <>
               <p className="mt-1 text-xs text-muted-foreground">

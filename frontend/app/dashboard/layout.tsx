@@ -32,8 +32,8 @@ export default async function DashboardLayout({
   const roleBadgeLabel = ROLE_BADGE_LABEL[session.role] ?? session.role;
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur">
+    <div className="flex min-h-full w-full max-w-full flex-1 flex-col overflow-x-hidden">
+      <header className="sticky top-0 z-40 w-full overflow-x-hidden border-b border-border/40 bg-background/80 backdrop-blur">
         <div className="mx-auto flex w-full items-center justify-between gap-4 px-3 py-2 sm:px-6 lg:max-w-[1400px]">
           <div className="flex items-center gap-4">
             <Link
@@ -76,7 +76,7 @@ export default async function DashboardLayout({
         </div>
       </header>
 
-      <main className="mx-auto w-full flex-1 px-3 py-5 sm:px-6 lg:max-w-[1200px] lg:py-6">
+      <main className="mx-auto w-full min-w-0 max-w-full flex-1 overflow-x-hidden px-3 py-5 sm:px-6 lg:max-w-[1200px] lg:py-6">
         {children}
       </main>
     </div>

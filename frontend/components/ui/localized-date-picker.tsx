@@ -100,8 +100,9 @@ export function LocalizedDatePickerInput({
         selected={selected}
         onChange={(nextDate: Date | null) => onChange(formatIsoDate(nextDate))}
         locale="tr"
+        showMonthDropdown
         showYearDropdown
-        scrollableYearDropdown
+        dropdownMode="select"
         yearDropdownItemNumber={YEAR_DROPDOWN_ITEM_COUNT}
         dateFormat="dd/MM/yyyy"
         placeholderText={placeholder}
@@ -109,6 +110,7 @@ export function LocalizedDatePickerInput({
         required={required}
         disabled={disabled}
         calendarStartDay={1}
+        popperPlacement="bottom-start"
         className={cn(BASE_INPUT_CLASS, className)}
       />
       {name ? <input type="hidden" name={name} value={value} /> : null}
@@ -146,8 +148,9 @@ export function LocalizedDateTimePickerInput({
         selected={selected}
         onChange={(nextDate: Date | null) => onChange(formatIsoDateTime(nextDate))}
         locale="tr"
+        showMonthDropdown
         showYearDropdown
-        scrollableYearDropdown
+        dropdownMode="select"
         yearDropdownItemNumber={YEAR_DROPDOWN_ITEM_COUNT}
         showTimeSelect
         timeFormat="HH:mm"
@@ -157,6 +160,7 @@ export function LocalizedDateTimePickerInput({
         required={required}
         disabled={disabled}
         calendarStartDay={1}
+        popperPlacement="bottom-start"
         className={cn(BASE_INPUT_CLASS, className)}
       />
       {name ? <input type="hidden" name={name} value={value} /> : null}

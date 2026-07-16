@@ -14,6 +14,30 @@ The `frontend/` app is a mobile-ready PWA consuming the NestJS API documented in
 - Keep global state minimal. Prefer server data + URL state (`searchParams`) over client stores. Reach for context/Zustand only for genuinely cross-tree client state.
 - Responsive is mandatory: design mobile-first, layer `md:` / `lg:`. The UI is wrapped as a PWA later — no fixed pixel widths, no desktop-only interactions.
 
+## Mobile-First Responsiveness (critical)
+
+- Always design mobile-first: base Tailwind classes target mobile, then upscale with `md:` and `lg:`.
+- **Never** rely on plain `overflow-x-auto` for mobile data tables. Implement a **Table-to-Cards** pattern instead:
+  - Keep a desktop table for `md+`.
+  - On mobile, hide `thead`, render each row as a card (`flex flex-col`), and display each field with a visible label/value pair.
+- Prevent viewport cut-offs on iPhone-sized screens: avoid negative margins (for example `-mx-4`), fixed-width containers (for example `w-[600px]`), and parent `overflow-hidden` wrappers that clip content. Prefer `w-full`, `min-w-0`, and content-aware wrapping.
+
+## Navigation & Tabs
+
+- If tabs, filters, or horizontal nav items overflow on mobile, wrap them in a strictly scrollable strip:
+  - `flex w-full overflow-x-auto whitespace-nowrap scrollbar-hide`
+- Keep the page viewport fixed while allowing only the tab strip to scroll/swipe.
+
+## Heavy Components (calendar/timeline)
+
+- Non-shrinking components (calendar, scheduler, dense timeline) must be caged in a local scroll container: `w-full overflow-x-auto`.
+- Give the inner component an explicit `min-w-*` so scrolling happens inside the component cage instead of breaking the app viewport.
+
+## Conditional Rendering Hygiene
+
+- Mobile cards must render cleanly: no duplicate values, no empty labels, and no placeholder separators when data is missing.
+- Keep the established typography and semantic color mapping exactly as defined in the design-system skill; do not introduce ad-hoc visual variants.
+
 ## API Integration (cookie auth — no bearer tokens)
 
 - Auth is an **HTTP-only cookie** (`ACCESS_TOKEN_COOKIE`); JS cannot read it. Derive auth state from `GET /auth/me`, never by parsing cookies. Never store the JWT in `localStorage`/JS.

@@ -465,14 +465,14 @@ export default async function ApplicationDetailPage({
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           {isSales ? (
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
               Danışan Başvuru Detayı
             </p>
           ) : null}
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight">
               {detail.customer.fullName}
             </h1>
             <StageBadge stage={stage} />
@@ -484,7 +484,7 @@ export default async function ApplicationDetailPage({
             {detail.customer.email}
           </p>
         </div>
-        <div className="text-right text-xs text-muted-foreground">
+        <div className="w-full text-left text-xs text-muted-foreground sm:w-auto sm:text-right">
           <div>Açılış: {timeAgo(detail.createdAt)}</div>
           <div>Aşamadaki Süre: {timeAgo(detail.stageUpdatedAt)}</div>
         </div>

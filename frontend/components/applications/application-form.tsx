@@ -17,6 +17,7 @@ import {
   maskEnglishNoteInput,
   maskEnglishTextInput,
   maskNameInput,
+  normalizeEnglishChars,
   maskPassportNumberInput,
   maskPhoneInput,
   maskTcKimlikInput,
@@ -94,7 +95,7 @@ const UPPERCASE_FIELD_NAMES = new Set<ApplicationFieldName>(
 );
 
 function toUppercaseInput(value: string): string {
-  return value.toLocaleUpperCase("tr-TR");
+  return normalizeEnglishChars(value).toUpperCase();
 }
 
 function splitFullName(
@@ -310,9 +311,10 @@ function Field({
                   field.kind === "text" || field.kind === "tel"
                     ? maskFieldInput(field, event.target.value)
                     : event.target.value;
-                formField.onChange(
-                  shouldUppercase ? toUppercaseInput(nextValue) : nextValue,
-                );
+                const transformedValue = shouldUppercase
+                  ? toUppercaseInput(nextValue)
+                  : nextValue;
+                formField.onChange(transformedValue);
               }}
               onBlur={formField.onBlur}
               ref={formField.ref}
@@ -320,6 +322,9 @@ function Field({
               maxLength={field.maxLength}
               placeholder={field.placeholder}
               autoComplete="off"
+              autoCapitalize={shouldUppercase ? "characters" : "none"}
+              autoCorrect="off"
+              spellCheck={false}
               aria-invalid={Boolean(error)}
               className={cn(
                 shouldUppercase && "uppercase",
