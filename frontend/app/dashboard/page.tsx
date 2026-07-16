@@ -109,7 +109,7 @@ export default async function DashboardPage() {
         </div>
 
         {loadError ? (
-          <div className="rounded-lg border border-border/40 bg-card p-6 text-sm text-muted-foreground shadow-sm">
+          <div className="rounded-lg border border-border/40 bg-card p-4 text-sm text-muted-foreground shadow-sm sm:p-6">
             Başvurularınız şu anda yüklenemiyor. Hizmet tekrar erişilebilir
             olduğunda bu sayfa otomatik yenilenir.
           </div>
@@ -122,19 +122,19 @@ export default async function DashboardPage() {
             </div>
 
             <section className="rounded-lg border border-border/40 bg-card shadow-sm">
-              <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
+              <div className="flex items-center justify-between border-b border-border/40 px-3 py-3.5 sm:px-5">
                 <h2 className="text-sm font-medium">Başvuru Süreçlerim</h2>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {recent.length} / {applications.length}
                 </span>
               </div>
               {recent.length === 0 ? (
-                <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+                <div className="px-3 py-12 text-center text-sm text-muted-foreground sm:px-5">
                   Henüz gösterilecek bir başvuru süreci yok.
                 </div>
               ) : (
                 <>
-                  <div className="space-y-3 px-4 py-4 md:hidden">
+                  <div className="space-y-3 px-3 py-4 md:hidden">
                     {recent.map((application) => (
                       <article
                         key={application.id}
@@ -155,10 +155,15 @@ export default async function DashboardPage() {
                               {APPLICATION_TYPE_LABEL[application.applicationType]}
                             </p>
                           </div>
-                          <StageBadge
-                            stage={application.currentStage}
-                            customerView
-                          />
+                          <div className="shrink-0 space-y-1 text-right">
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                              Süreç Durumu
+                            </p>
+                            <StageBadge
+                              stage={application.currentStage}
+                              customerView
+                            />
+                          </div>
                         </div>
 
                         <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -282,7 +287,7 @@ export default async function DashboardPage() {
       </div>
 
       {loadError ? (
-        <div className="rounded-lg border border-border/40 bg-card p-6 text-sm text-muted-foreground shadow-sm">
+        <div className="rounded-lg border border-border/40 bg-card p-4 text-sm text-muted-foreground shadow-sm sm:p-6">
           Çalışma alanı şu anda yüklenemiyor. Hizmet tekrar erişilebilir
           olduğunda sayfa otomatik yenilenir.
         </div>
@@ -304,7 +309,7 @@ export default async function DashboardPage() {
           </div>
 
           <section className="rounded-lg border border-border/40 bg-card shadow-sm">
-            <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
+            <div className="flex items-center justify-between border-b border-border/40 px-3 py-3.5 sm:px-5">
               <h2 className="text-sm font-medium">Size Atananlar</h2>
               <Link
                 href="/dashboard/workspace"
@@ -316,7 +321,7 @@ export default async function DashboardPage() {
             </div>
 
             {recent.length === 0 ? (
-              <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+              <div className="px-3 py-12 text-center text-sm text-muted-foreground sm:px-5">
                 Henüz bir atama yok. İş almak için{" "}
                 <Link
                   href="/dashboard/pool"
@@ -327,47 +332,95 @@ export default async function DashboardPage() {
                 kullanın.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border/40 hover:bg-transparent">
-                    <TableHead className="text-xs font-medium text-muted-foreground">
-                      Danışan
-                    </TableHead>
-                    <TableHead className="text-xs font-medium text-muted-foreground">
-                      Süreç Durumu
-                    </TableHead>
-                    <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                      Aşamadaki Süre
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                <div className="space-y-3 px-3 py-4 md:hidden">
                   {recent.map((application) => (
-                    <TableRow key={application.id} className="border-border/40">
-                      <TableCell>
+                    <article
+                      key={application.id}
+                      className="rounded-lg border border-border/40 bg-background p-4 shadow-sm"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          Danışan
+                        </p>
                         <Link
                           href={`/dashboard/applications/${application.id}`}
-                          className="font-medium underline-offset-4 hover:underline"
+                          className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
                         >
                           {application.customer.fullName}
                         </Link>
-                        <div className="font-mono text-xs text-muted-foreground">
+                        <p className="font-mono text-xs text-muted-foreground break-all">
                           {application.customer.email}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
+                        </p>
+                        <p className="text-xs text-muted-foreground">
                           {APPLICATION_TYPE_LABEL[application.applicationType]}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Süreç Durumu
+                          </p>
+                          <StageBadge stage={application.currentStage} />
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <StageBadge stage={application.currentStage} />
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                        {timeAgo(application.stageUpdatedAt)}
-                      </TableCell>
-                    </TableRow>
+                        <div className="space-y-1 text-right">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            Aşamadaki Süre
+                          </p>
+                          <p className="font-mono text-xs tabular-nums text-muted-foreground">
+                            {timeAgo(application.stageUpdatedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </article>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-border/40 hover:bg-transparent">
+                        <TableHead className="text-xs font-medium text-muted-foreground">
+                          Danışan
+                        </TableHead>
+                        <TableHead className="text-xs font-medium text-muted-foreground">
+                          Süreç Durumu
+                        </TableHead>
+                        <TableHead className="text-right text-xs font-medium text-muted-foreground">
+                          Aşamadaki Süre
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recent.map((application) => (
+                        <TableRow key={application.id} className="border-border/40">
+                          <TableCell>
+                            <Link
+                              href={`/dashboard/applications/${application.id}`}
+                              className="font-medium underline-offset-4 hover:underline"
+                            >
+                              {application.customer.fullName}
+                            </Link>
+                            <div className="font-mono text-xs text-muted-foreground">
+                              {application.customer.email}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {APPLICATION_TYPE_LABEL[application.applicationType]}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <StageBadge stage={application.currentStage} />
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                            {timeAgo(application.stageUpdatedAt)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </section>
         </>

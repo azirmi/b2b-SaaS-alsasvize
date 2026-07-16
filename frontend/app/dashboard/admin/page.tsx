@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AdminCompliancePanel } from "@/components/admin/admin-compliance-panel";
@@ -70,7 +71,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <Tabs defaultValue="overview" className="gap-6">
-        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border border-border/60 bg-muted/90 p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden md:w-fit md:overflow-visible">
+        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto whitespace-nowrap rounded-lg border border-border/60 bg-muted/90 p-1 pr-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden md:w-fit md:overflow-visible md:pr-1">
           <TabsTrigger value="overview" className="flex-none">
             Genel Bakış
           </TabsTrigger>
@@ -82,6 +83,9 @@ export default async function AdminDashboardPage() {
           </TabsTrigger>
           <TabsTrigger value="master" className="flex-none">
             Master Tablo
+          </TabsTrigger>
+          <TabsTrigger value="calendar" className="flex-none">
+            Takvim
           </TabsTrigger>
         </TabsList>
 
@@ -102,6 +106,21 @@ export default async function AdminDashboardPage() {
 
         <TabsContent value="master">
           <AdminMasterTable rows={masterTableRows} />
+        </TabsContent>
+
+        <TabsContent value="calendar">
+          <section className="rounded-lg border border-border/40 bg-card p-4 text-sm shadow-sm sm:p-5">
+            <h2 className="text-sm font-medium">Takvim</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Günlük operasyon takvimine geçerek randevu ve işlem akışını detaylı takip edin.
+            </p>
+            <Link
+              href="/dashboard/calendar"
+              className="mt-4 inline-flex items-center rounded-md border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              Takvimi Aç
+            </Link>
+          </section>
         </TabsContent>
       </Tabs>
     </div>

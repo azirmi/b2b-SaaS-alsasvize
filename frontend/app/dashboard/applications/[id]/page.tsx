@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ClipboardList, FileText, History } from "lucide-react";
 
@@ -492,7 +492,7 @@ export default async function ApplicationDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
             <h2 className="text-sm font-medium">İş Akışı</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Mevcut süreç durumu: {STAGE_LABEL[stage]}
@@ -507,7 +507,7 @@ export default async function ApplicationDetailPage({
           </section>
 
           {canEditCrm || crm ? (
-            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+            <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-medium">CRM · Satış Veri Girişi</h2>
                 <Badge
@@ -625,7 +625,7 @@ export default async function ApplicationDetailPage({
             </TabsList>
 
           <TabsContent value="form">
-          <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
             <h2 className="text-sm font-medium">Başvuru Formu</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               {isSales
@@ -655,7 +655,7 @@ export default async function ApplicationDetailPage({
           </TabsContent>
 
           <TabsContent value="documents" className="space-y-6">
-          <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-medium">Belgeler</h2>
               <span className="text-xs text-muted-foreground tabular-nums">
@@ -766,7 +766,7 @@ export default async function ApplicationDetailPage({
           </section>
 
           {canUseDocWorkspace ? (
-            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+            <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
               <h2 className="text-sm font-medium">DOC Çalışma Alanı</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 Personel yüklemeleri, kalan ödeme ve randevu işlemlerini sekmeler
@@ -885,7 +885,7 @@ export default async function ApplicationDetailPage({
           ) : null}
 
           {canIssueVisaGrant ? (
-            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+            <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
               <h2 className="text-sm font-medium">Vize Sonuç Belgesi</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 Onaylı vize sonuç belgesini yükleyin. Danışan bu belgeyi kendi
@@ -901,7 +901,7 @@ export default async function ApplicationDetailPage({
           ) : null}
                 </TabsContent>
                 <TabsContent value="activity">
-                  <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+                  <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
                     <div className="flex items-center justify-between gap-3">
                       <h2 className="text-sm font-medium">Aktivite</h2>
                       <span className="text-xs text-muted-foreground tabular-nums">
@@ -947,7 +947,7 @@ export default async function ApplicationDetailPage({
         </div>
 
         <div className="space-y-6">
-          <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
             <h2 className="text-sm font-medium">Danışan Bilgileri</h2>
             <dl className="mt-4 space-y-3">
               <div>
@@ -963,7 +963,7 @@ export default async function ApplicationDetailPage({
             </dl>
           </section>
 
-          <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
             <h2 className="text-sm font-medium">Atamalar</h2>
             <div className="mt-4 space-y-3">
               <AssignmentRow label="Satış" staff={detail.assignedSales} />
@@ -984,3 +984,4 @@ export default async function ApplicationDetailPage({
     </div>
   );
 }
+

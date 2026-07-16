@@ -34,7 +34,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-4 px-4 py-2 sm:px-8">
+        <div className="mx-auto flex w-full items-center justify-between gap-4 px-3 py-2 sm:px-6 lg:max-w-[1400px]">
           <div className="flex items-center gap-4">
             <Link
               href="/dashboard"
@@ -76,7 +76,9 @@ export default async function DashboardLayout({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1200px] flex-1 px-4 py-6 sm:px-8">{children}</main>
+      <main className="mx-auto w-full flex-1 px-3 py-5 sm:px-6 lg:max-w-[1200px] lg:py-6">
+        {children}
+      </main>
     </div>
   );
 }

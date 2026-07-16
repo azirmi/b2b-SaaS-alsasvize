@@ -448,6 +448,9 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
           sortedRows.map((row) => {
             const appointmentTaken = Boolean(row.appointmentDate);
             const paymentLabel = row.paymentType ? paymentTypeLabel(row.paymentType) : "-";
+            const appointmentDetail = appointmentTaken
+              ? formatDateTime(row.appointmentDate)
+              : null;
             const fullName = [row.firstName, row.lastName]
               .map((part) => part?.trim())
               .filter((part): part is string => Boolean(part))
@@ -521,7 +524,7 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
                         {appointmentTaken ? "Alindi" : "Alinmadi"}
                       </Badge>
                       <p className="text-xs text-muted-foreground">
-                        {formatDateTime(row.appointmentDate)}
+                        {appointmentDetail ?? "—"}
                       </p>
                     </div>
                   </MobileField>
@@ -704,7 +707,9 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
                         >
                           {appointmentTaken ? "Alindi" : "Alinmadi"}
                         </Badge>
-                        <p className="text-xs text-muted-foreground">{formatDateTime(row.appointmentDate)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {appointmentTaken ? formatDateTime(row.appointmentDate) : "—"}
+                        </p>
                       </div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">

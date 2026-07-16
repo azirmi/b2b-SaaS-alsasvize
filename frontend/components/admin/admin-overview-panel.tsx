@@ -290,7 +290,7 @@ export function AdminOverviewPanel({
       />
 
       <section className="rounded-lg border border-border/40 bg-card shadow-sm">
-        <div className="border-b border-border/40 px-5 py-3.5">
+        <div className="border-b border-border/40 px-3 py-3.5 sm:px-5">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-sm font-medium">Tüm Başvurular</h2>
             <span className="text-xs text-muted-foreground tabular-nums">
@@ -351,61 +351,118 @@ export function AdminOverviewPanel({
         </div>
 
         {applications.length === 0 ? (
-          <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+          <div className="px-3 py-12 text-center text-sm text-muted-foreground sm:px-5">
             Mevcut filtreyle eşleşen başvuru bulunamadı.
           </div>
         ) : (
-          <Table className="min-w-[760px]">
-            <TableHeader>
-              <TableRow className="border-border/40 hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-muted-foreground">
-                  {renderHeaderButton({ label: "Başvuran", columnKey: "applicant" })}
-                </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground">
-                  {renderHeaderButton({ label: "Süreç Durumu", columnKey: "stage" })}
-                </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground">
-                  {renderHeaderButton({ label: "Sorumlu", columnKey: "assigned" })}
-                </TableHead>
-                <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                  {renderHeaderButton({
-                    label: "Sistemde",
-                    columnKey: "system",
-                    align: "right",
-                  })}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            <div className="space-y-3 px-3 py-4 md:hidden">
               {sortedApplications.map((application) => {
                 const handler = stageHandler(application);
                 return (
-                  <TableRow key={application.id} className="border-border/40">
-                    <TableCell>
+                  <article
+                    key={application.id}
+                    className="rounded-lg border border-border/40 bg-background p-4 shadow-sm"
+                  >
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Başvuran
+                      </p>
                       <Link
                         href={`/dashboard/applications/${application.id}`}
-                        className="font-medium underline-offset-4 hover:underline"
+                        className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
                       >
                         {application.customer.fullName}
                       </Link>
-                      <div className="font-mono text-xs text-muted-foreground">
+                      <p className="font-mono text-xs text-muted-foreground break-all">
                         {application.customer.email}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          Süreç Durumu
+                        </p>
+                        <StageBadge stage={application.currentStage} />
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <StageBadge stage={application.currentStage} />
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {handler ?? <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                      {timeAgo(application.createdAt)}
-                    </TableCell>
-                  </TableRow>
+                      <div className="space-y-1 text-right">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          Sistemde
+                        </p>
+                        <p className="font-mono text-xs tabular-nums text-muted-foreground">
+                          {timeAgo(application.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 border-t border-border/30 pt-3">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Sorumlu
+                      </p>
+                      <p className="mt-1 text-sm">
+                        {handler ?? <span className="text-muted-foreground">—</span>}
+                      </p>
+                    </div>
+                  </article>
                 );
               })}
-            </TableBody>
-          </Table>
+            </div>
+
+            <div className="hidden md:block">
+              <Table className="min-w-[760px]">
+                <TableHeader>
+                  <TableRow className="border-border/40 hover:bg-transparent">
+                    <TableHead className="text-xs font-medium text-muted-foreground">
+                      {renderHeaderButton({ label: "Başvuran", columnKey: "applicant" })}
+                    </TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">
+                      {renderHeaderButton({ label: "Süreç Durumu", columnKey: "stage" })}
+                    </TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">
+                      {renderHeaderButton({ label: "Sorumlu", columnKey: "assigned" })}
+                    </TableHead>
+                    <TableHead className="text-right text-xs font-medium text-muted-foreground">
+                      {renderHeaderButton({
+                        label: "Sistemde",
+                        columnKey: "system",
+                        align: "right",
+                      })}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedApplications.map((application) => {
+                    const handler = stageHandler(application);
+                    return (
+                      <TableRow key={application.id} className="border-border/40">
+                        <TableCell>
+                          <Link
+                            href={`/dashboard/applications/${application.id}`}
+                            className="font-medium underline-offset-4 hover:underline"
+                          >
+                            {application.customer.fullName}
+                          </Link>
+                          <div className="font-mono text-xs text-muted-foreground">
+                            {application.customer.email}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <StageBadge stage={application.currentStage} />
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {handler ?? <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                          {timeAgo(application.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </section>
     </>

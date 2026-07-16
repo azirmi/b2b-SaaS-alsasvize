@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
 
 import { ApplicationDetailsView } from "@/components/applications/application-details-view";
@@ -529,7 +529,7 @@ export async function CustomerApplicationDetail({
       </div>
 
       {showingForm ? (
-        <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+        <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
           <h2 className="text-sm font-medium">Başvuru Formu</h2>
           {canEditForm ? (
             <>
@@ -567,7 +567,7 @@ export async function CustomerApplicationDetail({
       ) : (
         <>
           {detail.isDeliveredToCustomer ? (
-            <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+            <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-medium">Hazırlanan Başvuru Dosyanız</h2>
                 {detail.deliveredToCustomerAt ? (
@@ -622,7 +622,7 @@ export async function CustomerApplicationDetail({
 
           {canEditForm ? (
             canUpload ? (
-              <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+              <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
                 <h2 className="text-sm font-medium">Belgelerinizi Kontrol İçin Yükleyin</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Yüklemek İstediğiniz Belge Türünü Seçin ve belgelerinizi kontrol için iletin. Dosyalar güvenli şekilde doğrudan depolama alanına gönderilir.
@@ -635,7 +635,7 @@ export async function CustomerApplicationDetail({
                 />
               </section>
             ) : (
-              <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+              <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
                 <h2 className="text-sm font-medium">Belgelerinizi Kontrol İçin Yükleyin</h2>
                 <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
                   Evrak yükleme adımı ödeme ve randevu işlemleri tamamlandıktan sonra açılacaktır.
@@ -644,7 +644,7 @@ export async function CustomerApplicationDetail({
             )
           ) : null}
 
-          <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium">Belgeleriniz</h2>
           <span className="text-xs text-muted-foreground tabular-nums">
@@ -751,3 +751,4 @@ export async function CustomerApplicationDetail({
     </div>
   );
 }
+

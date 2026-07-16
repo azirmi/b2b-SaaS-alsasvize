@@ -71,7 +71,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
       </div>
 
       <section className="rounded-lg border border-border/40 bg-card shadow-sm">
-        <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
+        <div className="flex items-center justify-between border-b border-border/40 px-3 py-3.5 sm:px-5">
           <h2 className="text-sm font-medium">Performans & Uyum</h2>
           <span className="text-xs text-muted-foreground tabular-nums">
             {data.rows.length} kayıt
@@ -79,88 +79,181 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
         </div>
 
         {data.rows.length === 0 ? (
-          <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+          <div className="px-3 py-12 text-center text-sm text-muted-foreground sm:px-5">
             Satıştan evrak kuyruğuna geçen bir dosya bulunamadı.
           </div>
         ) : (
-          <Table className="min-w-[920px]">
-            <TableHeader>
-              <TableRow className="border-border/40 hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-muted-foreground">
-                  Başvuru
-                </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground">
-                  Süreç Durumu
-                </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground">
-                  Satış → Evrak Kuyruk
-                </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground">
-                  Evrak Claim
-                </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground">
-                  Bekleme Süresi
-                </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground">
-                  Evrak Personeli
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            <div className="space-y-3 px-3 py-4 md:hidden">
               {data.rows.map((row) => (
-                <TableRow key={row.applicationId} className="border-border/40">
-                  <TableCell>
-                    <Link
-                      href={`/dashboard/applications/${row.applicationId}`}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {row.customerName}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
+                <article
+                  key={row.applicationId}
+                  className="rounded-lg border border-border/40 bg-background p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
-                      <StageBadge stage={row.currentStage} />
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "rounded-md text-[11px]",
-                          row.isSlaBreached
-                            ? "border-red-300/70 text-red-600 dark:border-red-700/60 dark:text-red-400"
-                            : "border-emerald-300/70 text-emerald-700 dark:border-emerald-700/60 dark:text-emerald-400",
-                        )}
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Başvuru
+                      </p>
+                      <Link
+                        href={`/dashboard/applications/${row.applicationId}`}
+                        className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
                       >
-                        {row.isSlaBreached ? "SLA Aşıldı" : "Uygun"}
-                      </Badge>
+                        {row.customerName}
+                      </Link>
                     </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {formatDateTime(row.salesToDocAt)}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {formatDateTime(row.docClaimAt)}
-                  </TableCell>
-                  <TableCell>
-                    <span
+                    <Badge
+                      variant="outline"
                       className={cn(
-                        "font-mono text-xs tabular-nums",
+                        "rounded-md text-[11px]",
                         row.isSlaBreached
-                          ? "text-red-600 dark:text-red-400"
-                          : "text-muted-foreground",
+                          ? "border-red-300/70 text-red-600 dark:border-red-700/60 dark:text-red-400"
+                          : "border-emerald-300/70 text-emerald-700 dark:border-emerald-700/60 dark:text-emerald-400",
                       )}
                     >
-                      {formatDuration(row.waitMs)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {row.docClaimedBy ?? row.docAssignee ?? "—"}
-                    <div className="text-xs text-muted-foreground">
-                      {row.status === "CLAIMED" ? "Claim alındı" : "Claim bekleniyor"}
+                      {row.isSlaBreached ? "SLA Aşıldı" : "Uygun"}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Süreç Durumu
+                      </p>
+                      <StageBadge stage={row.currentStage} />
                     </div>
-                  </TableCell>
-                </TableRow>
+
+                    <div className="space-y-1 text-right">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Bekleme Süresi
+                      </p>
+                      <span
+                        className={cn(
+                          "font-mono text-xs tabular-nums",
+                          row.isSlaBreached
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {formatDuration(row.waitMs)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <dl className="mt-3 space-y-2 border-t border-border/30 pt-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Satış → Evrak Kuyruk
+                      </dt>
+                      <dd className="font-mono text-xs text-muted-foreground">
+                        {formatDateTime(row.salesToDocAt)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Evrak Claim
+                      </dt>
+                      <dd className="font-mono text-xs text-muted-foreground">
+                        {formatDateTime(row.docClaimAt)}
+                      </dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Evrak Personeli
+                      </dt>
+                      <dd className="text-right text-sm">
+                        {row.docClaimedBy ?? row.docAssignee ?? "—"}
+                        <p className="text-xs text-muted-foreground">
+                          {row.status === "CLAIMED" ? "Claim alındı" : "Claim bekleniyor"}
+                        </p>
+                      </dd>
+                    </div>
+                  </dl>
+                </article>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+
+            <div className="hidden md:block">
+              <Table className="min-w-[920px]">
+                <TableHeader>
+                  <TableRow className="border-border/40 hover:bg-transparent">
+                    <TableHead className="text-xs font-medium text-muted-foreground">
+                      Başvuru
+                    </TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">
+                      Süreç Durumu
+                    </TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">
+                      Satış → Evrak Kuyruk
+                    </TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">
+                      Evrak Claim
+                    </TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">
+                      Bekleme Süresi
+                    </TableHead>
+                    <TableHead className="text-xs font-medium text-muted-foreground">
+                      Evrak Personeli
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.rows.map((row) => (
+                    <TableRow key={row.applicationId} className="border-border/40">
+                      <TableCell>
+                        <Link
+                          href={`/dashboard/applications/${row.applicationId}`}
+                          className="font-medium underline-offset-4 hover:underline"
+                        >
+                          {row.customerName}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <StageBadge stage={row.currentStage} />
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "rounded-md text-[11px]",
+                              row.isSlaBreached
+                                ? "border-red-300/70 text-red-600 dark:border-red-700/60 dark:text-red-400"
+                                : "border-emerald-300/70 text-emerald-700 dark:border-emerald-700/60 dark:text-emerald-400",
+                            )}
+                          >
+                            {row.isSlaBreached ? "SLA Aşıldı" : "Uygun"}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {formatDateTime(row.salesToDocAt)}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {formatDateTime(row.docClaimAt)}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "font-mono text-xs tabular-nums",
+                            row.isSlaBreached
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {formatDuration(row.waitMs)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {row.docClaimedBy ?? row.docAssignee ?? "—"}
+                        <div className="text-xs text-muted-foreground">
+                          {row.status === "CLAIMED" ? "Claim alındı" : "Claim bekleniyor"}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </section>
     </div>
