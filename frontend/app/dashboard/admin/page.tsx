@@ -70,11 +70,19 @@ export default async function AdminDashboardPage() {
       </div>
 
       <Tabs defaultValue="overview" className="gap-6">
-        <TabsList>
-          <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
-          <TabsTrigger value="finance">Finans & Muhasebe</TabsTrigger>
-          <TabsTrigger value="compliance">Performans & Uyum</TabsTrigger>
-          <TabsTrigger value="master">Master Tablo</TabsTrigger>
+        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border border-border/60 bg-muted/90 p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden md:w-fit md:overflow-visible">
+          <TabsTrigger value="overview" className="flex-none">
+            Genel Bakış
+          </TabsTrigger>
+          <TabsTrigger value="finance" className="flex-none">
+            Finans & Muhasebe
+          </TabsTrigger>
+          <TabsTrigger value="compliance" className="flex-none">
+            Performans & Uyum
+          </TabsTrigger>
+          <TabsTrigger value="master" className="flex-none">
+            Master Tablo
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">

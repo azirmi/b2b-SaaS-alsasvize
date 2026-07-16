@@ -133,61 +133,117 @@ export default async function DashboardPage() {
                   Henüz gösterilecek bir başvuru süreci yok.
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-border/40 hover:bg-transparent">
-                      <TableHead className="text-xs font-medium text-muted-foreground">
-                        Başvuru
-                      </TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground">
-                        Süreç Durumu
-                      </TableHead>
-                      <TableHead className="text-xs font-medium text-muted-foreground">
-                        Başvuru Formu
-                      </TableHead>
-                      <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                        Son Güncelleme
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <>
+                  <div className="space-y-3 px-4 py-4 md:hidden">
                     {recent.map((application) => (
-                      <TableRow
+                      <article
                         key={application.id}
-                        className="border-border/40"
+                        className="rounded-lg border border-border/40 bg-background p-4 shadow-sm"
                       >
-                        <TableCell>
-                          <Link
-                            href={`/dashboard/applications/${application.id}`}
-                            className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
-                          >
-                            Evrak Yükleme
-                          </Link>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {APPLICATION_TYPE_LABEL[application.applicationType]}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                              Başvuru
+                            </p>
+                            <Link
+                              href={`/dashboard/applications/${application.id}`}
+                              className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
+                            >
+                              Evrak Yükleme
+                            </Link>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {APPLICATION_TYPE_LABEL[application.applicationType]}
+                            </p>
                           </div>
-                        </TableCell>
-                        <TableCell>
                           <StageBadge
                             stage={application.currentStage}
                             customerView
                           />
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            href={`/dashboard/applications/${application.id}?view=form`}
-                            className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
-                          >
-                            Başvuru Formu
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                          {formatSinceStart(application.createdAt)}
-                        </TableCell>
-                      </TableRow>
+                        </div>
+
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                              Başvuru Formu
+                            </p>
+                            <Link
+                              href={`/dashboard/applications/${application.id}?view=form`}
+                              className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
+                            >
+                              Başvuru Formu
+                            </Link>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                              Son Güncelleme
+                            </p>
+                            <p className="font-mono text-xs tabular-nums text-muted-foreground">
+                              {formatSinceStart(application.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      </article>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border/40 hover:bg-transparent">
+                          <TableHead className="text-xs font-medium text-muted-foreground">
+                            Başvuru
+                          </TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground">
+                            Süreç Durumu
+                          </TableHead>
+                          <TableHead className="text-xs font-medium text-muted-foreground">
+                            Başvuru Formu
+                          </TableHead>
+                          <TableHead className="text-right text-xs font-medium text-muted-foreground">
+                            Son Güncelleme
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recent.map((application) => (
+                          <TableRow
+                            key={application.id}
+                            className="border-border/40"
+                          >
+                            <TableCell>
+                              <Link
+                                href={`/dashboard/applications/${application.id}`}
+                                className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
+                              >
+                                Evrak Yükleme
+                              </Link>
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {APPLICATION_TYPE_LABEL[application.applicationType]}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <StageBadge
+                                stage={application.currentStage}
+                                customerView
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Link
+                                href={`/dashboard/applications/${application.id}?view=form`}
+                                className="text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline"
+                              >
+                                Başvuru Formu
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                              {formatSinceStart(application.createdAt)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               )}
             </section>
           </>

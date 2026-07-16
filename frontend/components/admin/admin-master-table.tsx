@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, RotateCcw, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,17 @@ type DeliveryFilter = "ALL" | DeliveryStatus;
 type TypeFilter = "ALL" | AdminMasterTableRow["applicationType"];
 
 type CountryFilter = "ALL" | string;
+
+const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: "registrationDate", label: "Kayit Tarihi" },
+  { value: "applicationType", label: "Basvuru Turu" },
+  { value: "firstName", label: "Isim" },
+  { value: "lastName", label: "Soyisim" },
+  { value: "country", label: "Ulke" },
+  { value: "totalAmount", label: "Satis & Alinan Odeme" },
+  { value: "deliveryStatus", label: "Teslim Durumu" },
+  { value: "appointment", label: "Randevu" },
+];
 
 function normalizeText(value: string | null | undefined): string {
   return (value ?? "").trim();
@@ -116,6 +127,17 @@ function formatDate(iso: string): string {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+function MobileField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-t border-border/30 pt-2 first:border-t-0 first:pt-0">
+      <span className="shrink-0 text-[11px] tracking-wide text-muted-foreground uppercase">
+        {label}
+      </span>
+      <div className="min-w-0 text-right text-sm">{children}</div>
+    </div>
+  );
 }
 
 export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
@@ -382,7 +404,154 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
         </Select>
       </div>
 
-      <div className="mx-auto w-full max-w-full">
+      <div className="grid gap-3 sm:grid-cols-2 md:hidden">
+        <Select
+          value={sortKey}
+          onValueChange={(value) => {
+            const nextSortKey = value as SortKey;
+            setSortKey(nextSortKey);
+            setSortDirection(nextSortKey === "registrationDate" ? "desc" : "asc");
+          }}
+        >
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder="Siralama alani" />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={sortDirection}
+          onValueChange={(value) => setSortDirection(value as SortDirection)}
+        >
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder="Siralama yonu" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="asc">Artan</SelectItem>
+            <SelectItem value="desc">Azalan</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {sortedRows.length === 0 ? (
+          <div className="rounded-lg border border-border/40 bg-card p-6 text-center text-sm text-muted-foreground shadow-sm">
+            Filtre sonucuna uygun kayit bulunamadi.
+          </div>
+        ) : (
+          sortedRows.map((row) => {
+            const appointmentTaken = Boolean(row.appointmentDate);
+            const paymentLabel = row.paymentType ? paymentTypeLabel(row.paymentType) : "-";
+            const fullName = [row.firstName, row.lastName]
+              .map((part) => part?.trim())
+              .filter((part): part is string => Boolean(part))
+              .join(" ");
+
+            return (
+              <article
+                key={row.applicationId}
+                className="rounded-lg border border-border/40 bg-card p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                      Kayit Tarihi
+                    </p>
+                    <p className="text-sm font-medium">{formatDate(row.createdAt)}</p>
+                  </div>
+                  <Badge variant="outline" className="rounded-md text-[11px]">
+                    {APPLICATION_TYPE_LABEL[row.applicationType]}
+                  </Badge>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  <MobileField label="Isim Soyisim">
+                    <span className="font-medium text-foreground">{fullName || "-"}</span>
+                  </MobileField>
+
+                  <MobileField label="Telefon">
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {row.phone || "-"}
+                    </span>
+                  </MobileField>
+
+                  <MobileField label="Ulke">{row.country || "Belirtilmedi"}</MobileField>
+
+                  <MobileField label="Satis & Alinan Odeme">
+                    <div className="space-y-0.5 text-right text-xs">
+                      <p className="font-medium text-foreground">
+                        Satis: {formatTl(row.totalAmount)}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Alinan: {row.paymentType ? formatTl(receivedAmount(row)) : "-"}
+                      </p>
+                      <p className="text-muted-foreground">{paymentLabel}</p>
+                    </div>
+                  </MobileField>
+
+                  <MobileField label="Teslim Durumu">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "rounded-md text-[11px]",
+                        deliveryBadgeClass(row.deliveryStatus),
+                      )}
+                    >
+                      {deliveryLabel(row.deliveryStatus)}
+                    </Badge>
+                  </MobileField>
+
+                  <MobileField label="Randevu">
+                    <div className="space-y-1 text-right">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "rounded-md text-[11px]",
+                          appointmentTaken
+                            ? "border-emerald-300/70 text-emerald-700 dark:border-emerald-700/60 dark:text-emerald-400"
+                            : "border-amber-300/70 text-amber-700 dark:border-amber-700/60 dark:text-amber-400",
+                        )}
+                      >
+                        {appointmentTaken ? "Alindi" : "Alinmadi"}
+                      </Badge>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateTime(row.appointmentDate)}
+                      </p>
+                    </div>
+                  </MobileField>
+
+                  <MobileField label="Randevu Notu">
+                    <span className="text-xs leading-relaxed break-words text-muted-foreground">
+                      {row.appointmentNote || "-"}
+                    </span>
+                  </MobileField>
+
+                  <MobileField label="Danisman">
+                    <div className="space-y-0.5 text-right text-xs">
+                      <p>
+                        <span className="text-muted-foreground">Satis:</span>{" "}
+                        <span className="font-medium text-foreground">{row.salesStaff ?? "-"}</span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Evrak:</span>{" "}
+                        <span className="font-medium text-foreground">{row.docStaff ?? "-"}</span>
+                      </p>
+                    </div>
+                  </MobileField>
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+
+      <div className="mx-auto hidden w-full max-w-full md:block">
         <Table className="w-max min-w-[1240px] table-auto border border-border/40 text-xs sm:text-sm [&_td]:whitespace-nowrap [&_td]:px-2 [&_td]:py-1 [&_td]:align-top [&_th]:h-auto [&_th]:whitespace-nowrap [&_th]:px-2 [&_th]:py-1">
           <TableHeader>
             <TableRow className="border-border/40 bg-muted/40 hover:bg-muted/40">
