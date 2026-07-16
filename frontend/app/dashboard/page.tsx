@@ -140,8 +140,8 @@ export default async function DashboardPage() {
                         key={application.id}
                         className="rounded-lg border border-border/40 bg-background p-4 shadow-sm"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                        <div className="flex flex-col gap-4">
+                          <div className="min-w-0 space-y-1">
                             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                               Başvuru
                             </p>
@@ -155,7 +155,8 @@ export default async function DashboardPage() {
                               {APPLICATION_TYPE_LABEL[application.applicationType]}
                             </p>
                           </div>
-                          <div className="shrink-0 space-y-1 text-right">
+
+                          <div className="space-y-1">
                             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                               Süreç Durumu
                             </p>
@@ -164,9 +165,7 @@ export default async function DashboardPage() {
                               customerView
                             />
                           </div>
-                        </div>
 
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
                           <div className="space-y-1">
                             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                               Başvuru Formu
