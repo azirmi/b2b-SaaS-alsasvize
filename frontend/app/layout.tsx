@@ -14,9 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Alsasvize — Vize Operasyonları",
+  title: "Alsasvize Müşteri İşlem Paneli",
   description:
-    "Kurumsal vize başvuru yönetimi: departman havuzları, RBAC, gerçek zamanlı iş akışı ve değiştirilemez denetim kaydı.",
+    "Danışmanınız tarafından başlatılan vize sürecinizi takip etmek, belgelerinizi güvenli şekilde yüklemek ve gerekli adımları tamamlamak için panelinize giriş yapın.",
+  openGraph: {
+    title: "Alsasvize Müşteri İşlem Paneli",
+    description:
+      "Danışmanınız tarafından başlatılan vize sürecinizi takip etmek, belgelerinizi güvenli şekilde yüklemek ve gerekli adımları tamamlamak için panelinize giriş yapın.",
+    type: "website",
+  },
   icons: {
     icon: "/logo.jpg",
   },
