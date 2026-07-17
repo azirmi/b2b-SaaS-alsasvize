@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
+const UPLOAD_LABEL_PREFIX = "__uplabel_";
 const ACCEPT_SET = new Set([
   "image/jpeg",
   "image/png",
@@ -32,7 +33,7 @@ const DOCUMENT_INSTRUCTIONS: Record<FileType, string> = {
   PASSPORT:
     "Pasaportunuzun fotoğraflı sayfasını tam ve net görünecek şekilde yükleyin. Parlama, kesik kenar veya bulanıklık olmamalıdır.",
   BANK_STATEMENT:
-    "Son 3 aya ait banka hesap dökümünü yükleyin. Ad-soyad, tarih ve bakiye bilgileri okunur olmalıdır.",
+    "Son 3 aya ait kaşeli-imzalı veya barkodlu/QR kodlu banka hesap dökümünü yükleyin. Hesap hareketleri, bakiye ve ad-soyad bilgileri net görünmelidir. DİKKAT: Belgenin güncel olması için randevu gününe en fazla 3 gün kala yüklenmesi zorunludur.",
   INTENT_LETTER:
     "Seyahat amacınızı ve planlanan tarihleri açıklayan niyet mektubunu imzalı ve okunur şekilde yükleyin.",
   CONSULATE_FORM:
@@ -86,6 +87,33 @@ function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function encodeUploadLabel(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const bytes = new TextEncoder().encode(trimmed);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function withUploadLabelPrefix(fileName: string, uploadLabel: string): string {
+  const encodedLabel = encodeUploadLabel(uploadLabel);
+  if (!encodedLabel) {
+    return fileName;
+  }
+
+  return `${UPLOAD_LABEL_PREFIX}${encodedLabel}__${fileName}`;
 }
 
 /**
@@ -197,7 +225,7 @@ export function DocumentUploader({
       const ticket = await requestDocumentUpload(
         applicationId,
         selectedOption.fileType,
-        file.name,
+        withUploadLabelPrefix(file.name, selectedOption.label),
       );
       if (!ticket.ok) {
         setError(ticket.error);

@@ -71,7 +71,42 @@ const DOC_ASSISTANT_TITLE_BY_TYPE: Record<DocAssistantDocumentType, string> = {
     "Diğer / Ek Operasyon Belgesi",
 };
 
+const UPLOAD_LABEL_TOKEN_RE = /^__uplabel_([A-Za-z0-9_-]+)__/;
+
+function decodeBase64UrlUtf8(token: string): string | null {
+  try {
+    const base64 = token.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = `${base64}${"=".repeat((4 - (base64.length % 4)) % 4)}`;
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const decoded = new TextDecoder().decode(bytes).trim();
+    return decoded.length > 0 ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+function getUploadedDocumentLabel(fileUrl: string): string | null {
+  const objectName = fileUrl.split("/").pop();
+  if (!objectName) {
+    return null;
+  }
+
+  const sanitizedFileName = objectName.replace(/^[0-9a-f-]+-/, "");
+  const labelToken = sanitizedFileName.match(UPLOAD_LABEL_TOKEN_RE)?.[1];
+  if (!labelToken) {
+    return null;
+  }
+
+  return decodeBase64UrlUtf8(labelToken);
+}
+
 function getCustomerDocumentLabel(document: DocumentRecord): string {
+  const uploadedLabel = getUploadedDocumentLabel(document.fileUrl);
+  if (uploadedLabel) {
+    return uploadedLabel;
+  }
+
   if (document.docAssistantType) {
     return DOC_ASSISTANT_TITLE_BY_TYPE[document.docAssistantType];
   }
@@ -101,7 +136,7 @@ const BASE_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
     label: "Tam Tekmil Vukuatlı Nüfus Kayıt Örneği",
     fileType: FileType.OTHER,
     description:
-      "E-Devlet veya nüfus müdürlüğünden alınmış güncel tam tekmil vukuatlı nüfus kayıt örneğini PDF olarak yükleyin.",
+      "E-Devlet üzerinden alınmış, güncel ve barkodlu/QR kodlu tam tekmil vukuatlı nüfus kayıt örneğini PDF olarak yükleyin.",
   },
   {
     id: "bank-statement-main",
@@ -109,7 +144,7 @@ const BASE_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
     label: "Banka Hesap Dökümü",
     fileType: FileType.BANK_STATEMENT,
     description:
-      "Son 3 aya ait kaşeli-imzalı banka hesap dökümünü yükleyin. Hesap hareketleri, bakiye ve ad-soyad bilgileri net görünmelidir.",
+      "Son 3 aya ait kaşeli-imzalı veya barkodlu/QR kodlu banka hesap dökümünü yükleyin. Hesap hareketleri, bakiye ve ad-soyad bilgileri net görünmelidir. DİKKAT: Belgenin güncel olması için randevu gününe en fazla 3 gün kala yüklenmesi zorunludur.",
   },
   {
     id: "financial-support",
@@ -178,7 +213,7 @@ const EMPLOYEE_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
     label: "SGK Hizmet Dökümü",
     fileType: FileType.OTHER,
     description:
-      "E-Devlet üzerinden alınmış güncel SGK hizmet dökümünü PDF formatında yükleyin.",
+      "E-Devlet üzerinden alınmış, güncel ve barkodlu/QR kodlu SGK hizmet dökümünü PDF formatında yükleyin.",
   },
 ];
 
