@@ -583,20 +583,25 @@ export class VisaApplicationsService {
     const primaryDetails = this.pickPrimaryApplicantDetails(application.details);
     const applicationForms = Array.from(
       { length: requiredApplicantCount },
-      (_, applicantIndex) => {
-        const details = detailsByApplicantIndex.get(applicantIndex) ?? null;
+      (_, zeroBasedIndex) => {
+        const applicantIndex = zeroBasedIndex + 1;
+        const details =
+          detailsByApplicantIndex.get(applicantIndex) ??
+          (applicantIndex === 1
+            ? detailsByApplicantIndex.get(0) ?? null
+            : null);
         const normalizedApplicantName =
-          application.onboardingApplicants[applicantIndex]?.fullName?.trim() ?? '';
+          application.onboardingApplicants[zeroBasedIndex]?.fullName?.trim() ?? '';
         const applicantFullName =
           normalizedApplicantName.length > 0
             ? normalizedApplicantName
-            : applicantIndex === 0
+            : applicantIndex === 1
               ? application.customer.fullName
               : null;
 
         return {
           applicantIndex,
-          applicantLabel: `${applicantIndex + 1}. Kişi Başvuru Formu`,
+          applicantLabel: `${applicantIndex}. Kişi Başvuru Formu`,
           applicantFullName,
           submitted: Boolean(details),
           submittedAt: details?.submittedAt ?? null,
@@ -2339,10 +2344,12 @@ export class VisaApplicationsService {
     dto: UpsertApplicationDetailsDto,
     actor: AuthenticatedUser,
   ) {
-    const applicantIndex = dto.applicantIndex ?? 0;
-    if (!Number.isInteger(applicantIndex) || applicantIndex < 0) {
+    const applicantIndex = dto.applicantIndex ?? 1;
+    if (!Number.isInteger(applicantIndex) || applicantIndex < 1) {
       throw new BadRequestException('Kişi sırası geçersiz');
     }
+    const lookupApplicantIndexes =
+      applicantIndex === 1 ? [applicantIndex, 0] : [applicantIndex];
 
     return this.prisma.$transaction(async (tx) => {
       const before = await tx.visaApplication.findUnique({
@@ -2357,9 +2364,11 @@ export class VisaApplicationsService {
           },
           details: {
             where: {
-              applicantIndex,
+              applicantIndex: {
+                in: lookupApplicantIndexes,
+              },
             },
-            take: 1,
+            take: lookupApplicantIndexes.length,
           },
           customer: { select: { targetCountry: true } },
         },
@@ -2371,13 +2380,17 @@ export class VisaApplicationsService {
       const requiredApplicantCount = this.resolveRequiredApplicantCount(
         before.onboardingApplicants.length,
       );
-      if (applicantIndex >= requiredApplicantCount) {
+      if (applicantIndex > requiredApplicantCount) {
         throw new BadRequestException(
-          `Geçersiz kişi sırası: bu başvuru için en fazla ${requiredApplicantCount} kişi formu girilebilir`,
+          `Geçersiz kişi sırası: bu başvuru için 1-${requiredApplicantCount} aralığında kişi formu girilebilir`,
         );
       }
 
-      const existingDetails = before.details[0] ?? null;
+      const existingDetails =
+        before.details.find((details) => details.applicantIndex === applicantIndex) ??
+        before.details.find((details) => details.applicantIndex === 0) ??
+        null;
+      const targetApplicantIndex = existingDetails?.applicantIndex ?? applicantIndex;
 
       // Authorization: admin (any time) or the owning customer on a live app.
       if (actor.role !== Role.ADMIN) {
@@ -2485,10 +2498,14 @@ export class VisaApplicationsService {
         where: {
           applicationId_applicantIndex: {
             applicationId: id,
-            applicantIndex,
+            applicantIndex: targetApplicantIndex,
           },
         },
-        create: { applicationId: id, applicantIndex, ...data },
+        create: {
+          applicationId: id,
+          applicantIndex: targetApplicantIndex,
+          ...data,
+        },
         update: data,
       });
 
@@ -2500,6 +2517,7 @@ export class VisaApplicationsService {
           details: {
             // JSON round-trip drops Date instances so the snapshot is JSON-safe.
             applicantIndex,
+            storedApplicantIndex: targetApplicantIndex,
             formProgress: {
               requiredApplicantCount,
             },
@@ -2805,7 +2823,7 @@ export class VisaApplicationsService {
     return onboardingApplicantsCount > 0 ? onboardingApplicantsCount : 1;
   }
 
-  /** Picks the primary form record (index 0 if present, otherwise the lowest index). */
+  /** Picks the primary form record (index 1 if present, otherwise the lowest index). */
   private pickPrimaryApplicantDetails<
     T extends { applicantIndex: number },
   >(details: T[]): T | null {
@@ -2813,7 +2831,7 @@ export class VisaApplicationsService {
       return null;
     }
 
-    const directMatch = details.find((item) => item.applicantIndex === 0);
+    const directMatch = details.find((item) => item.applicantIndex === 1);
     if (directMatch) {
       return directMatch;
     }

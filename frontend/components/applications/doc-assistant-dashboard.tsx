@@ -187,6 +187,31 @@ const STATUS_OPTIONS: Array<{
   intent: Intent;
 }> = [
   {
+    value: DocAssistantDocumentStatus.HAZIRLANACAK,
+    label: "Hazırlanacak",
+    intent: "neutral",
+  },
+  {
+    value: DocAssistantDocumentStatus.KONTROL_EDILECEK,
+    label: "Kontrol Edilecek",
+    intent: "info",
+  },
+  {
+    value: DocAssistantDocumentStatus.REVIZE_GEREKLI,
+    label: "Revize Gerekli",
+    intent: "warning",
+  },
+  {
+    value: DocAssistantDocumentStatus.DOSYAYA_EKLENDI,
+    label: "Dosyaya Eklendi",
+    intent: "success",
+  },
+  {
+    value: DocAssistantDocumentStatus.KALAN_ODEME_BEKLENIYOR,
+    label: "Kalan Ödeme Bekleniyor",
+    intent: "warning",
+  },
+  {
     value: DocAssistantDocumentStatus.HAZIRLANIYOR,
     label: "Hazırlanıyor",
     intent: "info",

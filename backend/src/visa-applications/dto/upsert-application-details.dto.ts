@@ -25,7 +25,7 @@ export class UpsertApplicationDetailsDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Kişi sırası geçersiz.' })
-  @Min(0, { message: 'Kişi sırası en az 0 olmalıdır.' })
+  @Min(1, { message: 'Kişi sırası en az 1 olmalıdır.' })
   applicantIndex?: number;
 
   // ── Personal information ──────────────────────────────────────────────

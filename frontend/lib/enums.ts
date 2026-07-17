@@ -99,6 +99,11 @@ export type DocAssistantConstraintLabel =
   (typeof DocAssistantConstraintLabel)[keyof typeof DocAssistantConstraintLabel];
 
 export const DocAssistantDocumentStatus = {
+  HAZIRLANACAK: 'HAZIRLANACAK',
+  KONTROL_EDILECEK: 'KONTROL_EDILECEK',
+  REVIZE_GEREKLI: 'REVIZE_GEREKLI',
+  DOSYAYA_EKLENDI: 'DOSYAYA_EKLENDI',
+  KALAN_ODEME_BEKLENIYOR: 'KALAN_ODEME_BEKLENIYOR',
   HAZIRLANIYOR: 'HAZIRLANIYOR',
   YUKLENDI: 'YUKLENDI',
   TESLIME_HAZIR: 'TESLIME_HAZIR',

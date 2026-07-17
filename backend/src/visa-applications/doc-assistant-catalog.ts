@@ -120,6 +120,11 @@ export const DOC_ASSISTANT_STATUS_LABEL_TR: Record<
   DocAssistantDocumentStatus,
   string
 > = {
+  [DocAssistantDocumentStatus.HAZIRLANACAK]: 'Hazirlanacak',
+  [DocAssistantDocumentStatus.KONTROL_EDILECEK]: 'Kontrol Edilecek',
+  [DocAssistantDocumentStatus.REVIZE_GEREKLI]: 'Revize Gerekli',
+  [DocAssistantDocumentStatus.DOSYAYA_EKLENDI]: 'Dosyaya Eklendi',
+  [DocAssistantDocumentStatus.KALAN_ODEME_BEKLENIYOR]: 'Kalan Odeme Bekleniyor',
   [DocAssistantDocumentStatus.HAZIRLANIYOR]: 'Hazirlaniyor',
   [DocAssistantDocumentStatus.YUKLENDI]: 'Yuklendi',
   [DocAssistantDocumentStatus.TESLIME_HAZIR]: 'Teslime Hazir',

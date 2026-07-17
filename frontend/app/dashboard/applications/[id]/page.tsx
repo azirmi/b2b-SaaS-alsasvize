@@ -142,7 +142,7 @@ function getApplicationForms(detail: VisaApplicationDetail): ApplicationFormEntr
 
   return [
     {
-      applicantIndex: 0,
+      applicantIndex: 1,
       applicantLabel: "1. Kişi Başvuru Formu",
       applicantFullName: detail.customer.fullName ?? null,
       submitted: Boolean(detail.details),
@@ -157,7 +157,7 @@ function getPrimaryApplicationDetails(
 ): VisaApplicationDetail["details"] {
   const forms = getApplicationForms(detail);
   const primaryFromForms =
-    forms.find((form) => form.applicantIndex === 0)?.details ?? null;
+    forms.find((form) => form.applicantIndex === 1)?.details ?? null;
   return primaryFromForms ?? detail.details;
 }
 
@@ -711,7 +711,7 @@ export default async function ApplicationDetailPage({
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium">
-                          {formEntry.applicantIndex + 1}. Kişi Formu
+                          {formEntry.applicantIndex}. Kişi Formu
                         </p>
                         {formEntry.applicantFullName ? (
                           <p className="text-xs text-muted-foreground">

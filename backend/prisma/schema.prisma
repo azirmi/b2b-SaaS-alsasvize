@@ -121,6 +121,11 @@ enum DocAssistantConstraintLabel {
 
 /// Operational status shown in the DOC assistant dashboard.
 enum DocAssistantDocumentStatus {
+  HAZIRLANACAK
+  KONTROL_EDILECEK
+  REVIZE_GEREKLI
+  DOSYAYA_EKLENDI
+  KALAN_ODEME_BEKLENIYOR
   HAZIRLANIYOR
   YUKLENDI
   TESLIME_HAZIR
@@ -263,7 +268,7 @@ model VisaApplication {
 model VisaApplicationDetails {
   id            String @id @default(uuid()) @db.Uuid
   applicationId String @db.Uuid
-  applicantIndex Int
+  applicantIndex Int @default(1)
 
   // ── Personal information ──────────────────────────────────────────────
   firstName      String

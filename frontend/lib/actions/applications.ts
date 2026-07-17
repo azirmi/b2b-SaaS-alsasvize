@@ -518,14 +518,14 @@ export async function saveApplicationDetails(
 
   const isEmployer = String(formData.get("isEmployer") ?? "").trim() === "true";
   const hasSponsor = String(formData.get("hasSponsor") ?? "").trim() === "true";
-  const applicantIndexRaw = String(formData.get("applicantIndex") ?? "0").trim();
+  const applicantIndexRaw = String(formData.get("applicantIndex") ?? "1").trim();
 
   if (!/^\d+$/.test(applicantIndexRaw)) {
     return { error: "Kişi sırası geçersiz." };
   }
 
   const applicantIndex = Number(applicantIndexRaw);
-  if (!Number.isInteger(applicantIndex) || applicantIndex < 0) {
+  if (!Number.isInteger(applicantIndex) || applicantIndex < 1) {
     return { error: "Kişi sırası geçersiz." };
   }
 

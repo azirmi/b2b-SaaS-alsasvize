@@ -435,7 +435,7 @@ function getApplicationForms(detail: VisaApplicationDetail): ApplicationFormEntr
 
   return [
     {
-      applicantIndex: 0,
+      applicantIndex: 1,
       applicantLabel: "1. Kişi Başvuru Formu",
       applicantFullName: detail.customer.fullName ?? null,
       submitted: Boolean(detail.details),
@@ -450,7 +450,7 @@ function getPrimaryApplicationDetails(
 ): VisaApplicationDetail["details"] {
   const forms = getApplicationForms(detail);
   const primaryFromForms =
-    forms.find((form) => form.applicantIndex === 0)?.details ?? null;
+    forms.find((form) => form.applicantIndex === 1)?.details ?? null;
   return primaryFromForms ?? detail.details;
 }
 
