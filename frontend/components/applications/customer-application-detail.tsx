@@ -16,7 +16,12 @@ import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
 import { deriveDownloadFileName } from "@/lib/download";
-import { FileType, OcrStatus, VisaStage } from "@/lib/enums";
+import {
+  DocAssistantDocumentType,
+  FileType,
+  OcrStatus,
+  VisaStage,
+} from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
 import {
   FILE_TYPE_LABEL,
@@ -28,6 +33,7 @@ import type {
   DeliveredCustomerFile,
   DownloadUrlResponse,
   VisaApplicationDetail,
+  DocumentRecord,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +42,41 @@ const OCR_BADGE: Record<OcrStatus, { label: string; intent: Intent }> = {
   PROCESSED: { label: "Dijital Evrak Okuma", intent: "success" },
   FAILED: { label: "OCR başarısız", intent: "danger" },
 };
+
+const DOC_ASSISTANT_TITLE_BY_TYPE: Record<DocAssistantDocumentType, string> = {
+  [DocAssistantDocumentType.BASVURU_FORMU_KONTROLU]:
+    "Başvuru Formu Kontrolü",
+  [DocAssistantDocumentType.VIZE_DILEKCESI_NIYET_YAZISI]:
+    "Vize Dilekçesi / Niyet Yazısı",
+  [DocAssistantDocumentType.SEYAHAT_PLANI]: "Seyahat Planı",
+  [DocAssistantDocumentType.UCAK_REZERVASYONU]: "Uçak Rezervasyonu",
+  [DocAssistantDocumentType.OTEL_KONAKLAMA_REZERVASYONU]:
+    "Otel / Konaklama Rezervasyonu",
+  [DocAssistantDocumentType.SEYAHAT_SAGLIK_SIGORTASI]:
+    "Seyahat Sağlık Sigortası",
+  [DocAssistantDocumentType.SPONSORLUK_YAZISI]: "Sponsorluk Yazısı",
+  [DocAssistantDocumentType.EK_TURISTIK_DESTEK_BELGELERI]:
+    "Ek Turistik Destek Belgeleri",
+  [DocAssistantDocumentType.RANDEVU_ONAYI]: "Randevu Onayı",
+  [DocAssistantDocumentType.BASVURU_TESLIM_FORMU]: "Başvuru Teslim Formu",
+  [DocAssistantDocumentType.VIZE_HARCI_SERVIS_BEDELI_DEKONTU]:
+    "Vize Harcı / Servis Bedeli Dekontu",
+  [DocAssistantDocumentType.KALAN_ODEME_DEKONTU]: "Kalan Ödeme Dekontu",
+  [DocAssistantDocumentType.VIZE_SONUC_BELGESI]: "Vize Sonuç Belgesi",
+  [DocAssistantDocumentType.PASAPORT_TESLIM_IADE_BELGESI]:
+    "Pasaport Teslim / İade Belgesi",
+  [DocAssistantDocumentType.RET_KARARI_RET_MEKTUBU]:
+    "Ret Kararı / Ret Mektubu",
+  [DocAssistantDocumentType.DIGER_EK_OPERASYON_BELGESI]:
+    "Diğer / Ek Operasyon Belgesi",
+};
+
+function getCustomerDocumentLabel(document: DocumentRecord): string {
+  if (document.docAssistantType) {
+    return DOC_ASSISTANT_TITLE_BY_TYPE[document.docAssistantType];
+  }
+  return FILE_TYPE_LABEL[document.fileType];
+}
 
 const BASE_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
   {
@@ -471,6 +512,9 @@ export async function CustomerApplicationDetail({
   const deliveredFiles = Array.isArray(detail.deliveredToCustomerFiles)
     ? detail.deliveredToCustomerFiles.filter(isDeliveredCustomerFile)
     : [];
+  const visibleDocuments = detail.documents.filter(
+    (document) => document.fileType !== FileType.PAYMENT_RECEIPT,
+  );
   const metadata = detail.metadata;
   const metadataFullName =
     metadata && typeof metadata.fullName === "string"
@@ -686,11 +730,11 @@ export async function CustomerApplicationDetail({
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-medium">Belgeleriniz</h2>
           <span className="text-xs text-muted-foreground tabular-nums">
-            {detail.documents.length} belge
+            {visibleDocuments.length} belge
           </span>
         </div>
 
-        {detail.documents.length === 0 ? (
+        {visibleDocuments.length === 0 ? (
           <p className="mt-4 text-sm text-muted-foreground">
             {canUpload
               ? "Henüz belge yok. Başlamak için yukarıdan pasaportunuzu yükleyin."
@@ -700,7 +744,7 @@ export async function CustomerApplicationDetail({
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-border/40">
-            {detail.documents.map((document) => {
+            {visibleDocuments.map((document) => {
               const url = urlById.get(document.id) ?? null;
               const ocr = document.ocrStatus
                 ? OCR_BADGE[document.ocrStatus]
@@ -717,7 +761,7 @@ export async function CustomerApplicationDetail({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium">
-                          {FILE_TYPE_LABEL[document.fileType]}
+                          {getCustomerDocumentLabel(document)}
                         </span>
                         <Badge
                           variant="outline"

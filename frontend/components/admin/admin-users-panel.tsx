@@ -30,6 +30,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { Department, Role } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
@@ -118,6 +124,7 @@ export function AdminUsersPanel({
   initialUsers: AdminUserRecord[];
   currentUserId: string;
 }) {
+  const [activeTab, setActiveTab] = useState<"customers" | "staff">("customers");
   const [users, setUsers] = useState<AdminUserRecord[]>(initialUsers);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [panelError, setPanelError] = useState<string | null>(null);
@@ -136,6 +143,184 @@ export function AdminUsersPanel({
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }, [users]);
+
+  const customerUsers = useMemo(
+    () => sortedUsers.filter((user) => user.role === Role.CUSTOMER),
+    [sortedUsers],
+  );
+  const staffUsers = useMemo(
+    () => sortedUsers.filter((user) => user.role !== Role.CUSTOMER),
+    [sortedUsers],
+  );
+
+  const activeUsers = activeTab === "customers" ? customerUsers : staffUsers;
+
+  function renderUsers(usersToRender: AdminUserRecord[], emptyText: string) {
+    if (usersToRender.length === 0) {
+      return (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          {emptyText}
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div className="space-y-3 md:hidden">
+          {usersToRender.map((user) => {
+            const isSelf = user.id === currentUserId;
+
+            return (
+              <article
+                key={user.id}
+                className="rounded-lg border border-border/40 bg-background p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Kullanıcı
+                    </p>
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {user.fullName}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground break-all">
+                      {user.email}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon-sm"
+                    onClick={() => setDeleteTarget(user)}
+                    disabled={isSelf}
+                    aria-label={`${user.fullName} kullanıcısını sil`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  </Button>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Rol
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className={cn("rounded-md text-[11px]", roleBadgeClass(user.role))}
+                    >
+                      {ROLE_LABEL[user.role]}
+                    </Badge>
+                    {user.staffProfile ? (
+                      <p className="text-xs text-muted-foreground">
+                        Birim: {DEPARTMENT_LABEL[user.staffProfile.department]}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-1 text-right">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Durum
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className={cn("rounded-md text-[11px]", statusBadgeClass(user.isActive))}
+                    >
+                      {user.isActive ? "Aktif" : "Pasif"}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground">
+                      {formatCreatedAt(user.createdAt)}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-2 text-right text-[11px] text-muted-foreground">
+                  {isSelf ? "Oturumdaki kullanıcı" : `Açılış: ${timeAgo(user.createdAt)}`}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="hidden md:block">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-border/40 hover:bg-transparent">
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Ad Soyad
+                </TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  E-posta
+                </TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Rol / Birim
+                </TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Durum
+                </TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Oluşturulma
+                </TableHead>
+                <TableHead className="text-right text-xs font-medium text-muted-foreground">
+                  İşlem
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {usersToRender.map((user) => {
+                const isSelf = user.id === currentUserId;
+
+                return (
+                  <TableRow key={user.id} className="border-border/40">
+                    <TableCell className="font-medium">{user.fullName}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {user.email}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={cn("rounded-md text-[11px]", roleBadgeClass(user.role))}
+                      >
+                        {ROLE_LABEL[user.role]}
+                      </Badge>
+                      {user.staffProfile ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {DEPARTMENT_LABEL[user.staffProfile.department]}
+                        </p>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={cn("rounded-md text-[11px]", statusBadgeClass(user.isActive))}
+                      >
+                        {user.isActive ? "Aktif" : "Pasif"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      <p>{formatCreatedAt(user.createdAt)}</p>
+                      <p>{timeAgo(user.createdAt)}</p>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon-sm"
+                        onClick={() => setDeleteTarget(user)}
+                        disabled={isSelf}
+                        aria-label={`${user.fullName} kullanıcısını sil`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </>
+    );
+  }
 
   async function refreshUsers() {
     setIsRefreshing(true);
@@ -209,13 +394,21 @@ export function AdminUsersPanel({
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground tabular-nums">
-            {isRefreshing ? "Güncelleniyor..." : `${sortedUsers.length} kullanıcı`}
+            {isRefreshing
+              ? "Güncelleniyor..."
+              : activeTab === "customers"
+                ? `${activeUsers.length} danışan`
+                : `${activeUsers.length} personel`}
           </span>
           <Button
             type="button"
             size="sm"
             onClick={() => {
               setCreateError(null);
+              setForm((current) => ({
+                ...current,
+                role: activeTab === "customers" ? Role.CUSTOMER : Role.SALES,
+              }));
               setCreateOpen(true);
             }}
           >
@@ -231,166 +424,24 @@ export function AdminUsersPanel({
         </p>
       ) : null}
 
-      {sortedUsers.length === 0 ? (
-        <div className="px-3 py-12 text-center text-sm text-muted-foreground sm:px-5">
-          Henüz kullanıcı bulunmuyor.
-        </div>
-      ) : (
-        <>
-          <div className="space-y-3 px-3 py-4 md:hidden">
-            {sortedUsers.map((user) => {
-              const isSelf = user.id === currentUserId;
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as "customers" | "staff")}
+        className="px-3 py-4 sm:px-5"
+      >
+        <TabsList className="grid w-full grid-cols-2 sm:w-auto">
+          <TabsTrigger value="customers">Danışanlar</TabsTrigger>
+          <TabsTrigger value="staff">Personel</TabsTrigger>
+        </TabsList>
 
-              return (
-                <article
-                  key={user.id}
-                  className="rounded-lg border border-border/40 bg-background p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        Kullanıcı
-                      </p>
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {user.fullName}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground break-all">
-                        {user.email}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon-sm"
-                      onClick={() => setDeleteTarget(user)}
-                      disabled={isSelf}
-                      aria-label={`${user.fullName} kullanıcısını sil`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                    </Button>
-                  </div>
+        <TabsContent value="customers" className="mt-4">
+          {renderUsers(customerUsers, "Henüz danışan bulunmuyor.")}
+        </TabsContent>
 
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        Rol
-                      </p>
-                      <Badge
-                        variant="outline"
-                        className={cn("rounded-md text-[11px]", roleBadgeClass(user.role))}
-                      >
-                        {ROLE_LABEL[user.role]}
-                      </Badge>
-                      {user.staffProfile ? (
-                        <p className="text-xs text-muted-foreground">
-                          Birim: {DEPARTMENT_LABEL[user.staffProfile.department]}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="space-y-1 text-right">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        Durum
-                      </p>
-                      <Badge
-                        variant="outline"
-                        className={cn("rounded-md text-[11px]", statusBadgeClass(user.isActive))}
-                      >
-                        {user.isActive ? "Aktif" : "Pasif"}
-                      </Badge>
-                      <p className="text-xs text-muted-foreground">
-                        {formatCreatedAt(user.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="mt-2 text-right text-[11px] text-muted-foreground">
-                    {isSelf ? "Oturumdaki kullanıcı" : `Açılış: ${timeAgo(user.createdAt)}`}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/40 hover:bg-transparent">
-                  <TableHead className="text-xs font-medium text-muted-foreground">
-                    Ad Soyad
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground">
-                    E-posta
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground">
-                    Rol / Birim
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground">
-                    Durum
-                  </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground">
-                    Oluşturulma
-                  </TableHead>
-                  <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                    İşlem
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedUsers.map((user) => {
-                  const isSelf = user.id === currentUserId;
-
-                  return (
-                    <TableRow key={user.id} className="border-border/40">
-                      <TableCell className="font-medium">{user.fullName}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {user.email}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn("rounded-md text-[11px]", roleBadgeClass(user.role))}
-                        >
-                          {ROLE_LABEL[user.role]}
-                        </Badge>
-                        {user.staffProfile ? (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {DEPARTMENT_LABEL[user.staffProfile.department]}
-                          </p>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn("rounded-md text-[11px]", statusBadgeClass(user.isActive))}
-                        >
-                          {user.isActive ? "Aktif" : "Pasif"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        <p>{formatCreatedAt(user.createdAt)}</p>
-                        <p>{timeAgo(user.createdAt)}</p>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon-sm"
-                          onClick={() => setDeleteTarget(user)}
-                          disabled={isSelf}
-                          aria-label={`${user.fullName} kullanıcısını sil`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </>
-      )}
+        <TabsContent value="staff" className="mt-4">
+          {renderUsers(staffUsers, "Henüz personel bulunmuyor.")}
+        </TabsContent>
+      </Tabs>
 
       <Dialog
         open={createOpen}
