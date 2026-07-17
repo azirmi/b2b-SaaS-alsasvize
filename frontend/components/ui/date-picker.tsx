@@ -186,7 +186,7 @@ export function DatePickerInput({
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="absolute top-1/2 right-2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center text-blue-950 transition-colors hover:text-blue-900"
+                className="absolute top-1/2 right-2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center text-slate-700 transition-colors hover:text-slate-900"
                 aria-label="Takvimi aç"
                 disabled={disabled}
               >
@@ -212,21 +212,21 @@ export function DatePickerInput({
             toYear={2100}
           />
 
-          <div className="mt-2 flex items-center justify-between border-t border-[#cbb074]/70 px-1 pt-2">
+          <div className="mt-2 flex items-center justify-between border-t border-slate-200 px-1 pt-2">
             <button
               type="button"
-              className="text-xs font-medium text-blue-950 underline-offset-4 transition-colors hover:text-blue-900 hover:underline"
+              className="text-xs font-medium text-[#0b63f6] underline-offset-4 transition-colors hover:text-[#0a57d9] hover:underline"
               onClick={() => {
                 commitDate(null)
                 setOpen(false)
               }}
             >
-              Temizle
+              Clear
             </button>
 
             <button
               type="button"
-              className="text-xs font-medium text-blue-950 underline-offset-4 transition-colors hover:text-blue-900 hover:underline"
+              className="text-xs font-medium text-[#0b63f6] underline-offset-4 transition-colors hover:text-[#0a57d9] hover:underline"
               onClick={() => {
                 const now = new Date()
                 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -241,7 +241,7 @@ export function DatePickerInput({
                 setOpen(false)
               }}
             >
-              Bugün
+              Today
             </button>
           </div>
         </PopoverContent>
