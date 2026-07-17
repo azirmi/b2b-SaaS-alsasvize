@@ -197,7 +197,7 @@ export class VisaApplicationsService {
           create: DOC_ASSISTANT_CATALOG.map((item) => ({
             type: item.type,
             constraintLabel: item.constraintLabel,
-            status: item.initialStatus ?? DocAssistantDocumentStatus.HAZIRLANACAK,
+            status: item.initialStatus ?? DocAssistantDocumentStatus.HAZIRLANIYOR,
           })),
         },
         auditLogs: {
@@ -1799,7 +1799,7 @@ export class VisaApplicationsService {
               type: dto.type,
               constraintLabel: catalogItem.constraintLabel,
               status:
-                catalogItem.initialStatus ?? DocAssistantDocumentStatus.HAZIRLANACAK,
+                catalogItem.initialStatus ?? DocAssistantDocumentStatus.HAZIRLANIYOR,
               updatedById: actor.userId,
             },
             select: {

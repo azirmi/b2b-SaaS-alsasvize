@@ -121,13 +121,8 @@ enum DocAssistantConstraintLabel {
 
 /// Operational status shown in the DOC assistant dashboard.
 enum DocAssistantDocumentStatus {
-  HAZIRLANACAK
   HAZIRLANIYOR
-  KONTROL_EDILECEK
   YUKLENDI
-  REVIZE_GEREKLI
-  DOSYAYA_EKLENDI
-  KALAN_ODEME_BEKLENIYOR
   TESLIME_HAZIR
 }
 
@@ -371,7 +366,7 @@ model ApplicationDocAssistantItem {
 
   type            DocAssistantDocumentType
   constraintLabel DocAssistantConstraintLabel
-  status          DocAssistantDocumentStatus @default(HAZIRLANACAK)
+  status          DocAssistantDocumentStatus @default(HAZIRLANIYOR)
 
   updatedById String? @db.Uuid
 
