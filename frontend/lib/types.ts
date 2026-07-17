@@ -36,6 +36,8 @@ export interface VisaApplicationSummary {
   assignedSalesId: string | null;
   assignedDocId: string | null;
   assignedSecId: string | null;
+  isDeliveredToCustomer?: boolean;
+  deliveredToCustomerAt?: string | null;
   stageUpdatedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -129,6 +131,16 @@ export interface DeliveredCustomerFile {
   deliveredAt: string;
 }
 
+/** One per-applicant application-form slot in the detail response. */
+export interface ApplicationFormEntry {
+  applicantIndex: number;
+  applicantLabel: string;
+  applicantFullName: string | null;
+  submitted: boolean;
+  submittedAt: string | null;
+  details: ApplicationDetailsData | null;
+}
+
 /** Full application detail returned by `GET /applications/:id` (`APPLICATION_DETAIL_INCLUDE`). */
 export interface VisaApplicationDetail {
   id: string;
@@ -155,6 +167,11 @@ export interface VisaApplicationDetail {
   docAssistantItems: DocAssistantItem[];
   details: ApplicationDetailsData | null;
   applicationFormSubmitted: boolean;
+  applicantCount: number;
+  applicationFormsRequiredCount: number;
+  applicationFormsSubmittedCount: number;
+  applicationFormsComplete: boolean;
+  applicationForms: ApplicationFormEntry[];
   salesReadonlyData?: SalesReadonlyData | null;
   docChecklist: DocChecklistState;
   crmData: CrmData | null;

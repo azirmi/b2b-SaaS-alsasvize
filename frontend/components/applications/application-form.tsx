@@ -355,11 +355,13 @@ function Field({
  */
 export function ApplicationForm({
   applicationId,
+  applicantIndex,
   details,
   targetCountry,
   customerPrefill,
 }: {
   applicationId: string;
+  applicantIndex: number;
   details: ApplicationDetailsData | null;
   targetCountry?: string | null;
   customerPrefill?: ApplicationFormPrefill;
@@ -409,6 +411,7 @@ export function ApplicationForm({
     setState({});
     startTransition(async () => {
       const formData = new FormData();
+      formData.set("applicantIndex", String(applicantIndex));
       for (const [key, value] of Object.entries(values)) {
         const normalizedValue = String(value ?? "").trim();
         const shouldUppercase = UPPERCASE_FIELD_NAMES.has(

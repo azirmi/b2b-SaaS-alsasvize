@@ -180,7 +180,7 @@ export class VisaApplicationsController {
     return this.service.deliverToCustomer(id, user);
   }
 
-  /** Customer's comprehensive application form ("Başvuru Formu"). Owner/admin write; staff read-only. */
+  /** Customer's per-applicant application form ("Başvuru Formu"). Body supports optional applicantIndex. */
   @Put(':id/details')
   @Roles(Role.CUSTOMER, Role.ADMIN)
   updateDetails(

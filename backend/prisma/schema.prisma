@@ -248,8 +248,8 @@ model VisaApplication {
   auditLogs AuditLog[]
   onboardingApplicants OnboardingApplicant[]
 
-  // One-to-One: the comprehensive application form filled in by the customer.
-  details VisaApplicationDetails?
+  // One-to-Many: per-applicant comprehensive application forms.
+  details VisaApplicationDetails[]
 
   // One-to-One: the Sales CRM + finance record captured by the sales rep.
   crmData ApplicationCrmData?
@@ -258,11 +258,12 @@ model VisaApplication {
 }
 
 /// Comprehensive visa application form ("Başvuru Formu") completed by the
-/// customer. One-to-one with a VisaApplication. DOC staff read it (read-only)
-/// alongside the uploaded documents.
+/// customer. One-to-many with VisaApplication (one row per applicant index).
+/// DOC staff read these rows (read-only) alongside uploaded documents.
 model VisaApplicationDetails {
   id            String @id @default(uuid()) @db.Uuid
-  applicationId String @unique @db.Uuid
+  applicationId String @db.Uuid
+  applicantIndex Int
 
   // ── Personal information ──────────────────────────────────────────────
   firstName      String
@@ -323,6 +324,8 @@ model VisaApplicationDetails {
 
   application VisaApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
+  @@unique([applicationId, applicantIndex])
+  @@index([applicationId])
   @@map("visa_application_details")
 }
 

@@ -450,6 +450,10 @@ export class AdminService {
           },
         },
         details: {
+          orderBy: {
+            applicantIndex: 'asc',
+          },
+          take: 1,
           select: {
             firstName: true,
             lastName: true,
@@ -514,8 +518,10 @@ export class AdminService {
       const fallbackLastName =
         fullNameParts.length > 1 ? fullNameParts.slice(1).join(' ') : '';
 
-      const firstName = application.details?.firstName ?? fallbackFirstName;
-      const lastName = application.details?.lastName ?? fallbackLastName;
+      const primaryDetails = application.details[0] ?? null;
+
+      const firstName = primaryDetails?.firstName ?? fallbackFirstName;
+      const lastName = primaryDetails?.lastName ?? fallbackLastName;
 
       return {
         applicationId: application.id,
@@ -523,7 +529,7 @@ export class AdminService {
         applicationType: application.applicationType,
         firstName,
         lastName,
-        phone: application.details?.phone ?? application.customer.phone ?? '',
+        phone: primaryDetails?.phone ?? application.customer.phone ?? '',
         country: application.customer.targetCountry ?? '',
         totalAmount: application.crmData?.totalAmount ?? 0,
         upfrontPaid: application.crmData?.upfrontPaid ?? null,

@@ -2,13 +2,16 @@ import {
   IsBoolean,
   IsEmail,
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
+  Min,
   ValidateIf,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /** ISO calendar date, e.g. 2026-07-06. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -19,6 +22,12 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * means the form is complete. DOC staff read this back read-only.
  */
 export class UpsertApplicationDetailsDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Kişi sırası geçersiz.' })
+  @Min(0, { message: 'Kişi sırası en az 0 olmalıdır.' })
+  applicantIndex?: number;
+
   // ── Personal information ──────────────────────────────────────────────
   @IsString()
   @IsNotEmpty()

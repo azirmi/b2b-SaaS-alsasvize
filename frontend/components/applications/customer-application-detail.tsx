@@ -28,8 +28,10 @@ import {
   INTENT_CLASSES,
   getCustomerStageName,
   type Intent,
+  type StageDisplayContext,
 } from "@/lib/status";
 import type {
+  ApplicationFormEntry,
   DeliveredCustomerFile,
   DownloadUrlResponse,
   VisaApplicationDetail,
@@ -350,13 +352,14 @@ const REJECTED_AFTER_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
 ];
 
 function hasCompanyOwnerProfile(detail: VisaApplicationDetail): boolean {
+  const primaryDetails = getPrimaryApplicationDetails(detail);
   const employmentStatus =
-    detail.details?.employmentStatus?.trim().toLocaleLowerCase("tr-TR") ?? "";
+    primaryDetails?.employmentStatus?.trim().toLocaleLowerCase("tr-TR") ?? "";
   const occupation =
-    detail.details?.occupation?.trim().toLocaleLowerCase("tr-TR") ?? "";
+    primaryDetails?.occupation?.trim().toLocaleLowerCase("tr-TR") ?? "";
 
   return (
-    Boolean(detail.details?.isEmployer) ||
+    Boolean(primaryDetails?.isEmployer) ||
     employmentStatus === "işveren" ||
     occupation.includes("şirket") ||
     occupation.includes("işveren") ||
@@ -365,11 +368,12 @@ function hasCompanyOwnerProfile(detail: VisaApplicationDetail): boolean {
 }
 
 function hasSpecialProfile(detail: VisaApplicationDetail): boolean {
+  const primaryDetails = getPrimaryApplicationDetails(detail);
   const employmentStatus =
-    detail.details?.employmentStatus?.trim().toLocaleLowerCase("tr-TR") ?? "";
+    primaryDetails?.employmentStatus?.trim().toLocaleLowerCase("tr-TR") ?? "";
   const occupation =
-    detail.details?.occupation?.trim().toLocaleLowerCase("tr-TR") ?? "";
-  const dob = detail.details?.dateOfBirth;
+    primaryDetails?.occupation?.trim().toLocaleLowerCase("tr-TR") ?? "";
+  const dob = primaryDetails?.dateOfBirth;
 
   let isMinor = false;
   if (dob) {
@@ -399,6 +403,7 @@ function hasSpecialProfile(detail: VisaApplicationDetail): boolean {
 function buildCustomerDocumentOptions(
   detail: VisaApplicationDetail,
 ): UploadDocumentOption[] {
+  const primaryDetails = getPrimaryApplicationDetails(detail);
   const options: UploadDocumentOption[] = [...BASE_DOCUMENT_OPTIONS];
 
   if (hasCompanyOwnerProfile(detail)) {
@@ -409,7 +414,7 @@ function buildCustomerDocumentOptions(
     options.push(...EMPLOYEE_DOCUMENT_OPTIONS);
   }
 
-  if (detail.details?.hasSponsor) {
+  if (primaryDetails?.hasSponsor) {
     options.push(...SPONSOR_DOCUMENT_OPTIONS);
   }
 
@@ -421,6 +426,32 @@ function buildCustomerDocumentOptions(
   }
 
   return options;
+}
+
+function getApplicationForms(detail: VisaApplicationDetail): ApplicationFormEntry[] {
+  if (detail.applicationForms.length > 0) {
+    return detail.applicationForms;
+  }
+
+  return [
+    {
+      applicantIndex: 0,
+      applicantLabel: "1. Kişi Başvuru Formu",
+      applicantFullName: detail.customer.fullName ?? null,
+      submitted: Boolean(detail.details),
+      submittedAt: detail.details?.submittedAt ?? null,
+      details: detail.details,
+    },
+  ];
+}
+
+function getPrimaryApplicationDetails(
+  detail: VisaApplicationDetail,
+): VisaApplicationDetail["details"] {
+  const forms = getApplicationForms(detail);
+  const primaryFromForms =
+    forms.find((form) => form.applicantIndex === 0)?.details ?? null;
+  return primaryFromForms ?? detail.details;
 }
 
 function isDeliveredCustomerFile(value: unknown): value is DeliveredCustomerFile {
@@ -567,9 +598,16 @@ export async function CustomerApplicationDetail({
     metadata && typeof metadata.plannedTravelDate === "string"
       ? metadata.plannedTravelDate
       : null;
+  const applicationForms = getApplicationForms(detail);
+  const primaryDetails = getPrimaryApplicationDetails(detail);
+  const requiredFormCount =
+    detail.applicationFormsRequiredCount || applicationForms.length;
+  const submittedFormCount =
+    detail.applicationFormsSubmittedCount ||
+    applicationForms.filter((form) => form.submitted).length;
   const onboardingTravelStartDate =
     toIsoDate(detail.plannedTravelDate) ??
-    toIsoDate(detail.details?.plannedTravelStartDate) ??
+    toIsoDate(primaryDetails?.plannedTravelStartDate) ??
     toIsoDate(metadataPlannedTravelDate);
 
   const stage = detail.currentStage;
@@ -598,6 +636,14 @@ export async function CustomerApplicationDetail({
       detail.crmData.upfrontPaid < detail.crmData.totalAmount &&
       hasAppointmentDate,
   );
+  const stageDisplayContext: StageDisplayContext = {
+    paymentType: detail.crmData?.paymentType ?? null,
+    hasAppointmentDate,
+    isDeliveredToCustomer: detail.isDeliveredToCustomer,
+    hasDocumentRevision: detail.documents.some(
+      (document) => !document.isApproved && Boolean(document.rejectionReason),
+    ),
+  };
   const canUpload =
     canEditForm && (hasFullPayment || hasPartialPaymentWithAppointment);
   const formLockedByCrm = canEditForm && !canUpload;
@@ -620,13 +666,17 @@ export async function CustomerApplicationDetail({
             <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight">
               Başvurunuz
             </h1>
-            <StageBadge stage={stage} customerView />
+            <StageBadge
+              stage={stage}
+              customerView
+              context={stageDisplayContext}
+            />
             <Badge variant="outline" className="rounded-md text-[11px]">
               {APPLICATION_TYPE_LABEL[detail.applicationType]}
             </Badge>
           </div>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            Süreç durumu: {getCustomerStageName(stage)}
+            Süreç durumu: {getCustomerStageName(stage, stageDisplayContext)}
           </p>
         </div>
         <div className="w-full text-left text-xs text-muted-foreground sm:w-auto sm:text-right">
@@ -636,50 +686,107 @@ export async function CustomerApplicationDetail({
 
       {showingForm ? (
         <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
-          <h2 className="text-sm font-medium">Başvuru Formu</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-medium">Başvuru Formları</h2>
+            <Badge
+              variant="outline"
+              className={cn(
+                "rounded-md text-[11px]",
+                submittedFormCount >= requiredFormCount
+                  ? INTENT_CLASSES.success
+                  : INTENT_CLASSES.warning,
+              )}
+            >
+              {submittedFormCount}/{requiredFormCount} Tamamlandı
+            </Badge>
+          </div>
+
           {canEditForm ? (
             formLockedByCrm ? (
               <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
                 Ödeme ve CRM kaydı tamamlanmadan başvuru formu doldurulamaz.
               </p>
             ) : (
-            <>
               <p className="mt-1 text-xs text-muted-foreground">
-                Schengen başvuru formunu aşağıdaki alandan doldurup kaydedin.
+                Her başvuru kişisi için ilgili formu ayrı ayrı doldurup kaydedin.
               </p>
-              <Separator className="my-4" />
-              <ApplicationForm
-                applicationId={detail.id}
-                details={detail.details}
-                targetCountry={detail.customer.targetCountry}
-                customerPrefill={{
-                  fullName: detail.customer.fullName || metadataFullName,
-                  email: detail.customer.email || metadataEmail,
-                  phone: detail.customer.phone || metadataPhone,
-                  nationalId: detail.details?.nationalId ?? null,
-                  residenceCity:
-                    detail.details?.residenceCity ??
-                    detail.residenceCity ??
-                    metadataResidenceCity,
-                  plannedTravelStartDate: onboardingTravelStartDate,
-                }}
-              />
-            </>
             )
-          ) : detail.details ? (
-            <>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Bu başvuru kapandığı için form düzenlenemez. Kaydedilen bilgiler
-                aşağıda gösteriliyor.
-              </p>
-              <Separator className="my-4" />
-              <ApplicationDetailsView details={detail.details} />
-            </>
           ) : (
             <p className="mt-1 text-xs text-muted-foreground">
-              Bu başvuru için henüz başvuru formu kaydı bulunmuyor.
+              Bu başvuru kapandığı için form düzenlenemez. Kaydedilen bilgiler
+              aşağıda gösteriliyor.
             </p>
           )}
+
+          <Separator className="my-4" />
+
+          <div className="space-y-4">
+            {applicationForms.map((formEntry) => (
+              <article
+                key={formEntry.applicantIndex}
+                className="rounded-md border border-border/40 bg-background p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{formEntry.applicantLabel}</p>
+                    {formEntry.applicantFullName ? (
+                      <p className="text-xs text-muted-foreground">
+                        {formEntry.applicantFullName}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "rounded-md text-[11px]",
+                      formEntry.submitted
+                        ? INTENT_CLASSES.success
+                        : INTENT_CLASSES.warning,
+                    )}
+                  >
+                    {formEntry.submitted ? "Tamamlandı" : "Bekliyor"}
+                  </Badge>
+                </div>
+
+                <Separator className="my-3" />
+
+                {canEditForm ? (
+                  formLockedByCrm ? (
+                    <p className="text-xs text-muted-foreground">
+                      Bu form ödeme ve CRM kaydı tamamlandığında aktif olacaktır.
+                    </p>
+                  ) : (
+                    <ApplicationForm
+                      applicationId={detail.id}
+                      applicantIndex={formEntry.applicantIndex}
+                      details={formEntry.details}
+                      targetCountry={detail.customer.targetCountry}
+                      customerPrefill={{
+                        fullName:
+                          formEntry.applicantFullName ||
+                          detail.customer.fullName ||
+                          metadataFullName,
+                        email: detail.customer.email || metadataEmail,
+                        phone: detail.customer.phone || metadataPhone,
+                        nationalId: formEntry.details?.nationalId ?? null,
+                        residenceCity:
+                          formEntry.details?.residenceCity ??
+                          detail.residenceCity ??
+                          metadataResidenceCity,
+                        plannedTravelStartDate: onboardingTravelStartDate,
+                      }}
+                    />
+                  )
+                ) : formEntry.details ? (
+                  <ApplicationDetailsView details={formEntry.details} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Bu kişi için henüz başvuru formu gönderilmedi.
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
         </section>
       ) : (
         <>

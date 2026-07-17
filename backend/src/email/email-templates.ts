@@ -1,4 +1,8 @@
 import { FileType, VisaStage } from '../generated/prisma/enums';
+import {
+  CustomerProcessStage,
+  ProcessPaymentType,
+} from '../visa-applications/process-flow.constants';
 
 /**
  * Pure, dependency-free HTML/text email builders.
@@ -45,8 +49,8 @@ export interface DocumentRejectedEmailInput {
 export interface StageAdvancedEmailInput {
   to: string;
   customerName: string;
-  previousStage: VisaStage;
-  newStage: VisaStage;
+  processStage: CustomerProcessStage;
+  paymentType: ProcessPaymentType;
   applicationId: string;
 }
 
@@ -108,37 +112,153 @@ const FILE_TYPE_LABEL: Record<FileType, string> = {
 
 interface StageCopy {
   subject: string;
-  headline: string;
-  message: string;
+  paragraphs: string[];
+  attentionItems?: string[];
 }
 
-const STAGE_ADVANCED_COPY: Partial<Record<VisaStage, StageCopy>> = {
-  [VisaStage.DOC_POOL]: {
-    subject: 'Başvurunuz evrak inceleme aşamasına geçti',
-    headline: 'Evraklarınız inceleniyor',
-    message:
-      'İyi haber: Başvurunuz ön kontrolden geçti ve Evrak İnceleme aşamasına alındı. Yüklediğiniz evraklar ekibimiz tarafından kontrol edilecek, ihtiyaç halinde sizinle iletişime geçilecektir.',
-  },
-  [VisaStage.SEC_POOL]: {
-    subject: 'Başvurunuz işlem aşamasına alındı',
-    headline: 'Başvurunuz işlemde',
-    message:
-      'Evraklarınız onaylandı ve başvurunuz işlem aşamasına geçti. Ekibimiz vize başvurunuzun son adımlarını hazırlamaktadır.',
-  },
-  [VisaStage.COMPLETED]: {
-    subject: 'Vize başvurunuz tamamlandı',
-    headline: 'Vize başvurunuz tamamlandı',
-    message:
-      'Vize başvurunuz sonuçlandırılmıştır. Alsasvize’i tercih ettiğiniz için teşekkür ederiz. Sonucu görüntülemek ve oluşturulan belgeleri indirmek için panelinize giriş yapabilirsiniz.',
-  },
-};
+function buildStageAdvancedCopy(
+  stage: CustomerProcessStage,
+  paymentType: ProcessPaymentType,
+): StageCopy {
+  switch (stage) {
+    case CustomerProcessStage.STAGE_1_RECORD_CREATED:
+      return {
+        subject: 'Başvuru Kaydınız Başarıyla Oluşturuldu',
+        paragraphs: [
+          'Başvuru kaydınız başarıyla oluşturulmuştur. Danışmanınız ile gerçekleştirdiğiniz ön görüşme doğrultusunda başvurunuz sistemimize alınmıştır. Uzman ekibimiz başvurunuzu kısa süre içerisinde inceleyerek işlem sürecinizi başlatacaktır. Bu aşamada herhangi bir işlem yapmanıza gerek bulunmamaktadır. Başvurunuzun güncel durumunu müşteri paneliniz üzerinden dilediğiniz zaman takip edebilirsiniz.',
+        ],
+      };
+    case CustomerProcessStage.STAGE_3_OPERATION_STARTED:
+      return {
+        subject: 'Başvurunuz İşleme Alındı',
+        paragraphs: [
+          'Başvurunuz operasyon ekibimize başarıyla aktarılmıştır. Uzman ekibimiz başvurunuz üzerinde çalışmaya başlamıştır. Başvuru türünüze göre müşteri panelinizde gerekli işlem adımları kullanıma açılmıştır. Lütfen müşteri panelinizi düzenli olarak kontrol ederek yönlendirmeleri takip ediniz.',
+        ],
+      };
+    case CustomerProcessStage.STAGE_4_FORM_READY:
+      return paymentType === 'NORMAL'
+        ? {
+            subject: 'Başvuru Formunuz ve Evrak Yükleme Alanınız Hazır',
+            paragraphs: [
+              'Başvurunuz için gerekli işlem adımları müşteri panelinizde kullanıma açılmıştır. Bu aşamada; Başvuru Formunu doldurabilir, Talep edilen belgeleri güvenli şekilde yükleyebilirsiniz. Belgelerinizi eksiksiz ve okunaklı şekilde yüklemeniz, sürecinizin planlanan şekilde ilerlemesine katkı sağlayacaktır. Belgeleriniz uzman ekibimiz tarafından ayrıntılı olarak kontrol edilecektir.',
+            ],
+          }
+        : {
+            subject: 'Başvuru Formunuz Hazır',
+            paragraphs: [
+              'Başvurunuz operasyon sürecine alınmıştır. İlk adım olarak müşteri panelinizde bulunan başvuru formunu eksiksiz şekilde doldurmanız gerekmektedir. Formunuz incelendikten sonra başvurunuz için randevu planlama süreci başlatılacaktır.',
+            ],
+          };
+    case CustomerProcessStage.STAGE_5_APPOINTMENT_CREATED:
+      return paymentType === 'NORMAL'
+        ? {
+            subject: 'Başvuru Randevunuz Oluşturuldu',
+            paragraphs: [
+              'Başvurunuz için randevunuz oluşturulmuştur. Randevu bilgileriniz müşteri panelinize eklenmiştir. [Tarih, Saat, Başvuru Merkezi Değişkenleri]. Kalan ödeme işleminizin tamamlanmasının ardından evrak yükleme alanınız aktif edilecektir.',
+            ],
+          }
+        : {
+            subject: 'Başvuru Randevunuz Oluşturuldu',
+            paragraphs: [
+              'Başvurunuz için randevunuz oluşturulmuştur. Randevu bilgileriniz müşteri panelinize eklenmiştir. [Tarih, Saat, Başvuru Merkezi Değişkenleri]. Kalan ödeme işleminizin tamamlanmasının ardından evrak yükleme alanınız aktif edilecektir.',
+            ],
+          };
+    case CustomerProcessStage.STAGE_6_DOCUMENT_UPLOAD_OPEN:
+      return paymentType === 'NORMAL'
+        ? {
+            subject: 'Evrak Yükleme Alanınız Hazır',
+            paragraphs: [
+              'Başvurunuz için evrak yükleme alanınız aktif edilmiştir. Talep edilen belgeleri müşteri paneliniz üzerinden güvenli şekilde yükleyebilirsiniz. Belgeleriniz uzman ekibimiz tarafından tek tek incelenecek ve gerekli görülmesi halinde panel üzerinden bilgilendirme yapılacaktır.',
+            ],
+          }
+        : {
+            subject: 'Evrak Yükleme Alanınız Hazır',
+            paragraphs: [
+              'Başvurunuz için evrak yükleme alanınız aktif edilmiştir. Talep edilen belgeleri müşteri paneliniz üzerinden güvenli şekilde yükleyebilirsiniz. Belgeleriniz uzman ekibimiz tarafından tek tek incelenecek ve gerekli görülmesi halinde panel üzerinden bilgilendirme yapılacaktır.',
+            ],
+          };
+    case CustomerProcessStage.STAGE_7_DOCUMENT_REVISION_REQUIRED:
+      return {
+        subject: 'Belgeleriniz İçin Düzenleme Gerekiyor',
+        paragraphs: [
+          'Yüklediğiniz belgeler incelenmiştir. Başvurunuzun eksiksiz hazırlanabilmesi için bazı belgeleriniz hakkında düzenleme, ek bilgi veya yeniden yükleme gerekmektedir. Lütfen müşteri panelinizde ilgili belgenin altında yer alan açıklamayı inceleyerek gerekli işlemleri tamamlayınız. Belgelerinizi yeniden yükledikten sonra uzman ekibimiz tarafından tekrar kontrol edilecektir.',
+        ],
+      };
+    case CustomerProcessStage.STAGE_8_DOCUMENTS_CHECKED:
+      return {
+        subject: 'Belgeleriniz Başarıyla Kontrol Edildi',
+        paragraphs: [
+          'Müşteri paneli üzerinden yüklediğiniz tüm belgeler uzman ekibimiz tarafından incelenmiş ve gerekli kontroller başarıyla tamamlanmıştır. Başvuru dosyanızın hazırlanma süreci başlamıştır. Uzman ekibimiz, başvurunuz için gerekli olan tüm belgeleri başvuru merkezinde kullanılacak sıralamaya uygun şekilde hazırlamaktadır. Dosyanız hazır olduğunda tarafınıza ayrıca bilgilendirme yapılacaktır.',
+        ],
+      };
+    case CustomerProcessStage.STAGE_9_DOSSIER_READY:
+      return {
+        subject: 'Başvuru Dosyanız Hazır',
+        paragraphs: [
+          'Başvurunuz için gerekli tüm belgeler uzman ekibimiz tarafından hazırlanmış ve müşteri panelinize yüklenmiştir. Başvuru dosyanız, başvuru merkezinde teslim edilmesi gereken belge sıralamasına uygun olarak düzenlenmiştir. Lütfen müşteri paneliniz üzerinden tüm belgeleri indirerek sıralamayı değiştirmeden çıktısını alınız. Başvurunuzun sorunsuz ilerleyebilmesi için belgelerin sırasını değiştirmemeniz önemlidir. Randevu günü ve saatinde, hazırladığınız başvuru dosyası ile birlikte ilgili başvuru merkezinde hazır bulunmanız yeterlidir.',
+        ],
+        attentionItems: [
+          'Belgeleri panelde sunulan sıraya göre indiriniz.',
+          'Belgelerin sırasını değiştirmeyiniz.',
+          'Tüm belgelerin çıktısını eksiksiz alınız.',
+          'Randevu günü dosyanızı eksiksiz şekilde yanınızda bulundurunuz.',
+          'Randevu saatinizden önce başvuru merkezinde hazır olunuz.',
+        ],
+      };
+    case CustomerProcessStage.STAGE_10_PROCESS_COMPLETED:
+      return {
+        subject: 'Başvuru Süreciniz Tamamlandı',
+        paragraphs: [
+          'Başvuru süreciniz tamamlanmıştır. Bu süreç boyunca bize duyduğunuz güven için teşekkür ederiz. Alsasvize olarak amacımız, başvurunuzun her aşamasını planlı, şeffaf ve titizlikle yöneterek size güvenilir bir danışmanlık hizmeti sunmaktır. İlerleyen dönemlerde gerçekleştireceğiniz yeni vize başvurularınızda da size destek vermekten memnuniyet duyarız.',
+        ],
+      };
+    case CustomerProcessStage.STAGE_2_APPLICATION_TAKEN_IN:
+      return {
+        subject: 'Başvurunuz İşleme Alındı',
+        paragraphs: [
+          'Başvurunuz sistemde işleme alınmıştır. Bu aşama iç süreç adımıdır ve şu an için herhangi bir işlem yapmanıza gerek bulunmamaktadır.',
+        ],
+      };
+    default:
+      return {
+        subject: 'Başvuru Durumunuz Güncellendi',
+        paragraphs: [
+          'Başvurunuzda yeni bir durum güncellemesi yapılmıştır. Güncel adımları müşteri paneliniz üzerinden takip edebilirsiniz.',
+        ],
+      };
+  }
+}
 
-const DEFAULT_STAGE_COPY: StageCopy = {
-  subject: 'Başvuru durumunuz güncellendi',
-  headline: 'Başvurunuz bir sonraki aşamaya geçti',
-  message:
-    'Vize başvurunuz bir sonraki aşamaya geçmiştir. Güncel detaylar için panelinize giriş yapabilirsiniz.',
-};
+function bulletList(items: string[]): string {
+  const rows = items
+    .map(
+      (item) =>
+        `<li style="margin:0 0 8px 0;font-family:${FONT};font-size:14px;line-height:22px;color:${BODY};">${escapeHtml(
+          item,
+        )}</li>`,
+    )
+    .join('');
+
+  return `<ul style="margin:0 0 16px 18px;padding:0;">${rows}</ul>`;
+}
+
+function standardClosingHtml(loginUrl: string): string {
+  return [
+    actionButton('Müşteri Paneline Git', loginUrl),
+    paragraph(
+      `Destek: <a href="tel:+905471010301" style="color:${INK};text-decoration:none;">+90 547 101 0301</a> | <a href="mailto:info@alsasvize.com" style="color:${INK};text-decoration:none;">info@alsasvize.com</a>`,
+    ),
+    paragraph('Alsasvize Online Vize Danışmanlığı'),
+  ].join('');
+}
+
+function standardClosingText(loginUrl: string): string[] {
+  return [
+    `Müşteri Paneli: ${loginUrl}`,
+    'Destek: +90 547 101 0301 | info@alsasvize.com',
+    'Alsasvize Online Vize Danışmanlığı',
+  ];
+}
 
 // -----------------------------------------------------------------------------
 //  Small helpers
@@ -151,11 +271,6 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-/** A short, human-friendly reference derived from the application UUID. */
-function shortRef(applicationId: string): string {
-  return applicationId.slice(0, 8).toUpperCase();
 }
 
 function heading(text: string): string {
@@ -244,13 +359,14 @@ function trackerStep(
   state: StepState,
   leftColor: string,
   rightColor: string,
+  widthPercent = 25,
 ): string {
   const labelStyle: Record<StepState, string> = {
     done: `color:${INK_SOFT};font-weight:600;`,
     current: `color:${INK};font-weight:700;`,
     future: `color:${FAINT};font-weight:500;`,
   };
-  return `<td width="25%" valign="top" style="width:25%;padding:0;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr>${connector(
+  return `<td width="${widthPercent}%" valign="top" style="width:${widthPercent}%;padding:0;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr>${connector(
     leftColor,
   )}<td width="36" valign="middle" style="width:36px;padding:0;">${trackerNode(
     state,
@@ -327,7 +443,6 @@ function calloutBox(
 function renderShell(params: {
   preheader: string;
   contentHtml: string;
-  applicationRef: string;
 }): string {
   // Absolute URL required for email clients; overridable per environment.
   const logoUrl =
@@ -349,12 +464,6 @@ function renderShell(params: {
 <tr><td style="height:4px;background:${INK};font-size:0;line-height:0;">&nbsp;</td></tr>
 <tr><td align="center" style="padding:28px 40px 6px 40px;font-family:${FONT};"><img src="${logoUrl}" width="150" alt="Alsas Vize" style="display:block;margin:0 auto;width:150px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" /></td></tr>
 <tr><td style="padding:4px 40px 8px 40px;font-family:${FONT};">${params.contentHtml}</td></tr>
-<tr><td style="padding:22px 40px 30px 40px;font-family:${FONT};border-top:1px solid ${LINE};">
-<div style="font-size:12px;line-height:18px;color:${MUTED};">Referans <span style="font-family:'Courier New',Courier,monospace;color:${INK_SOFT};">#${escapeHtml(
-    params.applicationRef,
-  )}</span></div>
-<div style="margin-top:6px;font-size:12px;line-height:18px;color:${MUTED};">Bu e-posta Alsasvize tarafından otomatik olarak gönderilmiştir. Lütfen bu mesaja yanıt vermeyiniz.</div>
-</td></tr>
 </table>
 </td></tr></table>
 </body>
@@ -369,14 +478,13 @@ export function renderDocumentRejectedEmail(
 ): RenderedEmail {
   const name = escapeHtml(input.customerName);
   const fileLabel = FILE_TYPE_LABEL[input.fileType];
-  const ref = shortRef(input.applicationId);
   const subject = `İşlem gerekli: ${fileLabel} belgesini yeniden yükleyin`;
   const preheader = `${fileLabel} belgesi onaylanamadı. Lütfen düzeltilmiş sürümü yeniden yükleyin.`;
   const loginUrl = customerLoginUrl();
 
   const contentHtml = [
-    heading('Bir belgeniz için işlem gerekiyor'),
     paragraph(`Merhaba ${name},`),
+    heading('Bir belgeniz için işlem gerekiyor'),
     paragraph(
       `Vize başvurunuzdaki belgelerden biri incelendi ve <strong style="color:${INK};font-weight:700;">onaylanamadı</strong>. Sürecin devam edebilmesi için lütfen düzeltilmiş sürümünü yeniden yükleyiniz.`,
     ),
@@ -388,24 +496,23 @@ export function renderDocumentRejectedEmail(
     paragraph(
       'Panelinize giriş yapıp işaretlenen dosyayı kaldırın ve yerine yeni dosya yükleyin. Belge onaylandığında başvurunuz otomatik olarak ilerleyecektir.',
     ),
-    actionButton('Sisteme Giriş Yap', loginUrl),
+    standardClosingHtml(loginUrl),
   ].join('');
 
-  const html = renderShell({ preheader, contentHtml, applicationRef: ref });
+  const html = renderShell({ preheader, contentHtml });
   const text = [
+    `Merhaba ${input.customerName},`,
+    '',
     'Bir belgeniz için işlem gerekiyor',
     '',
-    `Merhaba ${input.customerName},`,
     'Vize başvurunuzdaki belgelerden biri onaylanamadı.',
     '',
     `Belge: ${fileLabel}`,
     `Neden: ${input.reason}`,
     '',
     'Lütfen panelinize giriş yapın, işaretlenen dosyayı kaldırın ve düzeltilmiş sürümünü yükleyin. Belge onaylandığında başvurunuz otomatik olarak ilerler.',
-    `Sisteme Giriş Yap: ${loginUrl}`,
     '',
-    `Referans #${ref}`,
-    'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',
+    ...standardClosingText(loginUrl),
   ].join('\n');
 
   return { subject, html, text };
@@ -415,32 +522,43 @@ export function renderStageAdvancedEmail(
   input: StageAdvancedEmailInput,
 ): RenderedEmail {
   const name = escapeHtml(input.customerName);
-  const copy = STAGE_ADVANCED_COPY[input.newStage] ?? DEFAULT_STAGE_COPY;
-  const ref = shortRef(input.applicationId);
+  const copy = buildStageAdvancedCopy(input.processStage, input.paymentType);
   const loginUrl = customerLoginUrl();
+  const paragraphBlocks = copy.paragraphs.map((item) =>
+    paragraph(escapeHtml(item)),
+  );
 
   const contentHtml = [
-    heading(copy.headline),
     paragraph(`Merhaba ${name},`),
-    paragraph(escapeHtml(copy.message)),
-    actionButton('Sisteme Giriş Yap', loginUrl),
-    trackerSection(input.newStage),
+    ...paragraphBlocks,
+    ...(copy.attentionItems && copy.attentionItems.length > 0
+      ? [
+          paragraph(
+            `<strong style="color:${INK};font-weight:700;">DİKKAT EDİLMESİ GEREKENLER:</strong>`,
+          ),
+          bulletList(copy.attentionItems),
+        ]
+      : []),
+    standardClosingHtml(loginUrl),
   ].join('');
 
   const html = renderShell({
     preheader: copy.subject,
     contentHtml,
-    applicationRef: ref,
   });
   const text = [
-    copy.headline,
-    '',
     `Merhaba ${input.customerName},`,
-    copy.message,
-    `Sisteme Giriş Yap: ${loginUrl}`,
     '',
-    `Referans #${ref}`,
-    'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',
+    ...copy.paragraphs,
+    ...(copy.attentionItems && copy.attentionItems.length > 0
+      ? [
+          '',
+          'DİKKAT EDİLMESİ GEREKENLER:',
+          ...copy.attentionItems.map((item) => `- ${item}`),
+        ]
+      : []),
+    '',
+    ...standardClosingText(loginUrl),
   ].join('\n');
 
   return { subject: copy.subject, html, text };
@@ -449,7 +567,6 @@ export function renderStageAdvancedEmail(
 export function renderDocAssistantStatusUpdatedEmail(
   input: DocAssistantStatusUpdatedEmailInput,
 ): RenderedEmail {
-  const ref = shortRef(input.applicationId);
   const loginUrl = customerLoginUrl();
   const customerName = escapeHtml(input.customerName);
   const documentName = escapeHtml(input.documentName);
@@ -459,8 +576,8 @@ export function renderDocAssistantStatusUpdatedEmail(
   const preheader = `${input.documentName} belgesi ${input.statusLabel} durumuna getirildi.`;
 
   const contentHtml = [
-    heading('Belge durum güncellemesi'),
     paragraph(`Merhaba ${customerName},`),
+    heading('Belge durum güncellemesi'),
     paragraph(
       `Sayın ${customerName}, <strong style="color:${INK};font-weight:700;">${documentName}</strong> adlı belgenizin durumu <strong style="color:${INK};font-weight:700;">${statusLabel}</strong> olarak güncellenmiştir.`,
     ),
@@ -471,24 +588,22 @@ export function renderDocAssistantStatusUpdatedEmail(
     paragraph(
       'Güncel durumu panelinizden takip edebilir, gerekli olduğunda belge süreci için yeni aksiyon alabilirsiniz.',
     ),
-    actionButton('Sisteme Giriş Yap', loginUrl),
+    standardClosingHtml(loginUrl),
   ].join('');
 
   const html = renderShell({
     preheader,
     contentHtml,
-    applicationRef: ref,
   });
 
   const text = [
+    `Merhaba ${input.customerName},`,
+    '',
     'Belge durum güncellemesi',
     '',
-    `Sayın ${input.customerName}, ${input.documentName} adlı belgenizin durumu ${input.statusLabel} olarak güncellenmiştir.`,
+    `${input.documentName} adlı belgenizin durumu ${input.statusLabel} olarak güncellenmiştir.`,
     '',
-    `Sisteme Giriş Yap: ${loginUrl}`,
-    '',
-    `Referans #${ref}`,
-    'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',
+    ...standardClosingText(loginUrl),
   ].join('\n');
 
   return { subject, html, text };
@@ -497,7 +612,6 @@ export function renderDocAssistantStatusUpdatedEmail(
 export function renderAppointmentFourDayReminderEmail(
   input: AppointmentFourDayReminderEmailInput,
 ): RenderedEmail {
-  const ref = shortRef(input.applicationId);
   const loginUrl = customerLoginUrl();
   const customerName = escapeHtml(input.customerName);
   const appointmentLabel = formatDateTimeTr(input.appointmentDate);
@@ -506,8 +620,8 @@ export function renderAppointmentFourDayReminderEmail(
   const preheader = `Randevu tarihinize 4 gün kaldı: ${appointmentLabel}`;
 
   const contentHtml = [
-    heading('Randevunuza 4 gün kaldı'),
     paragraph(`Merhaba ${customerName},`),
+    heading('Randevunuza 4 gün kaldı'),
     paragraph(
       `Randevu tarihiniz yaklaşıyor. Planlanan randevu zamanınız: <strong style="color:${INK};font-weight:700;">${escapeHtml(
         appointmentLabel,
@@ -520,24 +634,22 @@ export function renderAppointmentFourDayReminderEmail(
     paragraph(
       'Panelinize giriş yaparak güncel belge ve süreç durumunuzu kontrol etmenizi öneririz.',
     ),
-    actionButton('Sisteme Giriş Yap', loginUrl),
+    standardClosingHtml(loginUrl),
   ].join('');
 
   const html = renderShell({
     preheader,
     contentHtml,
-    applicationRef: ref,
   });
 
   const text = [
+    `Merhaba ${input.customerName},`,
+    '',
     'Randevunuza 4 gün kaldı',
     '',
-    `Merhaba ${input.customerName},`,
     `Randevu tarihiniz yaklaşıyor: ${appointmentLabel}`,
-    `Sisteme Giriş Yap: ${loginUrl}`,
     '',
-    `Referans #${ref}`,
-    'Bu e-posta Alsasvize tarafından otomatik gönderilmiştir. Lütfen yanıtlamayın.',
+    ...standardClosingText(loginUrl),
   ].join('\n');
 
   return { subject, html, text };

@@ -11,6 +11,7 @@ import { DocAssistantDashboard } from "@/components/applications/doc-assistant-d
 import { CustomerApplicationDetail } from "@/components/applications/customer-application-detail";
 import { DocumentReviewActions } from "@/components/applications/document-review-actions";
 import { StageActions } from "@/components/applications/stage-actions";
+import { FormPrintButton } from "../../../../components/applications/form-print-button";
 import { DocumentUploader } from "@/components/documents/document-uploader";
 import { StageBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
@@ -32,8 +33,10 @@ import {
   INTENT_CLASSES,
   STAGE_ADVANCE,
   STAGE_LABEL,
+  getStageLabel,
 } from "@/lib/status";
 import type {
+  ApplicationFormEntry,
   DownloadUrlResponse,
   LinkedActiveApplication,
   StaffOption,
@@ -99,9 +102,9 @@ function stageChangeText(details: Record<string, unknown> | null): string | null
   }
   const { previousStage, newStage } = details;
   if (isStage(previousStage) && isStage(newStage)) {
-    return `${STAGE_LABEL[previousStage]} → ${STAGE_LABEL[newStage]}`;
+    return `${getStageLabel(previousStage)} → ${getStageLabel(newStage)}`;
   }
-  return isStage(newStage) ? STAGE_LABEL[newStage] : null;
+  return isStage(newStage) ? getStageLabel(newStage) : null;
 }
 
 function formatDisplayDate(value: string | null | undefined): string {
@@ -130,6 +133,32 @@ function formatDateRange(
     return "";
   }
   return `${formatDisplayDate(start)} - ${formatDisplayDate(end)}`;
+}
+
+function getApplicationForms(detail: VisaApplicationDetail): ApplicationFormEntry[] {
+  if (detail.applicationForms.length > 0) {
+    return detail.applicationForms;
+  }
+
+  return [
+    {
+      applicantIndex: 0,
+      applicantLabel: "1. Kişi Başvuru Formu",
+      applicantFullName: detail.customer.fullName ?? null,
+      submitted: Boolean(detail.details),
+      submittedAt: detail.details?.submittedAt ?? null,
+      details: detail.details,
+    },
+  ];
+}
+
+function getPrimaryApplicationDetails(
+  detail: VisaApplicationDetail,
+): VisaApplicationDetail["details"] {
+  const forms = getApplicationForms(detail);
+  const primaryFromForms =
+    forms.find((form) => form.applicantIndex === 0)?.details ?? null;
+  return primaryFromForms ?? detail.details;
 }
 
 function AssignmentRow({
@@ -329,33 +358,48 @@ export default async function ApplicationDetailPage({
   const appointmentCity =
     crm?.appointmentCity ?? detail.customer.appointmentCity ?? null;
   const appointmentDate = crm?.appointmentDate ?? null;
+  const stageDisplayContext = {
+    paymentType: crm?.paymentType ?? null,
+    hasAppointmentDate: Boolean(appointmentDate),
+    isDeliveredToCustomer: detail.isDeliveredToCustomer,
+    hasDocumentRevision: detail.documents.some(
+      (document) => !document.isApproved && Boolean(document.rejectionReason),
+    ),
+  };
+  const applicationForms = getApplicationForms(detail);
+  const primaryDetails = getPrimaryApplicationDetails(detail);
+  const requiredFormCount =
+    detail.applicationFormsRequiredCount || applicationForms.length;
+  const submittedFormCount =
+    detail.applicationFormsSubmittedCount ||
+    applicationForms.filter((form) => form.submitted).length;
 
   // Read-only context for the CRM form, pulled from the customer's own records.
   const crmTargetCountry = detail.customer.targetCountry ?? "";
-  const crmPhone = detail.details?.phone ?? detail.customer.phone ?? "";
+  const crmPhone = primaryDetails?.phone ?? detail.customer.phone ?? "";
   const crmTravelDateStart =
     detail.salesReadonlyData?.travelStartDate ??
-    detail.details?.travelStartDate ??
+    primaryDetails?.travelStartDate ??
     detail.salesReadonlyData?.plannedTravelStartDate ??
-    detail.details?.plannedTravelStartDate ??
+    primaryDetails?.plannedTravelStartDate ??
     "";
   const crmTravelDateEnd =
     detail.salesReadonlyData?.travelEndDate ??
-    detail.details?.travelEndDate ??
+    primaryDetails?.travelEndDate ??
     detail.salesReadonlyData?.plannedTravelEndDate ??
-    detail.details?.plannedTravelEndDate ??
+    primaryDetails?.plannedTravelEndDate ??
     "";
   const crmTravelDate = formatDateRange(crmTravelDateStart, crmTravelDateEnd);
   const customerResidenceCity =
     detail.salesReadonlyData?.residenceCity ??
-    detail.details?.residenceCity ??
+    primaryDetails?.residenceCity ??
     detail.residenceCity ??
     detail.customer.residenceCity ??
     "";
   const corePlannedTravelDate =
     detail.plannedTravelDate ??
     detail.salesReadonlyData?.plannedTravelStartDate ??
-    detail.details?.plannedTravelStartDate ??
+    primaryDetails?.plannedTravelStartDate ??
     null;
 
   // Finance (DOC): remaining balance on a prepaid plan + any final receipt.
@@ -483,7 +527,7 @@ export default async function ApplicationDetailPage({
             <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight">
               {detail.customer.fullName}
             </h1>
-            <StageBadge stage={stage} />
+            <StageBadge stage={stage} context={stageDisplayContext} />
             <Badge variant="outline" className="rounded-md text-[11px]">
               {APPLICATION_TYPE_LABEL[detail.applicationType]}
             </Badge>
@@ -503,7 +547,7 @@ export default async function ApplicationDetailPage({
           <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
             <h2 className="text-sm font-medium">İş Akışı</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Mevcut süreç durumu: {STAGE_LABEL[stage]}
+              Mevcut süreç durumu: {getStageLabel(stage, stageDisplayContext)}
             </p>
             <Separator className="my-4" />
             <StageActions
@@ -634,31 +678,85 @@ export default async function ApplicationDetailPage({
 
           <TabsContent value="form">
           <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
-            <h2 className="text-sm font-medium">Başvuru Formu</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-medium">Başvuru Formları</h2>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "rounded-md text-[11px]",
+                  submittedFormCount >= requiredFormCount
+                    ? INTENT_CLASSES.success
+                    : INTENT_CLASSES.warning,
+                )}
+              >
+                {submittedFormCount}/{requiredFormCount} Tamamlandı
+              </Badge>
+            </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {isSales
-                ? "Satış rolü yalnızca formun gönderim durumunu görebilir."
-                : "Danışan tarafından gönderilen başvuru formu (salt okunur)."}
+                ? "Satış rolü yalnızca kişi bazlı form gönderim durumlarını görebilir."
+                : "Danışan tarafından gönderilen kişi bazlı başvuru formları (salt okunur)."}
             </p>
             <Separator className="my-4" />
-            {isSales ? (
-              <div className="rounded-lg border border-border/40 bg-muted/40 p-4">
-                <p className="text-sm font-medium">
-                  {detail.applicationFormSubmitted
-                    ? "Başvuru Formu Gönderildi"
-                    : "Başvuru Formu Gönderilmedi"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Satış birimi için form içeriği gizlenmiştir.
-                </p>
-              </div>
-            ) : detail.details ? (
-              <ApplicationDetailsView details={detail.details} />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Danışan henüz başvuru formunu göndermedi.
-              </p>
-            )}
+
+            <div className="space-y-4">
+              {applicationForms.map((formEntry) => {
+                const printTargetId = `staff-form-view-${formEntry.applicantIndex}`;
+
+                return (
+                  <article
+                    key={formEntry.applicantIndex}
+                    className="rounded-md border border-border/40 bg-background p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {formEntry.applicantIndex + 1}. Kişi Formu
+                        </p>
+                        {formEntry.applicantFullName ? (
+                          <p className="text-xs text-muted-foreground">
+                            {formEntry.applicantFullName}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-md text-[11px]",
+                            formEntry.submitted
+                              ? INTENT_CLASSES.success
+                              : INTENT_CLASSES.warning,
+                          )}
+                        >
+                          {formEntry.submitted ? "Tamamlandı" : "Bekliyor"}
+                        </Badge>
+                        {!isSales && formEntry.details ? (
+                          <FormPrintButton targetId={printTargetId} label="Yazdır" />
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <Separator className="my-3" />
+
+                    {isSales ? (
+                      <p className="text-xs text-muted-foreground">
+                        Satış birimi için form içeriği gizlenmiştir.
+                      </p>
+                    ) : formEntry.details ? (
+                      <div id={printTargetId}>
+                        <ApplicationDetailsView details={formEntry.details} />
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Danışan henüz bu kişi için başvuru formunu göndermedi.
+                      </p>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
           </section>
           </TabsContent>
 
@@ -875,7 +973,7 @@ export default async function ApplicationDetailPage({
                     targetCountry={crmTargetCountry}
                     initialAppointmentCity={appointmentCity}
                     initialAppointmentDate={appointmentDate}
-                    initialTravelDate={detail.details?.plannedTravelStartDate ?? null}
+                    initialTravelDate={primaryDetails?.plannedTravelStartDate ?? null}
                     initialAppointmentNote={crm?.appointmentNote ?? null}
                     initialAppointmentExpense={crm?.appointmentExpense ?? null}
                     initialHasVisaFee={crm?.hasVisaFee ?? false}
@@ -966,6 +1064,12 @@ export default async function ApplicationDetailPage({
                 <dt className="text-xs text-muted-foreground">E-posta</dt>
                 <dd className="font-mono text-sm break-all">
                   {detail.customer.email}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Telefon Numarası</dt>
+                <dd className="font-mono text-sm break-all">
+                  {detail.customer.phone}
                 </dd>
               </div>
             </dl>

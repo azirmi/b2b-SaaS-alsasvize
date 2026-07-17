@@ -163,6 +163,10 @@ export default async function DashboardPage() {
                             <StageBadge
                               stage={application.currentStage}
                               customerView
+                              context={{
+                                isDeliveredToCustomer:
+                                  application.isDeliveredToCustomer,
+                              }}
                             />
                           </div>
 
@@ -229,6 +233,10 @@ export default async function DashboardPage() {
                               <StageBadge
                                 stage={application.currentStage}
                                 customerView
+                                context={{
+                                  isDeliveredToCustomer:
+                                    application.isDeliveredToCustomer,
+                                }}
                               />
                             </TableCell>
                             <TableCell>
