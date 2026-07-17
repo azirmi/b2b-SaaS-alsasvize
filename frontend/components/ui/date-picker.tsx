@@ -88,7 +88,7 @@ export function DatePickerInput({
   value,
   onChange,
   name,
-  placeholder = "GG.AA.YYYY",
+  placeholder = "DD.MM.YYYY",
   required,
   min,
   disabled,

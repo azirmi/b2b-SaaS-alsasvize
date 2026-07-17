@@ -85,7 +85,7 @@ function formatIsoDateForUi(iso: string): string {
   }
 
   const [year, month, day] = iso.split("-");
-  return `${day}/${month}/${year}`;
+  return `${day}.${month}.${year}`;
 }
 
 export function AppointmentOpsForm({
@@ -227,7 +227,7 @@ export function AppointmentOpsForm({
               name="appointmentDate"
               value={appointmentDate}
               onChange={setAppointmentDate}
-              placeholder="GG.AA.YYYY"
+              placeholder="DD.MM.YYYY"
               required
             />
           </div>
@@ -241,7 +241,7 @@ export function AppointmentOpsForm({
             value={travelDate}
             onChange={setTravelDate}
             min={minTravelDate}
-            placeholder="GG.AA.YYYY"
+            placeholder="DD.MM.YYYY"
             required
           />
           {countryRule ? (

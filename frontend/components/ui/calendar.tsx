@@ -53,21 +53,21 @@ function Calendar({
       endMonth={resolvedEndMonth}
       navLayout="around"
       className={cn(
-        "rounded-lg border border-[#cbb074] bg-[#fcf8f2] p-3 text-blue-950 shadow-sm",
+        "rounded-lg border border-[#cbb074] bg-[#fdfaf3] p-3 text-blue-950 shadow-sm",
         className
       )}
       classNames={{
         months: "flex flex-col",
         month: "space-y-3",
-        month_caption: "relative flex items-center justify-center gap-2",
-        caption_label: "text-sm font-semibold text-blue-950",
+        month_caption: "flex items-center justify-between gap-2",
+        caption_label: "sr-only",
         dropdowns: "flex items-center gap-2",
         dropdown_root: "relative",
         dropdown:
           "h-8 rounded-md border border-[#cbb074] bg-[#fffaf0] px-2 text-sm font-medium text-blue-950 outline-none focus-visible:border-blue-950",
         years_dropdown: "h-8",
         months_dropdown: "h-8",
-        nav: "absolute inset-x-0 top-0 flex items-center justify-between",
+        nav: "flex items-center gap-1",
         button_previous:
           "inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#cbb074] bg-[#fffaf0] text-blue-950 transition-colors hover:bg-[#f3e6c5]",
         button_next:
@@ -79,10 +79,10 @@ function Calendar({
           "flex h-8 items-center justify-center text-xs font-semibold text-blue-950",
         weeks: "mt-1 grid gap-1",
         week: "grid grid-cols-7 gap-1",
-        day: "flex h-9 w-9 items-center justify-center p-0",
+        day: "h-9 w-9 p-0",
         day_button:
-          "h-9 w-9 rounded-md text-sm font-medium text-blue-950 transition-colors hover:bg-[#f3e6c5] focus-visible:border-blue-950 focus-visible:ring-2 focus-visible:ring-blue-950/35 aria-selected:bg-blue-950 aria-selected:text-white",
-        selected: "bg-blue-950 text-white",
+          "h-9 w-9 rounded-none text-sm font-medium text-blue-950 transition-colors hover:bg-[#f3e6c5] focus-visible:border-blue-950 focus-visible:ring-2 focus-visible:ring-blue-950/35 aria-selected:bg-blue-950 aria-selected:text-white aria-selected:font-semibold aria-selected:hover:bg-blue-950",
+        selected: "bg-blue-950 text-white rounded-none font-semibold",
         today: "font-semibold text-blue-950",
         outside: "text-blue-950/45",
         disabled: "text-blue-950/30",
