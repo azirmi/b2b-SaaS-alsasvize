@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,7 +11,9 @@ import { Prisma } from '../generated/prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { Department, FileType, Role, VisaStage } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { COUNTRY_RULES } from '../visa-applications/country-rules';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
+import { UpdateApplicationCoreDataDto } from './dto/update-application-core-data.dto';
 
 const SALES_PIPELINE_STAGES: VisaStage[] = [
   VisaStage.SALES_POOL,
@@ -176,6 +179,142 @@ export class AdminService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Admin/Sales override for core application data captured early in onboarding.
+   * This updates customer country/appointment city + application residence/travel date
+   * and writes an immutable audit row in the same transaction.
+   */
+  async updateApplicationCoreData(
+    applicationId: string,
+    dto: UpdateApplicationCoreDataDto,
+    actor: AuthenticatedUser,
+  ) {
+    const targetCountry = dto.targetCountry.trim();
+    const appointmentCity = dto.appointmentCity.trim();
+    const residenceCity = dto.residenceCity.trim();
+    const plannedTravelDate = dto.plannedTravelDate.trim();
+
+    const countryRule = COUNTRY_RULES[targetCountry];
+    if (!countryRule) {
+      throw new BadRequestException('Desteklenmeyen hedef ülke seçimi');
+    }
+    if (!countryRule.cities.includes(appointmentCity)) {
+      throw new BadRequestException(
+        'Seçilen ülke için randevu şehri geçersiz',
+      );
+    }
+    const parsedPlannedTravelDate = new Date(`${plannedTravelDate}T00:00:00.000Z`);
+    if (Number.isNaN(parsedPlannedTravelDate.getTime())) {
+      throw new BadRequestException('Planlanan seyahat tarihi geçersiz');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const application = await tx.visaApplication.findUnique({
+        where: { id: applicationId },
+        select: {
+          id: true,
+          customerId: true,
+          assignedSalesId: true,
+          salesStaffId: true,
+          customer: {
+            select: {
+              targetCountry: true,
+              appointmentCity: true,
+            },
+          },
+          residenceCity: true,
+          plannedTravelDate: true,
+        },
+      });
+
+      if (!application) {
+        throw new NotFoundException(`Başvuru bulunamadı: ${applicationId}`);
+      }
+
+      if (actor.role === Role.SALES) {
+        const staff = await tx.staff.findUnique({
+          where: { userId: actor.userId },
+          select: { id: true, department: true },
+        });
+
+        if (!staff || staff.department !== Department.SALES) {
+          throw new ForbiddenException('Satış personeli profili bulunamadı');
+        }
+
+        const canOverride =
+          application.assignedSalesId === staff.id ||
+          application.salesStaffId === staff.id;
+
+        if (!canOverride) {
+          throw new ForbiddenException(
+            'Bu başvurunun temel verilerini düzenleme yetkiniz yok',
+          );
+        }
+      }
+
+      const updatedCustomer = await tx.user.update({
+        where: { id: application.customerId },
+        data: {
+          targetCountry,
+          appointmentCity,
+        },
+        select: {
+          targetCountry: true,
+          appointmentCity: true,
+        },
+      });
+
+      const updatedApplication = await tx.visaApplication.update({
+        where: { id: application.id },
+        data: {
+          residenceCity,
+          plannedTravelDate: parsedPlannedTravelDate,
+        },
+        select: {
+          id: true,
+          residenceCity: true,
+          plannedTravelDate: true,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          application: { connect: { id: application.id } },
+          performedBy: { connect: { id: actor.userId } },
+          actionType: 'CORE_DATA_OVERRIDDEN',
+          details: {
+            before: {
+              targetCountry: application.customer.targetCountry,
+              appointmentCity: application.customer.appointmentCity,
+              residenceCity: application.residenceCity,
+              plannedTravelDate: application.plannedTravelDate
+                ? application.plannedTravelDate.toISOString().slice(0, 10)
+                : null,
+            },
+            after: {
+              targetCountry: updatedCustomer.targetCountry,
+              appointmentCity: updatedCustomer.appointmentCity,
+              residenceCity: updatedApplication.residenceCity,
+              plannedTravelDate: updatedApplication.plannedTravelDate
+                ? updatedApplication.plannedTravelDate.toISOString().slice(0, 10)
+                : null,
+            },
+          },
+        },
+      });
+
+      return {
+        applicationId: updatedApplication.id,
+        targetCountry: updatedCustomer.targetCountry,
+        appointmentCity: updatedCustomer.appointmentCity,
+        residenceCity: updatedApplication.residenceCity,
+        plannedTravelDate: updatedApplication.plannedTravelDate
+          ? updatedApplication.plannedTravelDate.toISOString().slice(0, 10)
+          : null,
+      };
+    });
   }
 
   /**

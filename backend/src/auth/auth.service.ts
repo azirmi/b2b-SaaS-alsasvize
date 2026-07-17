@@ -109,6 +109,8 @@ export class AuthService {
     phone: string,
     targetCountry: string,
     appointmentCity: string,
+    residenceCity: string,
+    plannedTravelDate: string,
     applicationType: ApplicationType,
     extraApplicants: OnboardingApplicantInput[],
     passports: Express.Multer.File[],
@@ -121,6 +123,29 @@ export class AuthService {
       throw new BadRequestException(
         'Seçilen ülke için randevu şehri geçersiz',
       );
+    }
+    if (!residenceCity || typeof residenceCity !== 'string') {
+      throw new BadRequestException('İkamet edilen şehir alanı zorunludur');
+    }
+    const normalizedResidenceCity = residenceCity.trim();
+    if (!normalizedResidenceCity) {
+      throw new BadRequestException('İkamet edilen şehir alanı zorunludur');
+    }
+    if (normalizedResidenceCity.length > 120) {
+      throw new BadRequestException('İkamet edilen şehir en fazla 120 karakter olabilir');
+    }
+    if (!plannedTravelDate || typeof plannedTravelDate !== 'string') {
+      throw new BadRequestException('Planlanan seyahat tarihi alanı zorunludur');
+    }
+    const normalizedPlannedTravelDate = plannedTravelDate.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedPlannedTravelDate)) {
+      throw new BadRequestException('Planlanan seyahat tarihi geçerli formatta olmalıdır');
+    }
+    const parsedPlannedTravelDate = new Date(
+      `${normalizedPlannedTravelDate}T00:00:00.000Z`,
+    );
+    if (Number.isNaN(parsedPlannedTravelDate.getTime())) {
+      throw new BadRequestException('Planlanan seyahat tarihi geçersiz');
     }
 
     // ── File validation ──────────────────────────────────────────────────
@@ -214,6 +239,13 @@ export class AuthService {
           customer: { connect: { id: user.id } },
           currentStage: VisaStage.SALES_POOL,
           applicationType,
+          residenceCity: normalizedResidenceCity,
+          plannedTravelDate: parsedPlannedTravelDate,
+          metadata: {
+            source: 'onboarding',
+            residenceCity: normalizedResidenceCity,
+            plannedTravelDate: normalizedPlannedTravelDate,
+          },
         },
       });
 
@@ -267,6 +299,8 @@ export class AuthService {
             targetCountry,
             applicationType,
             appointmentCity,
+            residenceCity: normalizedResidenceCity,
+            plannedTravelDate: normalizedPlannedTravelDate,
             applicantCount: applicants.length,
             passportDocumentIds: documents.map((doc) => doc.id),
           },

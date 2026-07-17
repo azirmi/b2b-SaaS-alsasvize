@@ -139,6 +139,8 @@ export interface VisaApplicationDetail {
   assignedDocId: string | null;
   assignedSecId: string | null;
   stageUpdatedAt: string;
+  residenceCity?: string | null;
+  plannedTravelDate?: string | null;
   isDeliveredToCustomer: boolean;
   deliveredToCustomerAt: string | null;
   deliveredToCustomerFiles: DeliveredCustomerFile[] | null;

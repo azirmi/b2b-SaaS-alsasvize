@@ -5,6 +5,7 @@ import { ArrowLeft, ClipboardList, FileText, History } from "lucide-react";
 import { AdminActions } from "@/components/applications/admin-actions";
 import { ApplicationDetailsView } from "@/components/applications/application-details-view";
 import { AppointmentOpsForm } from "@/components/applications/appointment-ops-form";
+import { CoreDataOverrideDialog } from "@/components/applications/core-data-override-dialog";
 import { CrmForm } from "@/components/applications/crm-form";
 import { DocAssistantDashboard } from "@/components/applications/doc-assistant-dashboard";
 import { CustomerApplicationDetail } from "@/components/applications/customer-application-detail";
@@ -68,6 +69,7 @@ const ACTION_LABEL: Record<string, string> = {
   DOC_ASSISTANT_ITEM_INITIALIZED: "Dosya asistanı kaydı oluşturuldu",
   DOC_ASSISTANT_STATUS_UPDATED: "Dosya asistanı durumu güncellendi",
   APPOINTMENT_OPS_UPDATED: "Randevu işlemleri güncellendi",
+  CORE_DATA_OVERRIDDEN: "Çekirdek veriler güncellendi",
   FORCE_STAGE_CHANGED: "Aşama zorla değiştirildi",
   DELIVERED_TO_CUSTOMER: "Danışana teslim edildi",
   DIJIZIN_KVKK_SMS_SENT: "Dijizin KVKK SMS gönderildi",
@@ -347,8 +349,14 @@ export default async function ApplicationDetailPage({
   const customerResidenceCity =
     detail.salesReadonlyData?.residenceCity ??
     detail.details?.residenceCity ??
+    detail.residenceCity ??
     detail.customer.residenceCity ??
     "";
+  const corePlannedTravelDate =
+    detail.plannedTravelDate ??
+    detail.salesReadonlyData?.plannedTravelStartDate ??
+    detail.details?.plannedTravelStartDate ??
+    null;
 
   // Finance (DOC): remaining balance on a prepaid plan + any final receipt.
   const crmRemaining =
@@ -367,6 +375,7 @@ export default async function ApplicationDetailPage({
     stage === VisaStage.DOC_PROCESS &&
     (isAdmin || detail.assignedDoc?.user.id === session.userId);
   const isSales = session.role === Role.SALES;
+  const canOverrideCoreData = isAdmin || isSales;
   const canUseDocWorkspace = canDocUpload;
 
   let linkedApplications: LinkedActiveApplication[] = [];
@@ -971,6 +980,16 @@ export default async function ApplicationDetailPage({
               <AssignmentRow label="Son İşlem" staff={detail.assignedSec} />
             </div>
           </section>
+
+          {canOverrideCoreData ? (
+            <CoreDataOverrideDialog
+              applicationId={detail.id}
+              initialTargetCountry={detail.customer.targetCountry ?? ""}
+              initialAppointmentCity={detail.customer.appointmentCity ?? ""}
+              initialResidenceCity={customerResidenceCity}
+              initialPlannedTravelDate={corePlannedTravelDate}
+            />
+          ) : null}
 
           {isAdmin ? (
             <AdminActions

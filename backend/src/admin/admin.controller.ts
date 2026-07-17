@@ -6,6 +6,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -16,8 +17,9 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '../generated/prisma/enums';
 import { AdminService } from './admin.service';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
+import { UpdateApplicationCoreDataDto } from './dto/update-application-core-data.dto';
 
-// Every route requires a valid JWT cookie AND the ADMIN role.
+// Every route requires a valid JWT cookie; roles are enforced per handler.
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AdminController {
@@ -76,5 +78,16 @@ export class AdminController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.adminService.deleteUser(id, actor);
+  }
+
+  /** Admin/Sales override endpoint for target country, appointment city, residence city and travel date. */
+  @Put('applications/:id/core-data')
+  @Roles(Role.ADMIN, Role.SALES)
+  updateApplicationCoreData(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateApplicationCoreDataDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.adminService.updateApplicationCoreData(id, dto, actor);
   }
 }

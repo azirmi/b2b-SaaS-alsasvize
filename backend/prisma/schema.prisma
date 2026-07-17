@@ -225,6 +225,10 @@ model VisaApplication {
   deliveredToCustomerAt  DateTime?
   deliveredToCustomerFiles Json?
 
+  // Early customer data captured during onboarding, before full form unlock.
+  residenceCity     String?
+  plannedTravelDate DateTime?
+
   // Free-form structured data captured by staff (e.g. the Sales CRM data entry:
   // applicant details, target country and invoice totals) stored under `crm`.
   metadata Json?

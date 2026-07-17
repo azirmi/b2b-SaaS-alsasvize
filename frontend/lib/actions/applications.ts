@@ -26,6 +26,7 @@ import { applicationFormSchema } from "@/lib/validators/application-form";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MONEY_RE = /^\d+(?:[.,]\d{1,2})?$/;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 interface DijizinActionResult extends ActionResult {
   message?: string;
@@ -144,6 +145,50 @@ export async function forceCancelApplication(
       serverApi.patch(`/applications/${applicationId}/force-cancel`),
     "Başvuru iptal edilemedi. Lütfen tekrar deneyin.",
   );
+}
+
+/** Admin/Sales override for onboarding core data fields. */
+export async function updateApplicationCoreData(
+  id: string,
+  payload: {
+    targetCountry: string;
+    appointmentCity: string;
+    residenceCity: string;
+    plannedTravelDate: string;
+  },
+): Promise<ActionResult> {
+  if (!UUID_RE.test(id)) {
+    return { ok: false, error: "Geçersiz başvuru referansı." };
+  }
+
+  const targetCountry = payload.targetCountry.trim();
+  const appointmentCity = payload.appointmentCity.trim();
+  const residenceCity = payload.residenceCity.trim();
+  const plannedTravelDate = payload.plannedTravelDate.trim();
+
+  if (!targetCountry || !appointmentCity || !residenceCity || !plannedTravelDate) {
+    return { ok: false, error: "Tüm alanlar zorunludur." };
+  }
+  if (!ISO_DATE_RE.test(plannedTravelDate)) {
+    return { ok: false, error: "Seyahat tarihi YYYY-MM-DD formatında olmalıdır." };
+  }
+
+  try {
+    await serverApi.put(`/admin/applications/${id}/core-data`, {
+      targetCountry,
+      appointmentCity,
+      residenceCity,
+      plannedTravelDate,
+    });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, error: error.message };
+    }
+    return { ok: false, error: "Çekirdek veriler güncellenemedi. Lütfen tekrar deneyin." };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true };
 }
 
 /** Updates one DOC assistant card status for the given application. */

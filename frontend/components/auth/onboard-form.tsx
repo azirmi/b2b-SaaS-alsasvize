@@ -59,6 +59,8 @@ export function OnboardForm() {
   const [targetCountry, setTargetCountry] = useState("");
   const [applicationType, setApplicationType] = useState("");
   const [appointmentCity, setAppointmentCity] = useState("");
+  const [residenceCity, setResidenceCity] = useState("");
+  const [plannedTravelDate, setPlannedTravelDate] = useState("");
   const [fullName, setFullName] = useState("");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [applicants, setApplicants] = useState<OnboardApplicantDraft[]>([]);
@@ -247,6 +249,38 @@ export function OnboardForm() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="residenceCity">İkamet Edilen Şehir</Label>
+        <Input
+          id="residenceCity"
+          name="residenceCity"
+          value={residenceCity}
+          onChange={(event) => {
+            const masked = maskNameInput(event.target.value, 120);
+            setResidenceCity(toUppercaseAscii(masked));
+          }}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder="ISTANBUL"
+          maxLength={120}
+          className="uppercase"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="plannedTravelDate">Planlanan Seyahat Tarihi</Label>
+        <Input
+          id="plannedTravelDate"
+          name="plannedTravelDate"
+          type="date"
+          value={plannedTravelDate}
+          onChange={(event) => setPlannedTravelDate(event.target.value)}
+          required
+        />
       </div>
 
       <div className="space-y-2">

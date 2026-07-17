@@ -141,6 +141,8 @@ export async function onboard(
   const phone = normalizeOnboardPhone(phoneRaw);
   const targetCountry = String(formData.get("targetCountry") ?? "").trim();
   const appointmentCity = String(formData.get("appointmentCity") ?? "").trim();
+  const residenceCity = String(formData.get("residenceCity") ?? "").trim();
+  const plannedTravelDate = String(formData.get("plannedTravelDate") ?? "").trim();
   const applicationType = String(formData.get("applicationType") ?? "").trim() as ApplicationType;
   const acceptKvkk = formData.get("acceptKvkk") === "true";
   const acceptTerms = formData.get("acceptTerms") === "true";
@@ -185,6 +187,8 @@ export async function onboard(
     !phone ||
     !targetCountry ||
     !appointmentCity ||
+    !residenceCity ||
+    !plannedTravelDate ||
     !applicationType
   ) {
     return { error: "Tüm alanların doldurulması zorunludur." };
@@ -199,6 +203,19 @@ export async function onboard(
   }
   if (!APPLICATION_TYPES.has(applicationType)) {
     return { error: "Lütfen geçerli bir başvuru türü seçin." };
+  }
+  if (residenceCity.length > 120) {
+    return { error: "İkamet edilen şehir en fazla 120 karakter olabilir." };
+  }
+  if (!NAME_INPUT_RE.test(residenceCity)) {
+    return { error: "İkamet edilen şehir yalnızca İngilizce harf içermelidir." };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(plannedTravelDate)) {
+    return { error: "Planlanan seyahat tarihi geçerli formatta olmalıdır." };
+  }
+  const parsedPlannedTravelDate = new Date(`${plannedTravelDate}T00:00:00.000Z`);
+  if (Number.isNaN(parsedPlannedTravelDate.getTime())) {
+    return { error: "Planlanan seyahat tarihi geçersiz." };
   }
 
   if (password.length < 8 || password.length > 72) {
@@ -248,6 +265,8 @@ export async function onboard(
     payload.set("phone", phone);
     payload.set("targetCountry", targetCountry);
     payload.set("appointmentCity", appointmentCity);
+    payload.set("residenceCity", residenceCity);
+    payload.set("plannedTravelDate", plannedTravelDate);
     payload.set("applicationType", applicationType);
     payload.set("groupApplicants", JSON.stringify(groupApplicants));
     payload.set("hasAcceptedKVKK", "true");

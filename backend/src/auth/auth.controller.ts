@@ -54,6 +54,7 @@ export class AuthController {
    * Full customer auto-onboarding (multipart/form-data).
    *
     * Accepts `email`, `password`, `fullName`, `phone`, `targetCountry`, `appointmentCity`,
+    * `residenceCity`, `plannedTravelDate`,
     * `applicationType`,
     * `groupApplicants` (JSON array of only extra full names),
    * `hasAcceptedKVKK`, `hasAcceptedTerms` as text fields and one or more
@@ -72,6 +73,8 @@ export class AuthController {
     @Body('phone') phone: string,
     @Body('targetCountry') targetCountry: string,
     @Body('appointmentCity') appointmentCity: string,
+    @Body('residenceCity') residenceCity: string,
+    @Body('plannedTravelDate') plannedTravelDate: string,
     @Body('applicationType') applicationType: string,
     @Body('groupApplicants') groupApplicantsRaw: string,
     @Body('hasAcceptedKVKK') hasAcceptedKVKK: string,
@@ -119,6 +122,31 @@ export class AuthController {
       throw new BadRequestException('Randevu şehri alanı zorunludur');
     }
     if (
+      !residenceCity ||
+      typeof residenceCity !== 'string' ||
+      residenceCity.trim().length === 0
+    ) {
+      throw new BadRequestException('İkamet edilen şehir alanı zorunludur');
+    }
+    if (residenceCity.trim().length > 120) {
+      throw new BadRequestException('İkamet edilen şehir en fazla 120 karakter olabilir');
+    }
+    if (
+      !plannedTravelDate ||
+      typeof plannedTravelDate !== 'string' ||
+      plannedTravelDate.trim().length === 0
+    ) {
+      throw new BadRequestException('Planlanan seyahat tarihi alanı zorunludur');
+    }
+    const normalizedPlannedTravelDate = plannedTravelDate.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedPlannedTravelDate)) {
+      throw new BadRequestException('Planlanan seyahat tarihi geçerli formatta olmalıdır');
+    }
+    const parsedPlannedTravelDate = new Date(`${normalizedPlannedTravelDate}T00:00:00.000Z`);
+    if (Number.isNaN(parsedPlannedTravelDate.getTime())) {
+      throw new BadRequestException('Planlanan seyahat tarihi geçersiz');
+    }
+    if (
       !applicationType ||
       typeof applicationType !== 'string' ||
       applicationType.trim().length === 0
@@ -162,6 +190,8 @@ export class AuthController {
       phone.trim(),
       targetCountry.trim(),
       appointmentCity.trim(),
+      residenceCity.trim(),
+      normalizedPlannedTravelDate,
       normalizedApplicationType as ApplicationType,
       extraApplicants,
       passports,

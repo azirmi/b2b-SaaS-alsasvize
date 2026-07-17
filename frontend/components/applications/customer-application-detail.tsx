@@ -360,6 +360,20 @@ function isDeliveredCustomerFile(value: unknown): value is DeliveredCustomerFile
   );
 }
 
+function toIsoDate(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString().slice(0, 10);
+}
+
 function Notice({ title, body }: { title: string; body: string }) {
   return (
     <div className="space-y-4">
@@ -466,6 +480,18 @@ export async function CustomerApplicationDetail({
     metadata && typeof metadata.email === "string" ? metadata.email : null;
   const metadataPhone =
     metadata && typeof metadata.phone === "string" ? metadata.phone : null;
+  const metadataResidenceCity =
+    metadata && typeof metadata.residenceCity === "string"
+      ? metadata.residenceCity
+      : null;
+  const metadataPlannedTravelDate =
+    metadata && typeof metadata.plannedTravelDate === "string"
+      ? metadata.plannedTravelDate
+      : null;
+  const onboardingTravelStartDate =
+    toIsoDate(detail.plannedTravelDate) ??
+    toIsoDate(detail.details?.plannedTravelStartDate) ??
+    toIsoDate(metadataPlannedTravelDate);
 
   const stage = detail.currentStage;
   const canEditForm =
@@ -552,6 +578,11 @@ export async function CustomerApplicationDetail({
                   email: detail.customer.email || metadataEmail,
                   phone: detail.customer.phone || metadataPhone,
                   nationalId: detail.details?.nationalId ?? null,
+                  residenceCity:
+                    detail.details?.residenceCity ??
+                    detail.residenceCity ??
+                    metadataResidenceCity,
+                  plannedTravelStartDate: onboardingTravelStartDate,
                 }}
               />
             </>

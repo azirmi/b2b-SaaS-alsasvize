@@ -49,6 +49,8 @@ interface ApplicationFormPrefill {
   email?: string | null;
   phone?: string | null;
   nationalId?: string | null;
+  residenceCity?: string | null;
+  plannedTravelStartDate?: string | null;
 }
 
 const EMPLOYER_FIELD_NAMES = new Set([
@@ -134,6 +136,9 @@ function withCustomerPrefill(
     email: defaults.email || (prefill.email ?? ""),
     phone: defaults.phone || (prefill.phone ?? ""),
     nationalId: defaults.nationalId || (prefill.nationalId ?? ""),
+    residenceCity: defaults.residenceCity || (prefill.residenceCity ?? ""),
+    plannedTravelStartDate:
+      defaults.plannedTravelStartDate || (prefill.plannedTravelStartDate ?? ""),
   };
 }
 
