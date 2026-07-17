@@ -368,6 +368,9 @@ export default async function ApplicationDetailPage({
   };
   const applicationForms = getApplicationForms(detail);
   const primaryDetails = getPrimaryApplicationDetails(detail);
+  const defaultStaffFormTabValue = applicationForms[0]
+    ? `staff-form-${applicationForms[0].applicantIndex}`
+    : "staff-form-1";
   const requiredFormCount =
     detail.applicationFormsRequiredCount || applicationForms.length;
   const submittedFormCount =
@@ -699,64 +702,79 @@ export default async function ApplicationDetailPage({
             </p>
             <Separator className="my-4" />
 
-            <div className="space-y-4">
+            <Tabs defaultValue={defaultStaffFormTabValue} className="space-y-4">
+              <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto whitespace-nowrap rounded-lg border border-border/60 bg-muted/50 p-1">
+                {applicationForms.map((formEntry) => (
+                  <TabsTrigger
+                    key={formEntry.applicantIndex}
+                    value={`staff-form-${formEntry.applicantIndex}`}
+                    className="shrink-0"
+                  >
+                    {formEntry.applicantIndex}. Kişi
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
               {applicationForms.map((formEntry) => {
                 const printTargetId = `staff-form-view-${formEntry.applicantIndex}`;
 
                 return (
-                  <article
+                  <TabsContent
                     key={formEntry.applicantIndex}
-                    className="rounded-md border border-border/40 bg-background p-4"
+                    value={`staff-form-${formEntry.applicantIndex}`}
+                    className="mt-0"
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">
-                          {formEntry.applicantIndex}. Kişi Formu
-                        </p>
-                        {formEntry.applicantFullName ? (
-                          <p className="text-xs text-muted-foreground">
-                            {formEntry.applicantFullName}
+                    <article className="rounded-md border border-border/40 bg-background p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            {formEntry.applicantIndex}. Kişi Formu
                           </p>
-                        ) : null}
+                          {formEntry.applicantFullName ? (
+                            <p className="text-xs text-muted-foreground">
+                              {formEntry.applicantFullName}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "rounded-md text-[11px]",
+                              formEntry.submitted
+                                ? INTENT_CLASSES.success
+                                : INTENT_CLASSES.warning,
+                            )}
+                          >
+                            {formEntry.submitted ? "Tamamlandı" : "Bekliyor"}
+                          </Badge>
+                          {!isSales && formEntry.details ? (
+                            <FormPrintButton targetId={printTargetId} label="Yazdır" />
+                          ) : null}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "rounded-md text-[11px]",
-                            formEntry.submitted
-                              ? INTENT_CLASSES.success
-                              : INTENT_CLASSES.warning,
-                          )}
-                        >
-                          {formEntry.submitted ? "Tamamlandı" : "Bekliyor"}
-                        </Badge>
-                        {!isSales && formEntry.details ? (
-                          <FormPrintButton targetId={printTargetId} label="Yazdır" />
-                        ) : null}
-                      </div>
-                    </div>
+                      <Separator className="my-3" />
 
-                    <Separator className="my-3" />
-
-                    {isSales ? (
-                      <p className="text-xs text-muted-foreground">
-                        Satış birimi için form içeriği gizlenmiştir.
-                      </p>
-                    ) : formEntry.details ? (
-                      <div id={printTargetId}>
-                        <ApplicationDetailsView details={formEntry.details} />
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        Danışan henüz bu kişi için başvuru formunu göndermedi.
-                      </p>
-                    )}
-                  </article>
+                      {isSales ? (
+                        <p className="text-xs text-muted-foreground">
+                          Satış birimi için form içeriği gizlenmiştir.
+                        </p>
+                      ) : formEntry.details ? (
+                        <div id={printTargetId}>
+                          <ApplicationDetailsView details={formEntry.details} />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Danışan henüz bu kişi için başvuru formunu göndermedi.
+                        </p>
+                      )}
+                    </article>
+                  </TabsContent>
                 );
               })}
-            </div>
+            </Tabs>
           </section>
           </TabsContent>
 
@@ -1091,6 +1109,7 @@ export default async function ApplicationDetailPage({
               initialAppointmentCity={detail.customer.appointmentCity ?? ""}
               initialResidenceCity={customerResidenceCity}
               initialPlannedTravelDate={corePlannedTravelDate}
+              initialApplicantCount={detail.applicantCount}
             />
           ) : null}
 

@@ -1,4 +1,12 @@
-import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -24,4 +32,9 @@ export class UpdateApplicationCoreDataDto {
     message: 'Planlanan seyahat tarihi YYYY-MM-DD formatında olmalıdır',
   })
   plannedTravelDate!: string;
+
+  @IsOptional()
+  @IsInt({ message: 'Kişi sayısı tam sayı olmalıdır' })
+  @Min(1, { message: 'Kişi sayısı en az 1 olmalıdır' })
+  applicantCount?: number;
 }

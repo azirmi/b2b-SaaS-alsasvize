@@ -12,6 +12,7 @@ import { ForceDownloadButton } from "@/components/documents/force-download-butto
 import { StageBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
@@ -600,6 +601,9 @@ export async function CustomerApplicationDetail({
       : null;
   const applicationForms = getApplicationForms(detail);
   const primaryDetails = getPrimaryApplicationDetails(detail);
+  const defaultFormTabValue = applicationForms[0]
+    ? `applicant-${applicationForms[0].applicantIndex}`
+    : "applicant-1";
   const requiredFormCount =
     detail.applicationFormsRequiredCount || applicationForms.length;
   const submittedFormCount =
@@ -720,73 +724,88 @@ export async function CustomerApplicationDetail({
 
           <Separator className="my-4" />
 
-          <div className="space-y-4">
+          <Tabs defaultValue={defaultFormTabValue} className="space-y-4">
+            <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto whitespace-nowrap rounded-lg border border-border/60 bg-muted/50 p-1">
+              {applicationForms.map((formEntry) => (
+                <TabsTrigger
+                  key={formEntry.applicantIndex}
+                  value={`applicant-${formEntry.applicantIndex}`}
+                  className="shrink-0"
+                >
+                  {formEntry.applicantIndex}. Kişi
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
             {applicationForms.map((formEntry) => (
-              <article
+              <TabsContent
                 key={formEntry.applicantIndex}
-                className="rounded-md border border-border/40 bg-background p-4"
+                value={`applicant-${formEntry.applicantIndex}`}
+                className="mt-0"
               >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{formEntry.applicantLabel}</p>
-                    {formEntry.applicantFullName ? (
-                      <p className="text-xs text-muted-foreground">
-                        {formEntry.applicantFullName}
-                      </p>
-                    ) : null}
+                <article className="rounded-md border border-border/40 bg-background p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{formEntry.applicantLabel}</p>
+                      {formEntry.applicantFullName ? (
+                        <p className="text-xs text-muted-foreground">
+                          {formEntry.applicantFullName}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "rounded-md text-[11px]",
+                        formEntry.submitted
+                          ? INTENT_CLASSES.success
+                          : INTENT_CLASSES.warning,
+                      )}
+                    >
+                      {formEntry.submitted ? "Tamamlandı" : "Bekliyor"}
+                    </Badge>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "rounded-md text-[11px]",
-                      formEntry.submitted
-                        ? INTENT_CLASSES.success
-                        : INTENT_CLASSES.warning,
-                    )}
-                  >
-                    {formEntry.submitted ? "Tamamlandı" : "Bekliyor"}
-                  </Badge>
-                </div>
 
-                <Separator className="my-3" />
+                  <Separator className="my-3" />
 
-                {canEditForm ? (
-                  formLockedByCrm ? (
-                    <p className="text-xs text-muted-foreground">
-                      Bu form ödeme ve CRM kaydı tamamlandığında aktif olacaktır.
-                    </p>
+                  {canEditForm ? (
+                    formLockedByCrm ? (
+                      <p className="text-xs text-muted-foreground">
+                        Bu form ödeme ve CRM kaydı tamamlandığında aktif olacaktır.
+                      </p>
+                    ) : (
+                      <ApplicationForm
+                        applicationId={detail.id}
+                        applicantIndex={formEntry.applicantIndex}
+                        details={formEntry.details}
+                        targetCountry={detail.customer.targetCountry}
+                        customerPrefill={{
+                          fullName:
+                            formEntry.applicantFullName ||
+                            detail.customer.fullName ||
+                            metadataFullName,
+                          email: detail.customer.email || metadataEmail,
+                          phone: detail.customer.phone || metadataPhone,
+                          nationalId: formEntry.details?.nationalId ?? null,
+                          residenceCity:
+                            formEntry.details?.residenceCity ??
+                            detail.residenceCity ??
+                            metadataResidenceCity,
+                          plannedTravelStartDate: onboardingTravelStartDate,
+                        }}
+                      />
+                    )
+                  ) : formEntry.details ? (
+                    <ApplicationDetailsView details={formEntry.details} />
                   ) : (
-                    <ApplicationForm
-                      applicationId={detail.id}
-                      applicantIndex={formEntry.applicantIndex}
-                      details={formEntry.details}
-                      targetCountry={detail.customer.targetCountry}
-                      customerPrefill={{
-                        fullName:
-                          formEntry.applicantFullName ||
-                          detail.customer.fullName ||
-                          metadataFullName,
-                        email: detail.customer.email || metadataEmail,
-                        phone: detail.customer.phone || metadataPhone,
-                        nationalId: formEntry.details?.nationalId ?? null,
-                        residenceCity:
-                          formEntry.details?.residenceCity ??
-                          detail.residenceCity ??
-                          metadataResidenceCity,
-                        plannedTravelStartDate: onboardingTravelStartDate,
-                      }}
-                    />
-                  )
-                ) : formEntry.details ? (
-                  <ApplicationDetailsView details={formEntry.details} />
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Bu kişi için henüz başvuru formu gönderilmedi.
-                  </p>
-                )}
-              </article>
+                    <p className="text-xs text-muted-foreground">
+                      Bu kişi için henüz başvuru formu gönderilmedi.
+                    </p>
+                  )}
+                </article>
+              </TabsContent>
             ))}
-          </div>
+          </Tabs>
         </section>
       ) : (
         <>

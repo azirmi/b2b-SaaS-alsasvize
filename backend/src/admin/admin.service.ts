@@ -195,6 +195,7 @@ export class AdminService {
     const appointmentCity = dto.appointmentCity.trim();
     const residenceCity = dto.residenceCity.trim();
     const plannedTravelDate = dto.plannedTravelDate.trim();
+    const requestedApplicantCount = dto.applicantCount;
 
     const countryRule = COUNTRY_RULES[targetCountry];
     if (!countryRule) {
@@ -220,8 +221,14 @@ export class AdminService {
           salesStaffId: true,
           customer: {
             select: {
+              fullName: true,
               targetCountry: true,
               appointmentCity: true,
+            },
+          },
+          onboardingApplicants: {
+            select: {
+              id: true,
             },
           },
           residenceCity: true,
@@ -252,6 +259,55 @@ export class AdminService {
             'Bu başvurunun temel verilerini düzenleme yetkiniz yok',
           );
         }
+      }
+
+      const existingApplicantRows = application.onboardingApplicants.length;
+      const existingApplicantCount =
+        existingApplicantRows > 0 ? existingApplicantRows : 1;
+
+      if (
+        requestedApplicantCount !== undefined &&
+        requestedApplicantCount < existingApplicantCount
+      ) {
+        throw new BadRequestException(
+          'Kişi sayısı yalnızca artırılabilir; mevcut kayıt sayısından küçük olamaz',
+        );
+      }
+
+      let resultingApplicantCount = existingApplicantCount;
+      let addedApplicantRows = 0;
+
+      if (
+        requestedApplicantCount !== undefined &&
+        requestedApplicantCount > existingApplicantCount
+      ) {
+        const rowsToCreate =
+          existingApplicantRows === 0
+            ? requestedApplicantCount
+            : requestedApplicantCount - existingApplicantRows;
+
+        if (rowsToCreate > 0) {
+          const firstGeneratedOrdinal =
+            existingApplicantRows === 0 ? 1 : existingApplicantRows + 1;
+
+          const applicantRows = Array.from({ length: rowsToCreate }, (_, offset) => {
+            const ordinal = firstGeneratedOrdinal + offset;
+            const fullName =
+              existingApplicantRows === 0 && offset === 0
+                ? application.customer.fullName
+                : `Ek Basvuru ${ordinal}`;
+
+            return {
+              applicationId: application.id,
+              fullName,
+            };
+          });
+
+          await tx.onboardingApplicant.createMany({ data: applicantRows });
+          addedApplicantRows = applicantRows.length;
+        }
+
+        resultingApplicantCount = requestedApplicantCount;
       }
 
       const updatedCustomer = await tx.user.update({
@@ -292,6 +348,7 @@ export class AdminService {
               plannedTravelDate: application.plannedTravelDate
                 ? application.plannedTravelDate.toISOString().slice(0, 10)
                 : null,
+              applicantCount: existingApplicantCount,
             },
             after: {
               targetCountry: updatedCustomer.targetCountry,
@@ -300,6 +357,8 @@ export class AdminService {
               plannedTravelDate: updatedApplication.plannedTravelDate
                 ? updatedApplication.plannedTravelDate.toISOString().slice(0, 10)
                 : null,
+              applicantCount: resultingApplicantCount,
+              addedApplicantRows,
             },
           },
         },
@@ -313,6 +372,7 @@ export class AdminService {
         plannedTravelDate: updatedApplication.plannedTravelDate
           ? updatedApplication.plannedTravelDate.toISOString().slice(0, 10)
           : null,
+        applicantCount: resultingApplicantCount,
       };
     });
   }

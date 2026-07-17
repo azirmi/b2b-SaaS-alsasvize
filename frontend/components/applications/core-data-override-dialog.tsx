@@ -58,12 +58,14 @@ export function CoreDataOverrideDialog({
   initialAppointmentCity,
   initialResidenceCity,
   initialPlannedTravelDate,
+  initialApplicantCount,
 }: {
   applicationId: string;
   initialTargetCountry: string;
   initialAppointmentCity: string;
   initialResidenceCity: string;
   initialPlannedTravelDate: string | null;
+  initialApplicantCount: number;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -74,6 +76,9 @@ export function CoreDataOverrideDialog({
   );
   const [plannedTravelDate, setPlannedTravelDate] = useState(
     toIsoDate(initialPlannedTravelDate),
+  );
+  const [applicantCount, setApplicantCount] = useState(
+    String(Math.max(1, initialApplicantCount)),
   );
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -88,6 +93,7 @@ export function CoreDataOverrideDialog({
     setAppointmentCity(initialAppointmentCity);
     setResidenceCity(normalizeResidenceCity(initialResidenceCity));
     setPlannedTravelDate(toIsoDate(initialPlannedTravelDate));
+    setApplicantCount(String(Math.max(1, initialApplicantCount)));
     setError(null);
   }
 
@@ -102,12 +108,19 @@ export function CoreDataOverrideDialog({
     setError(null);
     setNote(null);
 
+    const parsedApplicantCount = Number(applicantCount.trim());
+    if (!Number.isInteger(parsedApplicantCount) || parsedApplicantCount < 1) {
+      setError("Kişi sayısı en az 1 olmalıdır.");
+      return;
+    }
+
     startTransition(async () => {
       const result = await updateApplicationCoreData(applicationId, {
         targetCountry,
         appointmentCity,
         residenceCity,
         plannedTravelDate,
+        applicantCount: parsedApplicantCount,
       });
 
       if (!result.ok) {
@@ -231,6 +244,23 @@ export function CoreDataOverrideDialog({
                   onChange={setPlannedTravelDate}
                   required
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="core-data-applicant-count">Kişi Sayısı</Label>
+                <Input
+                  id="core-data-applicant-count"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={applicantCount}
+                  onChange={(event) => setApplicantCount(event.target.value)}
+                  inputMode="numeric"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Bu alan artırıldığında ek kişi formları oluşturulur.
+                </p>
               </div>
 
               {error ? (

@@ -155,6 +155,7 @@ export async function updateApplicationCoreData(
     appointmentCity: string;
     residenceCity: string;
     plannedTravelDate: string;
+    applicantCount: number;
   },
 ): Promise<ActionResult> {
   if (!UUID_RE.test(id)) {
@@ -165,12 +166,16 @@ export async function updateApplicationCoreData(
   const appointmentCity = payload.appointmentCity.trim();
   const residenceCity = payload.residenceCity.trim();
   const plannedTravelDate = payload.plannedTravelDate.trim();
+  const applicantCount = payload.applicantCount;
 
   if (!targetCountry || !appointmentCity || !residenceCity || !plannedTravelDate) {
     return { ok: false, error: "Tüm alanlar zorunludur." };
   }
   if (!ISO_DATE_RE.test(plannedTravelDate)) {
     return { ok: false, error: "Seyahat tarihi YYYY-MM-DD formatında olmalıdır." };
+  }
+  if (!Number.isInteger(applicantCount) || applicantCount < 1) {
+    return { ok: false, error: "Kişi sayısı en az 1 olmalıdır." };
   }
 
   try {
@@ -179,6 +184,7 @@ export async function updateApplicationCoreData(
       appointmentCity,
       residenceCity,
       plannedTravelDate,
+      applicantCount,
     });
   } catch (error) {
     if (error instanceof ApiError) {

@@ -116,19 +116,21 @@ export function AdminActions({
 
         <div className="space-y-1.5">
           <Label htmlFor="force-stage">Aşamayı zorla değiştir</Label>
-          <div className="flex gap-2">
-            <Select value={stage} onValueChange={(value) => setStage(value as VisaStage)}>
-              <SelectTrigger id="force-stage" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STAGES.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {STAGE_LABEL[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex min-w-0 gap-2">
+            <div className="min-w-0 flex-1">
+              <Select value={stage} onValueChange={(value) => setStage(value as VisaStage)}>
+                <SelectTrigger id="force-stage" className="w-full min-w-0 overflow-hidden">
+                  <SelectValue className="truncate" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STAGES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {STAGE_LABEL[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               size="sm"
               variant="outline"
