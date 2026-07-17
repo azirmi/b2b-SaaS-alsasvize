@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { format } from "date-fns";
+import { tr } from "date-fns/locale";
 
 import { StageBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDuration } from "@/lib/format";
-import type { AdminComplianceData } from "@/lib/types";
+import type { AdminComplianceData, AdminComplianceRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function formatDateTime(iso: string | null): string {
@@ -22,13 +24,17 @@ function formatDateTime(iso: string | null): string {
   if (Number.isNaN(value.getTime())) {
     return "—";
   }
-  return value.toLocaleString("tr-TR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return format(value, "dd MMMM yyyy HH:mm", { locale: tr });
+}
+
+function assignmentStatusText(status: AdminComplianceRow["status"]): string {
+  return status === "CLAIMED"
+    ? "Dosya Atandı"
+    : "Personel Ataması Bekleniyor";
+}
+
+function assigneeDisplay(row: AdminComplianceRow): string {
+  return row.docClaimedBy ?? row.docAssignee ?? "Henüz Atanmadı";
 }
 
 function StatCard({
@@ -56,25 +62,25 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="Aktarılan Dosya" value={data.totalTransferred} />
-        <StatCard label="Claim Alınan" value={data.claimedCount} />
-        <StatCard label="Kuyrukta Bekleyen" value={data.waitingCount} />
+        <StatCard label="Dosya Atanan" value={data.claimedCount} />
+        <StatCard label="Atama Bekleyen" value={data.waitingCount} />
         <StatCard
           label="Ort. Bekleme Süresi"
           value={formatDuration(data.avgClaimWaitMs)}
-          hint="Satıştan Evrak Claim anına kadar"
+          hint="Satıştan evrak sürecine aktarımdan dosya atama anına kadar"
         />
         <StatCard
-          label="SLA Eşiği"
+          label="Hedef Süre Eşiği"
           value={`${data.slaHours} saat`}
-          hint={`${data.breachedCount} kayıt eşiği aştı`}
+          hint={`${data.breachedCount} başvuru hedef süreyi aştı`}
         />
       </div>
 
       <section className="rounded-lg border border-border/40 bg-card shadow-sm">
         <div className="flex items-center justify-between border-b border-border/40 px-3 py-3.5 sm:px-5">
-          <h2 className="text-sm font-medium">Performans & Uyum</h2>
+          <h2 className="text-sm font-medium">Operasyon Performansı</h2>
           <span className="text-xs text-muted-foreground tabular-nums">
-            {data.rows.length} kayıt
+            Toplam {data.rows.length} Başvuru
           </span>
         </div>
 
@@ -93,7 +99,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        Başvuru
+                        Danışan
                       </p>
                       <Link
                         href={`/dashboard/applications/${row.applicationId}`}
@@ -111,7 +117,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                           : "border-emerald-300/70 text-emerald-700 dark:border-emerald-700/60 dark:text-emerald-400",
                       )}
                     >
-                      {row.isSlaBreached ? "SLA Aşıldı" : "Uygun"}
+                      {row.isSlaBreached ? "Hedef Süre Aşıldı" : "Uygun"}
                     </Badge>
                   </div>
 
@@ -125,7 +131,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
 
                     <div className="space-y-1 text-right">
                       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        Bekleme Süresi
+                        İşlem Bekleme Süresi
                       </p>
                       <span
                         className={cn(
@@ -143,7 +149,7 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                   <dl className="mt-3 space-y-2 border-t border-border/30 pt-3">
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        Satış → Evrak Kuyruk
+                        Evrak Sürecine Aktarım
                       </dt>
                       <dd className="font-mono text-xs text-muted-foreground">
                         {formatDateTime(row.salesToDocAt)}
@@ -151,20 +157,22 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        Evrak Claim
+                        Dosya Atama Durumu
                       </dt>
-                      <dd className="font-mono text-xs text-muted-foreground">
-                        {formatDateTime(row.docClaimAt)}
+                      <dd className="text-xs text-muted-foreground">
+                        {assignmentStatusText(row.status)}
                       </dd>
                     </div>
                     <div className="flex items-start justify-between gap-3">
                       <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        Evrak Personeli
+                        Sorumlu Dosya Asistanı
                       </dt>
                       <dd className="text-right text-sm">
-                        {row.docClaimedBy ?? row.docAssignee ?? "—"}
+                        {assigneeDisplay(row)}
                         <p className="text-xs text-muted-foreground">
-                          {row.status === "CLAIMED" ? "Claim alındı" : "Claim bekleniyor"}
+                          {row.status === "CLAIMED"
+                            ? "Dosyayı Üstlenen Personel"
+                            : "Personel Ataması Bekleniyor"}
                         </p>
                       </dd>
                     </div>
@@ -178,22 +186,22 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Başvuru
+                      Danışan
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
                       Süreç Durumu
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Satış → Evrak Kuyruk
+                      Evrak Sürecine Aktarım
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Evrak Claim
+                      Dosya Atama Durumu
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Bekleme Süresi
+                      İşlem Bekleme Süresi
                     </TableHead>
                     <TableHead className="text-xs font-medium text-muted-foreground">
-                      Evrak Personeli
+                      Sorumlu Dosya Asistanı
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -220,15 +228,15 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                                 : "border-emerald-300/70 text-emerald-700 dark:border-emerald-700/60 dark:text-emerald-400",
                             )}
                           >
-                            {row.isSlaBreached ? "SLA Aşıldı" : "Uygun"}
+                            {row.isSlaBreached ? "Hedef Süre Aşıldı" : "Uygun"}
                           </Badge>
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {formatDateTime(row.salesToDocAt)}
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {formatDateTime(row.docClaimAt)}
+                      <TableCell className="text-xs text-muted-foreground">
+                        {assignmentStatusText(row.status)}
                       </TableCell>
                       <TableCell>
                         <span
@@ -243,9 +251,11 @@ export function AdminCompliancePanel({ data }: { data: AdminComplianceData }) {
                         </span>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {row.docClaimedBy ?? row.docAssignee ?? "—"}
+                        {assigneeDisplay(row)}
                         <div className="text-xs text-muted-foreground">
-                          {row.status === "CLAIMED" ? "Claim alındı" : "Claim bekleniyor"}
+                          {row.status === "CLAIMED"
+                            ? "Dosyayı Üstlenen Personel"
+                            : "Personel Ataması Bekleniyor"}
                         </div>
                       </TableCell>
                     </TableRow>

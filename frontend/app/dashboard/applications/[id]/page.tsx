@@ -375,7 +375,6 @@ export default async function ApplicationDetailPage({
     stage === VisaStage.DOC_PROCESS &&
     (isAdmin || detail.assignedDoc?.user.id === session.userId);
   const isSales = session.role === Role.SALES;
-  const canOverrideCoreData = isAdmin || isSales;
   const canUseDocWorkspace = canDocUpload;
 
   let linkedApplications: LinkedActiveApplication[] = [];
@@ -981,7 +980,7 @@ export default async function ApplicationDetailPage({
             </div>
           </section>
 
-          {canOverrideCoreData ? (
+          {isAdmin ? (
             <CoreDataOverrideDialog
               applicationId={detail.id}
               initialTargetCountry={detail.customer.targetCountry ?? ""}

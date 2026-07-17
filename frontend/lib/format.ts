@@ -32,19 +32,19 @@ export function formatCustomerFileNo(id: string): string {
   return `Dosya No: ASV-${compact.slice(0, 6)}`;
 }
 
-/** Compact ms duration for analytics (e.g. "3d 4h", "5h 12m", "42m"). */
+/** Turkish full-word duration for analytics (e.g. "3 Saat 21 Dakika"). */
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) {
     return "—";
   }
   const minutes = Math.floor(ms / 60_000);
-  if (minutes < 60) return `${minutes} dk`;
+  if (minutes < 60) return `${minutes} Dakika`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
     const remMin = minutes % 60;
-    return remMin ? `${hours} sa ${remMin} dk` : `${hours} sa`;
+    return remMin ? `${hours} Saat ${remMin} Dakika` : `${hours} Saat`;
   }
   const days = Math.floor(hours / 24);
   const remHours = hours % 24;
-  return remHours ? `${days} g ${remHours} sa` : `${days} g`;
+  return remHours ? `${days} Gün ${remHours} Saat` : `${days} Gün`;
 }

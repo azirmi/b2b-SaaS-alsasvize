@@ -1,9 +1,15 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { DatePickerInput } from "@/components/ui/date-picker";
 import {
   Dialog,
@@ -115,19 +121,24 @@ export function CoreDataOverrideDialog({
   }
 
   return (
-    <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-medium">Çekirdek Başvuru Verileri</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Hedef ülke, randevu şehri, ikamet şehri ve planlanan seyahat tarihini
-            admin veya satış rolü ile güncelleyebilirsiniz.
-          </p>
-        </div>
+    <Card className="rounded-lg border border-border/40 bg-card shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm font-medium tracking-tight">
+          <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden />
+          Yönetici İşlemleri
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="flex flex-col space-y-4">
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Bu alan sadece yöneticiler tarafından kullanılabilir. Müşterinin kayıt
+          sırasında hatalı girdiği temel verileri (ülke, şehir, tarih) buradan
+          ezebilirsiniz.
+        </p>
 
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
-            <Button size="sm" variant="outline" className="shrink-0">
+            <Button type="button" className="w-full justify-center" variant="outline">
               <Pencil className="h-4 w-4" aria-hidden />
               Başvuru Temel Bilgilerini Düzenle
             </Button>
@@ -244,13 +255,13 @@ export function CoreDataOverrideDialog({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
 
-      {note ? (
-        <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400">
-          {note}
-        </p>
-      ) : null}
-    </section>
+        {note ? (
+          <p className="text-xs text-emerald-600 dark:text-emerald-400">
+            {note}
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
