@@ -88,8 +88,11 @@ export default async function AdminDashboardPage() {
           <TabsTrigger value="master" className="flex-none">
             Master Tablo
           </TabsTrigger>
-          <TabsTrigger value="users" className="flex-none">
-            Kullanıcılar
+          <TabsTrigger value="customers" className="flex-none">
+            Müşteriler
+          </TabsTrigger>
+          <TabsTrigger value="staff" className="flex-none">
+            Personeller
           </TabsTrigger>
           <TabsTrigger value="calendar" className="flex-none">
             Takvim
@@ -115,8 +118,20 @@ export default async function AdminDashboardPage() {
           <AdminMasterTable rows={masterTableRows} />
         </TabsContent>
 
-        <TabsContent value="users">
-          <AdminUsersPanel initialUsers={users} currentUserId={session.userId} />
+        <TabsContent value="customers">
+          <AdminUsersPanel
+            initialUsers={users}
+            currentUserId={session.userId}
+            scope="customers"
+          />
+        </TabsContent>
+
+        <TabsContent value="staff">
+          <AdminUsersPanel
+            initialUsers={users}
+            currentUserId={session.userId}
+            scope="staff"
+          />
         </TabsContent>
 
         <TabsContent value="calendar">

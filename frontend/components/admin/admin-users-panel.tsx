@@ -30,12 +30,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { ApiError, api } from "@/lib/api";
 import { Department, Role } from "@/lib/enums";
 import { timeAgo } from "@/lib/format";
@@ -45,13 +39,6 @@ import type {
   AdminUserRecord,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const CREATABLE_ROLES: AdminCreatableRole[] = [
-  Role.SALES,
-  Role.DOC,
-  Role.SEC,
-  Role.CUSTOMER,
-];
 
 const ROLE_LABEL: Record<Role, string> = {
   [Role.ADMIN]: "Yönetici",
@@ -73,6 +60,25 @@ const INITIAL_FORM: AdminCreateUserPayload = {
   password: "",
   role: Role.CUSTOMER,
 };
+
+type AdminUsersScope = "customers" | "staff";
+
+function isScopeRole(role: Role, scope: AdminUsersScope): boolean {
+  if (scope === "customers") {
+    return role === Role.CUSTOMER;
+  }
+  return role !== Role.CUSTOMER;
+}
+
+function defaultRoleForScope(scope: AdminUsersScope): AdminCreatableRole {
+  return scope === "customers" ? Role.CUSTOMER : Role.SALES;
+}
+
+function availableRolesForScope(scope: AdminUsersScope): AdminCreatableRole[] {
+  return scope === "customers"
+    ? [Role.CUSTOMER]
+    : [Role.SALES, Role.DOC, Role.SEC];
+}
 
 function formatCreatedAt(iso: string): string {
   const value = new Date(iso);
@@ -120,11 +126,19 @@ function errorMessage(error: unknown): string {
 export function AdminUsersPanel({
   initialUsers,
   currentUserId,
+  scope,
 }: {
   initialUsers: AdminUserRecord[];
   currentUserId: string;
+  scope: AdminUsersScope;
 }) {
-  const [activeTab, setActiveTab] = useState<"customers" | "staff">("customers");
+  const scopeTitle = scope === "customers" ? "Müşteriler" : "Personeller";
+  const scopeEmptyText =
+    scope === "customers"
+      ? "Henüz müşteri bulunmuyor."
+      : "Henüz personel bulunmuyor.";
+  const scopeCountLabel = scope === "customers" ? "müşteri" : "personel";
+  const createRoleOptions = useMemo(() => availableRolesForScope(scope), [scope]);
   const [users, setUsers] = useState<AdminUserRecord[]>(initialUsers);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [panelError, setPanelError] = useState<string | null>(null);
@@ -132,7 +146,10 @@ export function AdminUsersPanel({
   const [createOpen, setCreateOpen] = useState(false);
   const [createPending, setCreatePending] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [form, setForm] = useState<AdminCreateUserPayload>(INITIAL_FORM);
+  const [form, setForm] = useState<AdminCreateUserPayload>({
+    ...INITIAL_FORM,
+    role: defaultRoleForScope(scope),
+  });
 
   const [deleteTarget, setDeleteTarget] = useState<AdminUserRecord | null>(null);
   const [deletePending, setDeletePending] = useState(false);
@@ -144,16 +161,10 @@ export function AdminUsersPanel({
     );
   }, [users]);
 
-  const customerUsers = useMemo(
-    () => sortedUsers.filter((user) => user.role === Role.CUSTOMER),
-    [sortedUsers],
+  const scopedUsers = useMemo(
+    () => sortedUsers.filter((user) => isScopeRole(user.role, scope)),
+    [scope, sortedUsers],
   );
-  const staffUsers = useMemo(
-    () => sortedUsers.filter((user) => user.role !== Role.CUSTOMER),
-    [sortedUsers],
-  );
-
-  const activeUsers = activeTab === "customers" ? customerUsers : staffUsers;
 
   function renderUsers(usersToRender: AdminUserRecord[], emptyText: string) {
     if (usersToRender.length === 0) {
@@ -355,7 +366,10 @@ export function AdminUsersPanel({
     try {
       await api.post("/admin/users", payload);
       setCreateOpen(false);
-      setForm(INITIAL_FORM);
+      setForm({
+        ...INITIAL_FORM,
+        role: defaultRoleForScope(scope),
+      });
       await refreshUsers();
     } catch (error) {
       setCreateError(errorMessage(error));
@@ -386,7 +400,7 @@ export function AdminUsersPanel({
     <section className="rounded-lg border border-border/40 bg-card shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/40 px-3 py-3.5 sm:px-5">
         <div>
-          <h2 className="text-sm font-medium">Kullanıcılar</h2>
+          <h2 className="text-sm font-medium">{scopeTitle}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             Hesapları panelden yönetin, ekip üyelerini ekleyin ve gerektiğinde güvenle silin.
           </p>
@@ -396,9 +410,7 @@ export function AdminUsersPanel({
           <span className="text-xs text-muted-foreground tabular-nums">
             {isRefreshing
               ? "Güncelleniyor..."
-              : activeTab === "customers"
-                ? `${activeUsers.length} danışan`
-                : `${activeUsers.length} personel`}
+              : `${scopedUsers.length} ${scopeCountLabel}`}
           </span>
           <Button
             type="button"
@@ -407,7 +419,7 @@ export function AdminUsersPanel({
               setCreateError(null);
               setForm((current) => ({
                 ...current,
-                role: activeTab === "customers" ? Role.CUSTOMER : Role.SALES,
+                role: defaultRoleForScope(scope),
               }));
               setCreateOpen(true);
             }}
@@ -424,24 +436,7 @@ export function AdminUsersPanel({
         </p>
       ) : null}
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as "customers" | "staff")}
-        className="px-3 py-4 sm:px-5"
-      >
-        <TabsList className="grid w-full grid-cols-2 sm:w-auto">
-          <TabsTrigger value="customers">Danışanlar</TabsTrigger>
-          <TabsTrigger value="staff">Personel</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="customers" className="mt-4">
-          {renderUsers(customerUsers, "Henüz danışan bulunmuyor.")}
-        </TabsContent>
-
-        <TabsContent value="staff" className="mt-4">
-          {renderUsers(staffUsers, "Henüz personel bulunmuyor.")}
-        </TabsContent>
-      </Tabs>
+      <div className="px-3 py-4 sm:px-5">{renderUsers(scopedUsers, scopeEmptyText)}</div>
 
       <Dialog
         open={createOpen}
@@ -450,15 +445,21 @@ export function AdminUsersPanel({
             setCreateOpen(nextOpen);
             if (!nextOpen) {
               setCreateError(null);
+              setForm((current) => ({
+                ...current,
+                role: defaultRoleForScope(scope),
+              }));
             }
           }
         }}
       >
         <DialogContent className="max-w-[calc(100%-1.5rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Kullanıcı Ekle</DialogTitle>
+            <DialogTitle>{scope === "customers" ? "Müşteri Ekle" : "Personel Ekle"}</DialogTitle>
             <DialogDescription>
-              Personel veya danışan hesabını güvenli şekilde oluşturun.
+              {scope === "customers"
+                ? "Yeni müşteri hesabını güvenli şekilde oluşturun."
+                : "Yeni personel hesabını güvenli şekilde oluşturun."}
             </DialogDescription>
           </DialogHeader>
 
@@ -531,7 +532,7 @@ export function AdminUsersPanel({
                   <SelectValue placeholder="Rol seçin" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CREATABLE_ROLES.map((role) => (
+                  {createRoleOptions.map((role) => (
                     <SelectItem key={role} value={role}>
                       {ROLE_LABEL[role]}
                     </SelectItem>
