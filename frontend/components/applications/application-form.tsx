@@ -274,7 +274,7 @@ function Field({
                 value={value}
                 onChange={formField.onChange}
                 required={required}
-                placeholder="dd/MM/yyyy"
+                placeholder="GG.AA.YYYY"
                 className={
                   error
                     ? "border-red-500 focus-visible:ring-red-500/30"

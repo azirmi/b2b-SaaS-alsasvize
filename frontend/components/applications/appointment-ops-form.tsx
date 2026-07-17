@@ -227,7 +227,7 @@ export function AppointmentOpsForm({
               name="appointmentDate"
               value={appointmentDate}
               onChange={setAppointmentDate}
-              placeholder="dd/MM/yyyy HH:mm"
+              placeholder="GG.AA.YYYY"
               required
             />
           </div>
@@ -241,7 +241,7 @@ export function AppointmentOpsForm({
             value={travelDate}
             onChange={setTravelDate}
             min={minTravelDate}
-            placeholder="dd/MM/yyyy"
+            placeholder="GG.AA.YYYY"
             required
           />
           {countryRule ? (

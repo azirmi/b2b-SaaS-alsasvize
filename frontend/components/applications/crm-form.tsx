@@ -181,7 +181,7 @@ export function CrmForm({
               name="salesDate"
               value={salesDate}
               onChange={setSalesDate}
-              placeholder="dd/MM/yyyy"
+              placeholder="GG.AA.YYYY"
               required
             />
           </div>

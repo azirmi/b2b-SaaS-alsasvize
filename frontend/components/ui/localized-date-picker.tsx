@@ -1,70 +1,31 @@
 "use client";
 
-import DatePicker, { registerLocale } from "react-datepicker";
-import { tr } from "date-fns/locale";
+import { useEffect, useMemo, useState } from "react";
 
+import { DatePickerInput } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-
-registerLocale("tr", tr);
 
 const BASE_INPUT_CLASS =
   "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-sm dark:bg-input/30";
 
-const YEAR_DROPDOWN_ITEM_COUNT = 111;
-
-function parseIsoDate(value: string): Date | null {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) {
-    return null;
-  }
-
-  return new Date(year, month - 1, day);
+function isIsoTime(value: string): boolean {
+  return /^\d{2}:\d{2}$/.test(value);
 }
 
-function formatIsoDate(value: Date | null): string {
-  if (!value || Number.isNaN(value.getTime())) {
-    return "";
-  }
-
-  const pad = (num: number) => String(num).padStart(2, "0");
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
-}
-
-function parseIsoDateTime(value: string): Date | null {
+function splitIsoDateTime(value: string): { date: string; time: string } {
   if (!value || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
-    return null;
+    return { date: "", time: "" };
   }
-
-  const [datePart, timePart] = value.split("T");
-  const [year, month, day] = datePart.split("-").map(Number);
-  const [hours, minutes] = timePart.split(":").map(Number);
-
-  if (
-    Number.isNaN(year) ||
-    Number.isNaN(month) ||
-    Number.isNaN(day) ||
-    Number.isNaN(hours) ||
-    Number.isNaN(minutes)
-  ) {
-    return null;
-  }
-
-  return new Date(year, month - 1, day, hours, minutes, 0, 0);
+  const [date, time] = value.split("T");
+  return { date, time };
 }
 
-function formatIsoDateTime(value: Date | null): string {
-  if (!value || Number.isNaN(value.getTime())) {
+function composeIsoDateTime(date: string, time: string): string {
+  if (!date || !time || !isIsoTime(time)) {
     return "";
   }
-
-  const pad = (num: number) => String(num).padStart(2, "0");
-  const datePart = `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
-  const timePart = `${pad(value.getHours())}:${pad(value.getMinutes())}`;
-  return `${datePart}T${timePart}`;
+  return `${date}T${time}`;
 }
 
 interface LocalizedDatePickerInputProps {
@@ -84,38 +45,25 @@ export function LocalizedDatePickerInput({
   value,
   onChange,
   name,
-  placeholder = "dd/MM/yyyy",
+  placeholder = "GG.AA.YYYY",
   required,
   min,
   disabled,
   className,
 }: LocalizedDatePickerInputProps) {
-  const selected = parseIsoDate(value);
-  const minDate = parseIsoDate(min ?? "");
-
   return (
-    <>
-      <DatePicker
-        id={id}
-        selected={selected}
-        onChange={(nextDate: Date | null) => onChange(formatIsoDate(nextDate))}
-        locale="tr"
-        showMonthDropdown
-        showYearDropdown
-        dropdownMode="select"
-        yearDropdownItemNumber={YEAR_DROPDOWN_ITEM_COUNT}
-        dateFormat="dd/MM/yyyy"
-        placeholderText={placeholder}
-        minDate={minDate ?? undefined}
-        required={required}
-        disabled={disabled}
-        calendarStartDay={1}
-        popperPlacement="bottom-start"
-        className={cn(BASE_INPUT_CLASS, className)}
-      />
-      {name ? <input type="hidden" name={name} value={value} /> : null}
-    </>
-  );
+    <DatePickerInput
+      id={id}
+      value={value}
+      onChange={onChange}
+      name={name}
+      placeholder={placeholder}
+      required={required}
+      min={min}
+      disabled={disabled}
+      className={cn(BASE_INPUT_CLASS, className)}
+    />
+  )
 }
 
 interface LocalizedDateTimePickerInputProps {
@@ -134,36 +82,58 @@ export function LocalizedDateTimePickerInput({
   value,
   onChange,
   name,
-  placeholder = "dd/MM/yyyy HH:mm",
+  placeholder = "GG.AA.YYYY",
   required,
   disabled,
   className,
 }: LocalizedDateTimePickerInputProps) {
-  const selected = parseIsoDateTime(value);
+  const initial = useMemo(() => splitIsoDateTime(value), [value]);
+  const [datePart, setDatePart] = useState(initial.date);
+  const [timePart, setTimePart] = useState(initial.time);
+
+  useEffect(() => {
+    const next = splitIsoDateTime(value);
+    setDatePart(next.date);
+    setTimePart(next.time);
+  }, [value]);
+
+  function commit(nextDate: string, nextTime: string) {
+    onChange(composeIsoDateTime(nextDate, nextTime));
+  }
 
   return (
     <>
-      <DatePicker
-        id={id}
-        selected={selected}
-        onChange={(nextDate: Date | null) => onChange(formatIsoDateTime(nextDate))}
-        locale="tr"
-        showMonthDropdown
-        showYearDropdown
-        dropdownMode="select"
-        yearDropdownItemNumber={YEAR_DROPDOWN_ITEM_COUNT}
-        showTimeSelect
-        timeFormat="HH:mm"
-        timeIntervals={5}
-        dateFormat="dd/MM/yyyy HH:mm"
-        placeholderText={placeholder}
-        required={required}
-        disabled={disabled}
-        calendarStartDay={1}
-        popperPlacement="bottom-start"
-        className={cn(BASE_INPUT_CLASS, className)}
-      />
-      {name ? <input type="hidden" name={name} value={value} /> : null}
+      <div className={cn("grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px]", className)}>
+        <DatePickerInput
+          id={`${id}-date`}
+          value={datePart}
+          onChange={(nextDate) => {
+            setDatePart(nextDate);
+            commit(nextDate, timePart);
+          }}
+          placeholder={placeholder}
+          required={required}
+          disabled={disabled}
+          className={BASE_INPUT_CLASS}
+        />
+
+        <Input
+          id={`${id}-time`}
+          type="time"
+          value={timePart}
+          onChange={(event) => {
+            const nextTime = event.target.value;
+            setTimePart(nextTime);
+            commit(datePart, nextTime);
+          }}
+          required={required}
+          disabled={disabled}
+          step={300}
+          className={cn(BASE_INPUT_CLASS, "text-blue-950")}
+        />
+      </div>
+
+      {name ? <input type="hidden" name={name} value={composeIsoDateTime(datePart, timePart)} /> : null}
     </>
-  );
+  )
 }

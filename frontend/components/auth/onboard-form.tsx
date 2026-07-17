@@ -8,7 +8,7 @@ import { APPLICATION_TYPE_OPTIONS } from "@/lib/application-type";
 import { COUNTRY_RULES, SUPPORTED_COUNTRIES } from "@/lib/countries";
 import { maskNameInput, normalizeEnglishChars } from "@/lib/input-masks";
 import { Button } from "@/components/ui/button";
-import { BrandDatePickerInput } from "@/components/ui/brand-date-picker";
+import { DatePickerInput } from "@/components/ui/date-picker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -265,7 +265,7 @@ export function OnboardForm() {
           autoCapitalize="characters"
           autoCorrect="off"
           spellCheck={false}
-          placeholder="ISTANBUL"
+          placeholder="Uygun bir şehir giriniz"
           maxLength={120}
           className="uppercase"
           required
@@ -274,7 +274,7 @@ export function OnboardForm() {
 
       <div className="space-y-2">
         <Label htmlFor="plannedTravelDate">Planlanan Seyahat Tarihi</Label>
-        <BrandDatePickerInput
+        <DatePickerInput
           id="plannedTravelDate"
           name="plannedTravelDate"
           value={plannedTravelDate}

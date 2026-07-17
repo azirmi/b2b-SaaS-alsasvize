@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { BrandDatePickerInput } from "@/components/ui/brand-date-picker";
+import { DatePickerInput } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -202,7 +202,7 @@ export function CoreDataOverrideDialog({
                   onChange={(event) =>
                     setResidenceCity(normalizeResidenceCity(event.target.value))
                   }
-                  placeholder="ISTANBUL"
+                  placeholder="Uygun bir şehir giriniz"
                   maxLength={120}
                   className="uppercase"
                   autoCapitalize="characters"
@@ -214,7 +214,7 @@ export function CoreDataOverrideDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="core-data-travel-date">Planlanan Seyahat Tarihi</Label>
-                <BrandDatePickerInput
+                <DatePickerInput
                   id="core-data-travel-date"
                   value={plannedTravelDate}
                   onChange={setPlannedTravelDate}
