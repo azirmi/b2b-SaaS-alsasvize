@@ -221,7 +221,7 @@ export function DatePickerInput({
                 setOpen(false)
               }}
             >
-              Clear
+              Temizle
             </button>
 
             <button
@@ -241,7 +241,7 @@ export function DatePickerInput({
                 setOpen(false)
               }}
             >
-              Today
+              Bugün
             </button>
           </div>
         </PopoverContent>

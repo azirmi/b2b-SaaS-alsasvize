@@ -2,9 +2,19 @@
 
 import * as React from "react"
 import { DayPicker, type DayPickerProps } from "react-day-picker"
-import { enUS } from "date-fns/locale"
+import { tr } from "date-fns/locale"
 
 import { cn } from "@/lib/utils"
+
+const WEEKDAY_LABELS: Record<number, string> = {
+  0: "Pz",
+  1: "Pt",
+  2: "Sa",
+  3: "Ça",
+  4: "Pe",
+  5: "Cu",
+  6: "Ct",
+}
 
 export type CalendarProps = DayPickerProps & {
   fromYear?: number
@@ -19,6 +29,7 @@ function Calendar({
   startMonth,
   endMonth,
   showOutsideDays = true,
+  formatters,
   ...props
 }: CalendarProps) {
   const resolvedStartMonth = React.useMemo(
@@ -34,13 +45,13 @@ function Calendar({
   return (
     <DayPicker
       {...props}
-      locale={enUS}
+      locale={tr}
       weekStartsOn={0}
       showOutsideDays={showOutsideDays}
       captionLayout="dropdown"
       startMonth={resolvedStartMonth}
       endMonth={resolvedEndMonth}
-      navLayout="around"
+      navLayout="after"
       className={cn(
         "rounded-md border border-slate-300 bg-white p-3 text-slate-900 shadow-sm",
         className
@@ -48,15 +59,15 @@ function Calendar({
       classNames={{
         months: "flex flex-col",
         month: "space-y-4",
-        month_caption: "flex items-start justify-between gap-2",
+        month_caption: "flex items-center justify-between gap-2",
         caption_label: "sr-only",
         dropdowns: "flex items-center gap-1",
         dropdown_root: "relative",
         dropdown:
-          "h-auto border-0 bg-transparent p-0 text-lg font-medium text-slate-900 outline-none focus-visible:ring-0",
+          "h-auto border-0 bg-transparent p-0 pr-3 text-lg font-semibold text-slate-900 outline-none focus-visible:ring-0",
         years_dropdown: "",
         months_dropdown: "",
-        nav: "flex flex-col items-center gap-1",
+        nav: "flex items-center gap-1",
         button_previous:
           "inline-flex h-6 w-6 items-center justify-center rounded-sm text-slate-700 transition-colors hover:bg-slate-100 [&>svg]:rotate-90",
         button_next:
@@ -78,6 +89,10 @@ function Calendar({
         hidden: "invisible",
         footer: "mt-2",
         ...classNames,
+      }}
+      formatters={{
+        formatWeekdayName: (date) => WEEKDAY_LABELS[date.getDay()] ?? "",
+        ...formatters,
       }}
     />
   )
