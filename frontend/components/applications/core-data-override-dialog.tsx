@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { BrandDatePickerInput } from "@/components/ui/brand-date-picker";
 import {
   Dialog,
   DialogContent,
@@ -128,13 +129,13 @@ export function CoreDataOverrideDialog({
           <DialogTrigger asChild>
             <Button size="sm" variant="outline" className="shrink-0">
               <Pencil className="h-4 w-4" aria-hidden />
-              Edit Application Core Data
+              Başvuru Temel Bilgilerini Düzenle
             </Button>
           </DialogTrigger>
 
           <DialogContent className="sm:max-w-xl">
             <DialogHeader>
-              <DialogTitle>Edit Application Core Data</DialogTitle>
+              <DialogTitle>Başvuru Temel Bilgilerini Düzenle</DialogTitle>
               <DialogDescription>
                 Bu işlem denetim kaydına yazılır ve müşteri temel verilerini
                 günceller.
@@ -213,11 +214,10 @@ export function CoreDataOverrideDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="core-data-travel-date">Planlanan Seyahat Tarihi</Label>
-                <Input
+                <BrandDatePickerInput
                   id="core-data-travel-date"
-                  type="date"
                   value={plannedTravelDate}
-                  onChange={(event) => setPlannedTravelDate(event.target.value)}
+                  onChange={setPlannedTravelDate}
                   required
                 />
               </div>

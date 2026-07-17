@@ -8,6 +8,7 @@ import { APPLICATION_TYPE_OPTIONS } from "@/lib/application-type";
 import { COUNTRY_RULES, SUPPORTED_COUNTRIES } from "@/lib/countries";
 import { maskNameInput, normalizeEnglishChars } from "@/lib/input-masks";
 import { Button } from "@/components/ui/button";
+import { BrandDatePickerInput } from "@/components/ui/brand-date-picker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -273,12 +274,11 @@ export function OnboardForm() {
 
       <div className="space-y-2">
         <Label htmlFor="plannedTravelDate">Planlanan Seyahat Tarihi</Label>
-        <Input
+        <BrandDatePickerInput
           id="plannedTravelDate"
           name="plannedTravelDate"
-          type="date"
           value={plannedTravelDate}
-          onChange={(event) => setPlannedTravelDate(event.target.value)}
+          onChange={setPlannedTravelDate}
           required
         />
       </div>
