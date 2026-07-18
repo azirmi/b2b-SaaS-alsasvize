@@ -228,6 +228,13 @@ const STATUS_OPTIONS: Array<{
   },
 ];
 
+const ACTIVE_STATUS_OPTIONS = STATUS_OPTIONS.filter(
+  (option) =>
+    option.value === DocAssistantDocumentStatus.HAZIRLANIYOR ||
+    option.value === DocAssistantDocumentStatus.YUKLENDI ||
+    option.value === DocAssistantDocumentStatus.TESLIME_HAZIR,
+);
+
 const STATUS_LABEL_TR = Object.fromEntries(
   STATUS_OPTIONS.map((option) => [option.value, option.label]),
 ) as Record<DocAssistantDocumentStatus, string>;
@@ -524,7 +531,7 @@ export function DocAssistantDashboard({
                     <SelectValue placeholder="Durum seçin" />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.map((option) => (
+                    {ACTIVE_STATUS_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
