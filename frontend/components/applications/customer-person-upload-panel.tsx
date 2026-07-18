@@ -32,7 +32,7 @@ export function CustomerPersonUploadPanel({
         const scopedOptions = documentOptions.map((option) => ({
           ...option,
           id: `${activeApplicant.id}-${option.id}`,
-          label: `${activeApplicant.name} · ${option.label}`,
+          label: option.label,
         }));
 
         return (
