@@ -8,6 +8,7 @@ import {
   type PersonBasedUploadApplicant,
 } from "@/components/applications/person-based-upload-section";
 import {
+  DocumentUploader,
   type UploadDocumentOption,
 } from "@/components/documents/document-uploader";
 import { DeleteDocumentButton } from "@/components/documents/delete-document-button";
@@ -661,6 +662,17 @@ export async function CustomerApplicationDetail({
       name: formEntry.applicantFullName ?? `${formEntry.applicantIndex}. Kişi`,
       status: formEntry.submitted ? "Tamamlandı" : "Bekliyor",
     }));
+  const customerDocumentOptions = buildCustomerDocumentOptions(detail);
+  const customerAllowedTypes = Array.from(
+    new Set(customerDocumentOptions.map((option) => option.fileType)),
+  );
+  const customerOptionalTypes = Array.from(
+    new Set(
+      customerDocumentOptions
+        .filter((option) => Boolean(option.optional))
+        .map((option) => option.fileType),
+    ),
+  );
 
   return (
     <div className="space-y-6">
@@ -877,6 +889,24 @@ export async function CustomerApplicationDetail({
                 title="Belgelerinizi Kontrol İçin Yükleyin"
                 description="Kişi sekmeleri arasında geçiş yaparak pasaport ve evrak yükleme alanını yönetin."
                 applicants={personBasedUploadApplicants}
+                renderContent={({ activeApplicant }) => {
+                  const scopedOptions = customerDocumentOptions.map((option) => ({
+                    ...option,
+                    id: `${activeApplicant.id}-${option.id}`,
+                    label: `${activeApplicant.name} · ${option.label}`,
+                  }));
+
+                  return (
+                    <DocumentUploader
+                      key={activeApplicant.id}
+                      applicationId={detail.id}
+                      defaultType={FileType.PASSPORT}
+                      allowedTypes={customerAllowedTypes}
+                      optionalTypes={customerOptionalTypes}
+                      documentOptions={scopedOptions}
+                    />
+                  );
+                }}
               />
             ) : (
               <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">

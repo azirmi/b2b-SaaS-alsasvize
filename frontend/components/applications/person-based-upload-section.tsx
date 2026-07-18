@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -16,10 +17,15 @@ export function PersonBasedUploadSection({
   title,
   description,
   applicants,
+  renderContent,
 }: {
   title: string;
   description: string;
   applicants: PersonBasedUploadApplicant[];
+  renderContent?: (params: {
+    activeApplicant: PersonBasedUploadApplicant;
+    activeIndex: number;
+  }) => ReactNode;
 }) {
   const [activeTab, setActiveTab] = useState(0);
 
@@ -95,15 +101,22 @@ export function PersonBasedUploadSection({
 
           <hr className="border-gray-200 mb-5 mt-4" />
 
-          <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center">
-            <p className="text-sm text-gray-500">Danışan henüz evrak göndermedi.</p>
-            <button
-              type="button"
-              className="mt-4 inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-            >
-              Dosya Yükle
-            </button>
-          </div>
+          {renderContent ? (
+            renderContent({
+              activeApplicant,
+              activeIndex: safeActiveIndex,
+            })
+          ) : (
+            <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center">
+              <p className="text-sm text-gray-500">Danışan henüz evrak göndermedi.</p>
+              <button
+                type="button"
+                className="mt-4 inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                Dosya Yükle
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">

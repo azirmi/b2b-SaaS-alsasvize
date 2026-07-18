@@ -789,14 +789,6 @@ export default async function ApplicationDetailPage({
           </TabsContent>
 
           <TabsContent value="documents" className="space-y-6">
-          {isAdmin ? (
-            <PersonBasedUploadSection
-              title="Kişi Bazlı Evrak ve Pasaport Yükleme"
-              description="Başvuru kişisini seçerek yükleme alanını yönetin. Her sekme ayrı bir danışan kişisini temsil eder."
-              applicants={personBasedUploadApplicants}
-            />
-          ) : null}
-
           <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-medium">Belgeler</h2>
@@ -924,10 +916,18 @@ export default async function ApplicationDetailPage({
                 </TabsList>
 
                 <TabsContent value="staff" className="space-y-4">
-                  <DocAssistantDashboard
-                    applicationId={detail.id}
-                    items={detail.docAssistantItems}
-                    canEdit={canUseDocWorkspace}
+                  <PersonBasedUploadSection
+                    title="Personel Yüklemeleri"
+                    description="Kişi sekmeleri arasında geçiş yaparak dosya asistanı yükleme kartlarını yönetin."
+                    applicants={personBasedUploadApplicants}
+                    renderContent={({ activeApplicant }) => (
+                      <DocAssistantDashboard
+                        key={activeApplicant.id}
+                        applicationId={detail.id}
+                        items={detail.docAssistantItems}
+                        canEdit={canUseDocWorkspace}
+                      />
+                    )}
                   />
                 </TabsContent>
 
