@@ -4,7 +4,10 @@ import { ArrowLeft, FileText } from "lucide-react";
 import { ApplicationDetailsView } from "@/components/applications/application-details-view";
 import { ApplicationForm } from "@/components/applications/application-form";
 import {
-  DocumentUploader,
+  PersonBasedUploadSection,
+  type PersonBasedUploadApplicant,
+} from "@/components/applications/person-based-upload-section";
+import {
   type UploadDocumentOption,
 } from "@/components/documents/document-uploader";
 import { DeleteDocumentButton } from "@/components/documents/delete-document-button";
@@ -652,7 +655,12 @@ export async function CustomerApplicationDetail({
     canEditForm && (hasFullPayment || hasPartialPaymentWithAppointment);
   const formLockedByCrm = canEditForm && !canUpload;
   const showingForm = view === "form";
-  const customerDocumentOptions = buildCustomerDocumentOptions(detail);
+  const personBasedUploadApplicants: PersonBasedUploadApplicant[] =
+    applicationForms.map((formEntry) => ({
+      id: `applicant-${formEntry.applicantIndex}`,
+      name: formEntry.applicantFullName ?? `${formEntry.applicantIndex}. Kişi`,
+      status: formEntry.submitted ? "Tamamlandı" : "Bekliyor",
+    }));
 
   return (
     <div className="space-y-6">
@@ -865,18 +873,11 @@ export async function CustomerApplicationDetail({
 
           {canEditForm ? (
             canUpload ? (
-              <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
-                <h2 className="text-sm font-medium">Belgelerinizi Kontrol İçin Yükleyin</h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Yüklemek İstediğiniz Belge Türünü Seçin ve belgelerinizi kontrol için iletin. Dosyalar güvenli şekilde doğrudan depolama alanına gönderilir.
-                </p>
-                <Separator className="my-4" />
-                <DocumentUploader
-                  applicationId={detail.id}
-                  defaultType={FileType.PASSPORT}
-                  documentOptions={customerDocumentOptions}
-                />
-              </section>
+              <PersonBasedUploadSection
+                title="Belgelerinizi Kontrol İçin Yükleyin"
+                description="Kişi sekmeleri arasında geçiş yaparak pasaport ve evrak yükleme alanını yönetin."
+                applicants={personBasedUploadApplicants}
+              />
             ) : (
               <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
                 <h2 className="text-sm font-medium">Belgelerinizi Kontrol İçin Yükleyin</h2>

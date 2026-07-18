@@ -10,6 +10,10 @@ import { CrmForm } from "@/components/applications/crm-form";
 import { DocAssistantDashboard } from "@/components/applications/doc-assistant-dashboard";
 import { CustomerApplicationDetail } from "@/components/applications/customer-application-detail";
 import { DocumentReviewActions } from "@/components/applications/document-review-actions";
+import {
+  PersonBasedUploadSection,
+  type PersonBasedUploadApplicant,
+} from "@/components/applications/person-based-upload-section";
 import { StageActions } from "@/components/applications/stage-actions";
 import { FormPrintButton } from "../../../../components/applications/form-print-button";
 import { DocumentUploader } from "@/components/documents/document-uploader";
@@ -376,6 +380,12 @@ export default async function ApplicationDetailPage({
   const submittedFormCount =
     detail.applicationFormsSubmittedCount ||
     applicationForms.filter((form) => form.submitted).length;
+  const personBasedUploadApplicants: PersonBasedUploadApplicant[] =
+    applicationForms.map((formEntry) => ({
+      id: `applicant-${formEntry.applicantIndex}`,
+      name: formEntry.applicantFullName ?? `${formEntry.applicantIndex}. Kişi`,
+      status: formEntry.submitted ? "Tamamlandı" : "Bekliyor",
+    }));
 
   // Read-only context for the CRM form, pulled from the customer's own records.
   const crmTargetCountry = detail.customer.targetCountry ?? "";
@@ -779,6 +789,14 @@ export default async function ApplicationDetailPage({
           </TabsContent>
 
           <TabsContent value="documents" className="space-y-6">
+          {isAdmin ? (
+            <PersonBasedUploadSection
+              title="Kişi Bazlı Evrak ve Pasaport Yükleme"
+              description="Başvuru kişisini seçerek yükleme alanını yönetin. Her sekme ayrı bir danışan kişisini temsil eder."
+              applicants={personBasedUploadApplicants}
+            />
+          ) : null}
+
           <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-medium">Belgeler</h2>
