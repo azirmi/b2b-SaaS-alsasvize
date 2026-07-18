@@ -23,7 +23,8 @@ export function formatTl(amount: number | null | undefined): string {
 
 /**
  * Mirrors the backend `isCrmComplete` gate: a sale date, a valid payment type
- * and a positive total — plus a valid upfront amount (0..total) when the plan
+ * and a positive total — plus a positive upfront installment (0..total,
+ * excluding 0) when the plan
  * is prepaid. This is the client-side precondition for enabling
  * "Send to Documents".
  */
@@ -45,7 +46,7 @@ export function isCrmComplete(crm: CrmData | null | undefined): boolean {
     return (
       typeof crm.upfrontPaid === "number" &&
       Number.isFinite(crm.upfrontPaid) &&
-      crm.upfrontPaid >= 0 &&
+      crm.upfrontPaid > 0 &&
       crm.upfrontPaid <= crm.totalAmount
     );
   }

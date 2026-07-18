@@ -1371,149 +1371,241 @@ export class VisaApplicationsService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const before = await tx.visaApplication.findUnique({
-        where: { id },
-        select: {
-          currentStage: true,
-          assignedSalesId: true,
-          salesStaffId: true,
-          crmData: true,
-          customer: {
+    try {
+      const { updatedApplication, stageTransitionNotification } =
+        await this.prisma.$transaction(async (tx) => {
+          const before = await tx.visaApplication.findUnique({
+            where: { id },
             select: {
-              id: true,
-              targetCountry: true,
-              appointmentCity: true,
+              currentStage: true,
+              assignedSalesId: true,
+              salesStaffId: true,
+              crmData: true,
+              customer: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  email: true,
+                  targetCountry: true,
+                  appointmentCity: true,
+                },
+              },
             },
-          },
-        },
-      });
-      if (!before) {
-        throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
-      }
+          });
+          if (!before) {
+            throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
+          }
 
-      // Authorization: admin (any time) or the assigned sales owner in-process.
-      if (actor.role !== Role.ADMIN) {
-        const staff = await tx.staff.findUnique({
-          where: { userId: actor.userId },
-          select: { id: true, department: true },
-        });
-        if (
-          !staff ||
-          staff.department !== Department.SALES ||
-          before.assignedSalesId !== staff.id
-        ) {
-          throw new ForbiddenException(
-            'Bu CRM kaydını yalnızca atanan satış personeli düzenleyebilir',
-          );
-        }
-        if (before.currentStage !== VisaStage.SALES_PROCESS) {
-          throw new ConflictException(
-            'CRM verisi yalnızca başvuru Satış İşlem aşamasındayken düzenlenebilir',
-          );
-        }
-      }
+          // Authorization: admin (any time) or the assigned sales owner in-process.
+          if (actor.role !== Role.ADMIN) {
+            const staff = await tx.staff.findUnique({
+              where: { userId: actor.userId },
+              select: { id: true, department: true },
+            });
+            if (
+              !staff ||
+              staff.department !== Department.SALES ||
+              before.assignedSalesId !== staff.id
+            ) {
+              throw new ForbiddenException(
+                'Bu CRM kaydını yalnızca atanan satış personeli düzenleyebilir',
+              );
+            }
+            if (before.currentStage !== VisaStage.SALES_PROCESS) {
+              throw new ConflictException(
+                'CRM verisi yalnızca başvuru Satış İşlem aşamasındayken düzenlenebilir',
+              );
+            }
+          }
 
-      // A supplied receipt must be a document on this same application.
-      if (dto.receiptFileId) {
-        const receipt = await tx.document.findUnique({
-          where: { id: dto.receiptFileId },
-          select: { applicationId: true },
-        });
-        if (!receipt || receipt.applicationId !== id) {
-          throw new BadRequestException(
-            'Ödeme dekontu bu başvuruya ait değil',
-          );
-        }
-      }
+          // A supplied receipt must be a document on this same application.
+          if (dto.receiptFileId) {
+            const receipt = await tx.document.findUnique({
+              where: { id: dto.receiptFileId },
+              select: { applicationId: true },
+            });
+            if (!receipt || receipt.applicationId !== id) {
+              throw new BadRequestException(
+                'Ödeme dekontu bu başvuruya ait değil',
+              );
+            }
+          }
 
-      const targetCountry = before.customer.targetCountry?.trim() ?? null;
-      const nextAppointmentCity =
-        dto.appointmentCity?.trim() ??
-        before.crmData?.appointmentCity?.trim() ??
-        before.customer.appointmentCity?.trim() ??
-        null;
-      const nextAppointmentDate = dto.appointmentDate
-        ? this.isoToDate(dto.appointmentDate)
-        : (before.crmData?.appointmentDate ?? null);
+          const targetCountry = before.customer.targetCountry?.trim() ?? null;
+          const nextAppointmentCity =
+            dto.appointmentCity?.trim() ??
+            before.crmData?.appointmentCity?.trim() ??
+            before.customer.appointmentCity?.trim() ??
+            null;
+          const nextAppointmentDate = dto.appointmentDate
+            ? this.isoToDate(dto.appointmentDate)
+            : (before.crmData?.appointmentDate ?? null);
 
-      if (nextAppointmentCity) {
-        if (!targetCountry || !COUNTRY_RULES[targetCountry]) {
-          throw new BadRequestException(
-            'Randevu şehri için geçerli bir hedef ülke bulunamadı',
-          );
-        }
-        if (!COUNTRY_RULES[targetCountry].cities.includes(nextAppointmentCity)) {
-          throw new BadRequestException(
-            'Seçilen ülke için randevu şehri geçersiz',
-          );
-        }
-      }
+          if (nextAppointmentCity) {
+            if (!targetCountry || !COUNTRY_RULES[targetCountry]) {
+              throw new BadRequestException(
+                'Randevu şehri için geçerli bir hedef ülke bulunamadı',
+              );
+            }
+            if (!COUNTRY_RULES[targetCountry].cities.includes(nextAppointmentCity)) {
+              throw new BadRequestException(
+                'Seçilen ülke için randevu şehri geçersiz',
+              );
+            }
+          }
 
-      const data = {
-        salesDate: new Date(dto.salesDate),
-        appointmentCity: nextAppointmentCity,
-        appointmentDate: nextAppointmentDate,
-        paymentType: dto.paymentType,
-        totalAmount: dto.totalAmount,
-        upfrontPaid:
-          dto.paymentType === 'PREPAID' ? (dto.upfrontPaid ?? 0) : null,
-        receiptFileId: dto.receiptFileId ?? null,
-        updatedById: actor.userId,
-      };
+          const data = {
+            salesDate: new Date(dto.salesDate),
+            appointmentCity: nextAppointmentCity,
+            appointmentDate: nextAppointmentDate,
+            paymentType: dto.paymentType,
+            totalAmount: dto.totalAmount,
+            upfrontPaid:
+              dto.paymentType === 'PREPAID' ? (dto.upfrontPaid ?? 0) : null,
+            receiptFileId: dto.receiptFileId ?? null,
+            updatedById: actor.userId,
+          };
 
-      await tx.applicationCrmData.upsert({
-        where: { applicationId: id },
-        create: { applicationId: id, ...data },
-        update: data,
-      });
+          await tx.applicationCrmData.upsert({
+            where: { applicationId: id },
+            create: { applicationId: id, ...data },
+            update: data,
+          });
 
-      if (
-        dto.appointmentCity !== undefined &&
-        before.customer.appointmentCity !== nextAppointmentCity
-      ) {
-        await tx.user.update({
-          where: { id: before.customer.id },
-          data: { appointmentCity: nextAppointmentCity },
-        });
-      }
+          if (
+            dto.appointmentCity !== undefined &&
+            before.customer.appointmentCity !== nextAppointmentCity
+          ) {
+            await tx.user.update({
+              where: { id: before.customer.id },
+              data: { appointmentCity: nextAppointmentCity },
+            });
+          }
 
-      // Stamp the historical sales-rep tracker if it isn't set yet.
-      if (!before.salesStaffId && before.assignedSalesId) {
-        await tx.visaApplication.update({
-          where: { id },
-          data: { salesStaffId: before.assignedSalesId },
-        });
-      }
+          // Stamp the historical sales-rep tracker if it isn't set yet.
+          if (!before.salesStaffId && before.assignedSalesId) {
+            await tx.visaApplication.update({
+              where: { id },
+              data: { salesStaffId: before.assignedSalesId },
+            });
+          }
 
-      await tx.auditLog.create({
-        data: {
-          application: { connect: { id } },
-          performedBy: { connect: { id: actor.userId } },
-          actionType: 'CRM_UPDATED',
-          details: {
-            // JSON round-trip keeps the snapshot JSON-safe (drops Date instances).
-            before: before.crmData
-              ? (JSON.parse(
-                  JSON.stringify(before.crmData),
-                ) as Prisma.InputJsonValue)
-              : null,
-            after: {
-              ...data,
-              salesDate: data.salesDate.toISOString(),
-              appointmentDate: data.appointmentDate
-                ? data.appointmentDate.toISOString()
-                : null,
+          await tx.auditLog.create({
+            data: {
+              application: { connect: { id } },
+              performedBy: { connect: { id: actor.userId } },
+              actionType: 'CRM_UPDATED',
+              details: {
+                // JSON round-trip keeps the snapshot JSON-safe (drops Date instances).
+                before: before.crmData
+                  ? (JSON.parse(
+                      JSON.stringify(before.crmData),
+                    ) as Prisma.InputJsonValue)
+                  : null,
+                after: {
+                  ...data,
+                  salesDate: data.salesDate.toISOString(),
+                  appointmentDate: data.appointmentDate
+                    ? data.appointmentDate.toISOString()
+                    : null,
+                },
+              },
             },
-          },
-        },
-      });
+          });
 
-      return tx.visaApplication.findUniqueOrThrow({
-        where: { id },
-        include: APPLICATION_DETAIL_INCLUDE,
-      });
-    });
+          const hasPrepaidInstallment =
+            data.paymentType !== 'PREPAID' ||
+            (typeof data.upfrontPaid === 'number' && data.upfrontPaid > 0);
+          const shouldMoveToOperation =
+            before.currentStage === VisaStage.SALES_PROCESS &&
+            this.isCrmComplete({
+              salesDate: data.salesDate,
+              paymentType: data.paymentType,
+              totalAmount: data.totalAmount,
+              upfrontPaid: data.upfrontPaid,
+            }) &&
+            hasPrepaidInstallment;
+
+          let stageTransitionNotification:
+            | {
+                previousStage: VisaStage;
+                newStage: VisaStage;
+                customerName: string;
+                customerEmail: string;
+                paymentType: ProcessPaymentType;
+              }
+            | null = null;
+
+          if (shouldMoveToOperation) {
+            await tx.visaApplication.update({
+              where: { id, currentStage: VisaStage.SALES_PROCESS },
+              data: {
+                currentStage: VisaStage.DOC_POOL,
+                stageUpdatedAt: new Date(),
+              },
+            });
+
+            await tx.auditLog.create({
+              data: {
+                application: { connect: { id } },
+                performedBy: { connect: { id: actor.userId } },
+                actionType: 'STAGE_CHANGED',
+                details: {
+                  previousStage: VisaStage.SALES_PROCESS,
+                  newStage: VisaStage.DOC_POOL,
+                  customerProcessStage:
+                    CustomerProcessStage.STAGE_3_OPERATION_STARTED,
+                  performedByUserId: actor.userId,
+                  trigger: 'CRM_UPDATED',
+                },
+              },
+            });
+
+            stageTransitionNotification = {
+              previousStage: VisaStage.SALES_PROCESS,
+              newStage: VisaStage.DOC_POOL,
+              customerName: before.customer.fullName,
+              customerEmail: before.customer.email,
+              paymentType: this.resolveProcessPaymentType(data.paymentType),
+            };
+          }
+
+          const updatedApplication = await tx.visaApplication.findUniqueOrThrow({
+            where: { id },
+            include: APPLICATION_DETAIL_INCLUDE,
+          });
+
+          return {
+            updatedApplication,
+            stageTransitionNotification,
+          };
+        });
+
+      if (stageTransitionNotification) {
+        this.events.emitStageChanged({
+          applicationId: id,
+          previousStage: stageTransitionNotification.previousStage,
+          newStage: stageTransitionNotification.newStage,
+          performedByUserId: actor.userId,
+          at: new Date().toISOString(),
+        });
+
+        this.dispatchCustomerProcessEmail({
+          applicationId: id,
+          customerName: stageTransitionNotification.customerName,
+          customerEmail: stageTransitionNotification.customerEmail,
+          processStage: CustomerProcessStage.STAGE_3_OPERATION_STARTED,
+          paymentType: stageTransitionNotification.paymentType,
+        });
+      }
+
+      return updatedApplication;
+    } catch (error) {
+      throw this.translateRaceError(
+        error,
+        'CRM kaydı sırasında başvurunun aşaması eşzamanlı olarak değişti, lütfen tekrar deneyin',
+      );
+    }
   }
 
   /**
@@ -2541,7 +2633,7 @@ export class VisaApplicationsService {
   /**
    * True when the Sales CRM + finance record is complete enough to leave
    * SALES_PROCESS: a sale date, a valid payment type and a positive total —
-   * plus a valid upfront amount (0..total) when PREPAID.
+    * plus a positive upfront installment (0..total, excluding 0) when PREPAID.
    */
   private isCrmComplete(
     crm:
@@ -2570,7 +2662,7 @@ export class VisaApplicationsService {
       return (
         typeof crm.upfrontPaid === 'number' &&
         Number.isFinite(crm.upfrontPaid) &&
-        crm.upfrontPaid >= 0 &&
+        crm.upfrontPaid > 0 &&
         typeof crm.totalAmount === 'number' &&
         crm.upfrontPaid <= crm.totalAmount
       );

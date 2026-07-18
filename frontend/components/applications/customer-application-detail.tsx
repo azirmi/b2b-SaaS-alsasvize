@@ -621,29 +621,12 @@ export async function CustomerApplicationDetail({
   const stage = detail.currentStage;
   const canEditForm =
     stage !== VisaStage.COMPLETED && stage !== VisaStage.CANCELLED;
-  const isPrepaid = detail.crmData?.paymentType === "PREPAID";
-  const hasSalesPaymentRecord = Boolean(
-    detail.crmData &&
-      detail.crmData.salesDate &&
-      Number.isFinite(detail.crmData.totalAmount) &&
-      detail.crmData.totalAmount > 0,
-  );
   const hasAppointmentDate = Boolean(detail.crmData?.appointmentDate);
-  const hasFullPayment = Boolean(
-    hasSalesPaymentRecord &&
-      (detail.crmData?.paymentType === "NORMAL" ||
-        (isPrepaid &&
-          typeof detail.crmData?.upfrontPaid === "number" &&
-          detail.crmData.upfrontPaid >= detail.crmData.totalAmount)),
-  );
-  const hasPartialPaymentWithAppointment = Boolean(
-    hasSalesPaymentRecord &&
-      isPrepaid &&
-      typeof detail.crmData?.upfrontPaid === "number" &&
-      detail.crmData.upfrontPaid > 0 &&
-      detail.crmData.upfrontPaid < detail.crmData.totalAmount &&
-      hasAppointmentDate,
-  );
+  const hasReachedOperationStage =
+    stage === VisaStage.DOC_POOL ||
+    stage === VisaStage.DOC_PROCESS ||
+    stage === VisaStage.SEC_POOL ||
+    stage === VisaStage.SEC_PROCESS;
   const stageDisplayContext: StageDisplayContext = {
     paymentType: detail.crmData?.paymentType ?? null,
     hasAppointmentDate,
@@ -652,9 +635,8 @@ export async function CustomerApplicationDetail({
       (document) => !document.isApproved && Boolean(document.rejectionReason),
     ),
   };
-  const canUpload =
-    canEditForm && (hasFullPayment || hasPartialPaymentWithAppointment);
-  const formLockedByCrm = canEditForm && !canUpload;
+  const canUpload = canEditForm && hasReachedOperationStage;
+  const formLockedByStage = canEditForm && !canUpload;
   const showingForm = view === "form";
   const personBasedUploadApplicants: PersonBasedUploadApplicant[] =
     applicationForms.map((formEntry) => ({
@@ -726,9 +708,9 @@ export async function CustomerApplicationDetail({
           </div>
 
           {canEditForm ? (
-            formLockedByCrm ? (
+            formLockedByStage ? (
               <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
-                Ödeme ve CRM kaydı tamamlanmadan başvuru formu doldurulamaz.
+                Başvuru formu ve evrak yükleme alanı, başvurunuz operasyon sürecine alındığında açılır.
               </p>
             ) : (
               <p className="mt-1 text-xs text-muted-foreground">
@@ -789,9 +771,9 @@ export async function CustomerApplicationDetail({
                   <Separator className="my-3" />
 
                   {canEditForm ? (
-                    formLockedByCrm ? (
+                    formLockedByStage ? (
                       <p className="text-xs text-muted-foreground">
-                        Bu form ödeme ve CRM kaydı tamamlandığında aktif olacaktır.
+                        Bu form başvuru operasyon sürecine alındığında aktif olacaktır.
                       </p>
                     ) : (
                       <ApplicationForm
@@ -912,7 +894,7 @@ export async function CustomerApplicationDetail({
               <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
                 <h2 className="text-sm font-medium">Belgelerinizi Kontrol İçin Yükleyin</h2>
                 <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
-                  Evrak yükleme adımı ödeme ve randevu işlemleri tamamlandıktan sonra açılacaktır.
+                  Başvurunuz operasyon sürecine alındığında evrak yükleme alanı açılacaktır.
                 </p>
               </section>
             )
@@ -931,7 +913,7 @@ export async function CustomerApplicationDetail({
             {canUpload
               ? "Henüz belge yok. Başlamak için yukarıdan pasaportunuzu yükleyin."
               : canEditForm
-                ? "Evrak yükleme adımı ödeme ve randevu işlemleri tamamlandıktan sonra açılacaktır."
+                ? "Başvurunuz operasyon sürecine alındığında evrak yükleme alanı açılacaktır."
                 : "Bu başvuru için henüz belge bulunmuyor."}
           </p>
         ) : (
