@@ -3,12 +3,11 @@ import { ArrowLeft, FileText } from "lucide-react";
 
 import { ApplicationDetailsView } from "@/components/applications/application-details-view";
 import { ApplicationForm } from "@/components/applications/application-form";
+import { CustomerPersonUploadPanel } from "@/components/applications/customer-person-upload-panel";
 import {
-  PersonBasedUploadSection,
   type PersonBasedUploadApplicant,
 } from "@/components/applications/person-based-upload-section";
 import {
-  DocumentUploader,
   type UploadDocumentOption,
 } from "@/components/documents/document-uploader";
 import { DeleteDocumentButton } from "@/components/documents/delete-document-button";
@@ -867,28 +866,12 @@ export async function CustomerApplicationDetail({
 
           {canEditForm ? (
             canUpload ? (
-              <PersonBasedUploadSection
-                title="Belgelerinizi Kontrol İçin Yükleyin"
-                description="Kişi sekmeleri arasında geçiş yaparak pasaport ve evrak yükleme alanını yönetin."
+              <CustomerPersonUploadPanel
+                applicationId={detail.id}
                 applicants={personBasedUploadApplicants}
-                renderContent={({ activeApplicant }) => {
-                  const scopedOptions = customerDocumentOptions.map((option) => ({
-                    ...option,
-                    id: `${activeApplicant.id}-${option.id}`,
-                    label: `${activeApplicant.name} · ${option.label}`,
-                  }));
-
-                  return (
-                    <DocumentUploader
-                      key={activeApplicant.id}
-                      applicationId={detail.id}
-                      defaultType={FileType.PASSPORT}
-                      allowedTypes={customerAllowedTypes}
-                      optionalTypes={customerOptionalTypes}
-                      documentOptions={scopedOptions}
-                    />
-                  );
-                }}
+                allowedTypes={customerAllowedTypes}
+                optionalTypes={customerOptionalTypes}
+                documentOptions={customerDocumentOptions}
               />
             ) : (
               <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">

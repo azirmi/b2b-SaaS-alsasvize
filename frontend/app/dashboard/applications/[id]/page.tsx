@@ -7,11 +7,10 @@ import { ApplicationDetailsView } from "@/components/applications/application-de
 import { AppointmentOpsForm } from "@/components/applications/appointment-ops-form";
 import { CoreDataOverrideDialog } from "@/components/applications/core-data-override-dialog";
 import { CrmForm } from "@/components/applications/crm-form";
-import { DocAssistantDashboard } from "@/components/applications/doc-assistant-dashboard";
+import { DocPersonUploadPanel } from "@/components/applications/doc-person-upload-panel";
 import { CustomerApplicationDetail } from "@/components/applications/customer-application-detail";
 import { DocumentReviewActions } from "@/components/applications/document-review-actions";
 import {
-  PersonBasedUploadSection,
   type PersonBasedUploadApplicant,
 } from "@/components/applications/person-based-upload-section";
 import { StageActions } from "@/components/applications/stage-actions";
@@ -916,18 +915,11 @@ export default async function ApplicationDetailPage({
                 </TabsList>
 
                 <TabsContent value="staff" className="space-y-4">
-                  <PersonBasedUploadSection
-                    title="Personel Yüklemeleri"
-                    description="Kişi sekmeleri arasında geçiş yaparak dosya asistanı yükleme kartlarını yönetin."
+                  <DocPersonUploadPanel
+                    applicationId={detail.id}
                     applicants={personBasedUploadApplicants}
-                    renderContent={({ activeApplicant }) => (
-                      <DocAssistantDashboard
-                        key={activeApplicant.id}
-                        applicationId={detail.id}
-                        items={detail.docAssistantItems}
-                        canEdit={canUseDocWorkspace}
-                      />
-                    )}
+                    items={detail.docAssistantItems}
+                    canEdit={canUseDocWorkspace}
                   />
                 </TabsContent>
 
