@@ -1526,6 +1526,17 @@ export class VisaApplicationsService {
             }) &&
             hasPrepaidInstallment;
 
+          const shouldRefreshSalesProcessActivity =
+            before.currentStage === VisaStage.SALES_PROCESS &&
+            !shouldMoveToOperation;
+
+          if (shouldRefreshSalesProcessActivity) {
+            await tx.visaApplication.update({
+              where: { id, currentStage: VisaStage.SALES_PROCESS },
+              data: { stageUpdatedAt: new Date() },
+            });
+          }
+
           let stageTransitionNotification:
             | {
                 previousStage: VisaStage;

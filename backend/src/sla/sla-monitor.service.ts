@@ -18,6 +18,7 @@ interface SlaRule {
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 const DEFAULT_SALES_PROCESS_SLA_HOURS = 2;
+const DEFAULT_SLA_AUTO_REVERT_ENABLED = false;
 
 /**
  * Periodically reclaims applications that have stalled in a department's
@@ -29,6 +30,7 @@ const DEFAULT_SALES_PROCESS_SLA_HOURS = 2;
 export class SlaMonitorService {
   private readonly logger = new Logger(SlaMonitorService.name);
   private readonly rules: SlaRule[];
+  private readonly autoRevertEnabled: boolean;
   private isRunning = false;
 
   constructor(
@@ -36,6 +38,11 @@ export class SlaMonitorService {
     private readonly events: EventsGateway,
     config: ConfigService,
   ) {
+    this.autoRevertEnabled = this.resolveBoolean(
+      config.get('SLA_AUTO_REVERT_ENABLED'),
+      DEFAULT_SLA_AUTO_REVERT_ENABLED,
+    );
+
     // Thresholds are env-driven per department, defaulting to the spec's 2h.
     this.rules = [
       {
@@ -48,6 +55,12 @@ export class SlaMonitorService {
         ),
       },
     ];
+
+    if (!this.autoRevertEnabled) {
+      this.logger.warn(
+        'SLA auto-revert disabled (SLA_AUTO_REVERT_ENABLED=false); applications will not be moved back to pool automatically.',
+      );
+    }
   }
 
   /**
@@ -56,6 +69,9 @@ export class SlaMonitorService {
    */
   @Cron(CronExpression.EVERY_5_MINUTES)
   async enforceSlaBreaches(): Promise<void> {
+    if (!this.autoRevertEnabled) {
+      return;
+    }
     if (this.isRunning) {
       return;
     }
@@ -182,6 +198,22 @@ export class SlaMonitorService {
   private resolveHours(raw: unknown, fallback: number): number {
     const parsed = Number(raw);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  private resolveBoolean(raw: unknown, fallback: boolean): boolean {
+    if (typeof raw === 'boolean') {
+      return raw;
+    }
+    if (typeof raw === 'string') {
+      const normalized = raw.trim().toLowerCase();
+      if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+        return true;
+      }
+      if (['0', 'false', 'no', 'off'].includes(normalized)) {
+        return false;
+      }
+    }
+    return fallback;
   }
 
   private assignedNotNullWhere(
