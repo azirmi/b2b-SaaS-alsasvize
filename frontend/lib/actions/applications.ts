@@ -151,6 +151,7 @@ export async function forceCancelApplication(
 export async function updateApplicationCoreData(
   id: string,
   payload: {
+    applicationType: string;
     targetCountry: string;
     appointmentCity: string;
     residenceCity: string;
@@ -162,13 +163,20 @@ export async function updateApplicationCoreData(
     return { ok: false, error: "Geçersiz başvuru referansı." };
   }
 
+  const applicationType = payload.applicationType.trim();
   const targetCountry = payload.targetCountry.trim();
   const appointmentCity = payload.appointmentCity.trim();
   const residenceCity = payload.residenceCity.trim();
   const plannedTravelDate = payload.plannedTravelDate.trim();
   const applicantCount = payload.applicantCount;
 
-  if (!targetCountry || !appointmentCity || !residenceCity || !plannedTravelDate) {
+  if (
+    !applicationType ||
+    !targetCountry ||
+    !appointmentCity ||
+    !residenceCity ||
+    !plannedTravelDate
+  ) {
     return { ok: false, error: "Tüm alanlar zorunludur." };
   }
   if (!ISO_DATE_RE.test(plannedTravelDate)) {
@@ -180,6 +188,7 @@ export async function updateApplicationCoreData(
 
   try {
     await serverApi.put(`/admin/applications/${id}/core-data`, {
+      applicationType,
       targetCountry,
       appointmentCity,
       residenceCity,

@@ -1115,6 +1115,7 @@ export default async function ApplicationDetailPage({
           {isAdmin ? (
             <CoreDataOverrideDialog
               applicationId={detail.id}
+              initialApplicationType={detail.applicationType}
               initialTargetCountry={detail.customer.targetCountry ?? ""}
               initialAppointmentCity={detail.customer.appointmentCity ?? ""}
               initialResidenceCity={customerResidenceCity}

@@ -29,9 +29,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { APPLICATION_TYPE_OPTIONS } from "@/lib/application-type";
 import { updateApplicationCoreData } from "@/lib/actions/applications";
 import { COUNTRY_RULES, SUPPORTED_COUNTRIES } from "@/lib/countries";
+import { ApplicationType } from "@/lib/enums";
 import { maskNameInput, normalizeEnglishChars } from "@/lib/input-masks";
+
+const APPLICATION_TYPES = new Set<ApplicationType>(
+  APPLICATION_TYPE_OPTIONS.map((option) => option.value),
+);
 
 function toIsoDate(value: string | null | undefined): string {
   if (!value) {
@@ -54,6 +60,7 @@ function normalizeResidenceCity(value: string): string {
 
 export function CoreDataOverrideDialog({
   applicationId,
+  initialApplicationType,
   initialTargetCountry,
   initialAppointmentCity,
   initialResidenceCity,
@@ -61,6 +68,7 @@ export function CoreDataOverrideDialog({
   initialApplicantCount,
 }: {
   applicationId: string;
+  initialApplicationType: ApplicationType;
   initialTargetCountry: string;
   initialAppointmentCity: string;
   initialResidenceCity: string;
@@ -69,6 +77,7 @@ export function CoreDataOverrideDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [applicationType, setApplicationType] = useState(initialApplicationType);
   const [targetCountry, setTargetCountry] = useState(initialTargetCountry);
   const [appointmentCity, setAppointmentCity] = useState(initialAppointmentCity);
   const [residenceCity, setResidenceCity] = useState(
@@ -89,6 +98,7 @@ export function CoreDataOverrideDialog({
   );
 
   function resetToInitial() {
+    setApplicationType(initialApplicationType);
     setTargetCountry(initialTargetCountry);
     setAppointmentCity(initialAppointmentCity);
     setResidenceCity(normalizeResidenceCity(initialResidenceCity));
@@ -116,6 +126,7 @@ export function CoreDataOverrideDialog({
 
     startTransition(async () => {
       const result = await updateApplicationCoreData(applicationId, {
+        applicationType,
         targetCountry,
         appointmentCity,
         residenceCity,
@@ -167,6 +178,29 @@ export function CoreDataOverrideDialog({
             </DialogHeader>
 
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="core-data-application-type">Vize Türü</Label>
+                <Select
+                  value={applicationType}
+                  onValueChange={(value) => {
+                    if (APPLICATION_TYPES.has(value as ApplicationType)) {
+                      setApplicationType(value as ApplicationType);
+                    }
+                  }}
+                >
+                  <SelectTrigger id="core-data-application-type" className="w-full">
+                    <SelectValue placeholder="Vize türü seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {APPLICATION_TYPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="core-data-country">Hedef Ülke</Label>
                 <Select

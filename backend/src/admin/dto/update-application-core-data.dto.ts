@@ -1,4 +1,8 @@
 import {
+  ApplicationType,
+} from '../../generated/prisma/enums';
+import {
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -11,6 +15,11 @@ import {
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class UpdateApplicationCoreDataDto {
+  @IsEnum(ApplicationType, {
+    message: 'Geçersiz vize türü seçimi',
+  })
+  applicationType!: ApplicationType;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)

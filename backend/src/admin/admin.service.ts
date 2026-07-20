@@ -9,7 +9,13 @@ import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '../generated/prisma/client';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
-import { Department, FileType, Role, VisaStage } from '../generated/prisma/enums';
+import {
+  ApplicationType,
+  Department,
+  FileType,
+  Role,
+  VisaStage,
+} from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { COUNTRY_RULES } from '../visa-applications/country-rules';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
@@ -191,11 +197,16 @@ export class AdminService {
     dto: UpdateApplicationCoreDataDto,
     actor: AuthenticatedUser,
   ) {
+    const applicationType = dto.applicationType;
     const targetCountry = dto.targetCountry.trim();
     const appointmentCity = dto.appointmentCity.trim();
     const residenceCity = dto.residenceCity.trim();
     const plannedTravelDate = dto.plannedTravelDate.trim();
     const requestedApplicantCount = dto.applicantCount;
+
+    if (!Object.values(ApplicationType).includes(applicationType)) {
+      throw new BadRequestException('Geçersiz vize türü seçimi');
+    }
 
     const countryRule = COUNTRY_RULES[targetCountry];
     if (!countryRule) {
@@ -216,6 +227,7 @@ export class AdminService {
         where: { id: applicationId },
         select: {
           id: true,
+          applicationType: true,
           customerId: true,
           assignedSalesId: true,
           salesStaffId: true,
@@ -325,11 +337,13 @@ export class AdminService {
       const updatedApplication = await tx.visaApplication.update({
         where: { id: application.id },
         data: {
+          applicationType,
           residenceCity,
           plannedTravelDate: parsedPlannedTravelDate,
         },
         select: {
           id: true,
+          applicationType: true,
           residenceCity: true,
           plannedTravelDate: true,
         },
@@ -342,6 +356,7 @@ export class AdminService {
           actionType: 'CORE_DATA_OVERRIDDEN',
           details: {
             before: {
+              applicationType: application.applicationType,
               targetCountry: application.customer.targetCountry,
               appointmentCity: application.customer.appointmentCity,
               residenceCity: application.residenceCity,
@@ -351,6 +366,7 @@ export class AdminService {
               applicantCount: existingApplicantCount,
             },
             after: {
+              applicationType: updatedApplication.applicationType,
               targetCountry: updatedCustomer.targetCountry,
               appointmentCity: updatedCustomer.appointmentCity,
               residenceCity: updatedApplication.residenceCity,
@@ -366,6 +382,7 @@ export class AdminService {
 
       return {
         applicationId: updatedApplication.id,
+        applicationType: updatedApplication.applicationType,
         targetCountry: updatedCustomer.targetCountry,
         appointmentCity: updatedCustomer.appointmentCity,
         residenceCity: updatedApplication.residenceCity,

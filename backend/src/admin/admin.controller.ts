@@ -80,7 +80,7 @@ export class AdminController {
     return this.adminService.deleteUser(id, actor);
   }
 
-  /** Admin/Sales override endpoint for target country, appointment city, residence city and travel date. */
+  /** Admin/Sales override endpoint for application type, target country, appointment city, residence city and travel date. */
   @Put('applications/:id/core-data')
   @Roles(Role.ADMIN, Role.SALES)
   updateApplicationCoreData(
