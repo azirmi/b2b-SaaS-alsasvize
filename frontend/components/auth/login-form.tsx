@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 
 import { login, type AuthFormState } from "@/lib/actions/auth";
@@ -38,6 +39,15 @@ export function LoginForm({ next }: { next?: string }) {
           autoComplete="current-password"
           required
         />
+      </div>
+
+      <div className="flex justify-end">
+        <Link
+          href="/forgot-password"
+          className="text-xs font-medium text-foreground underline-offset-4 hover:underline"
+        >
+          Şifremi unuttum
+        </Link>
       </div>
 
       <div className="flex items-center gap-2.5">

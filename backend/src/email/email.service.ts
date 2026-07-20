@@ -5,10 +5,12 @@ import {
   renderAppointmentFourDayReminderEmail,
   renderDocAssistantStatusUpdatedEmail,
   renderDocumentRejectedEmail,
+  renderPasswordResetEmail,
   renderStageAdvancedEmail,
   type AppointmentFourDayReminderEmailInput,
   type DocAssistantStatusUpdatedEmailInput,
   type DocumentRejectedEmailInput,
+  type PasswordResetEmailInput,
   type RenderedEmail,
   type StageAdvancedEmailInput,
 } from './email-templates';
@@ -84,6 +86,11 @@ export class EmailService implements OnModuleInit {
     await this.dispatch(input.to, () =>
       renderAppointmentFourDayReminderEmail(input),
     );
+  }
+
+  /** Sends a secure password reset link to the customer. */
+  async sendPasswordReset(input: PasswordResetEmailInput): Promise<void> {
+    await this.dispatch(input.to, () => renderPasswordResetEmail(input));
   }
 
   /**

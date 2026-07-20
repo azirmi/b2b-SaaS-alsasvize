@@ -13,7 +13,7 @@ const PROTECTED_PREFIXES = [
 ];
 
 /** Auth screens an already-signed-in user should be bounced away from. */
-const AUTH_ROUTES = ["/login", "/register", "/onboard"];
+const AUTH_ROUTES = ["/login", "/register", "/onboard", "/forgot-password"];
 
 const HOME_ROUTE = "/dashboard";
 

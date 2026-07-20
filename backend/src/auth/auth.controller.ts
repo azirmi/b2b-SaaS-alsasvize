@@ -26,6 +26,8 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { AuthenticatedUser } from './interfaces/jwt-payload.interface';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 /** Upper bound on passports accepted per onboarding (customer + family/friends). */
 const MAX_PASSPORT_FILES = 10;
@@ -221,6 +223,21 @@ export class AuthController {
     });
     return { message: 'Giriş başarılı' };
   }
+
+  /** Starts the password-reset flow and emails a reset link to the account owner. */
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string }> {
+    return this.authService.requestPasswordReset(dto.email);
+  }
+
+  /** Verifies a reset token and updates the account password. */
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  resetPassword(@Body() dto: ResetPasswordDto): Promise<{ message: string }> {
+    return this.authService.resetPassword(dto.token, dto.password);
+  }
+
   /** Clears the auth cookie. Required because HTTP-only cookies can't be cleared client-side. */
   @Post('logout')
   @HttpCode(HttpStatus.OK)

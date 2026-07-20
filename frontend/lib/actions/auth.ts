@@ -42,6 +42,11 @@ export interface AuthFormState {
   error?: string;
 }
 
+export interface PasswordResetFormState {
+  error?: string;
+  message?: string;
+}
+
 function messageFrom(body: unknown): string | undefined {
   if (body && typeof body === "object" && "message" in body) {
     const message = (body as { message: unknown }).message;
@@ -127,6 +132,91 @@ export async function login(
   }
 
   redirect(next);
+}
+
+export async function requestPasswordReset(
+  _prev: PasswordResetFormState,
+  formData: FormData,
+): Promise<PasswordResetFormState> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) {
+    return { error: "Lütfen hesabınızdaki mail adresini girin." };
+  }
+
+  try {
+    const url = await resolveServerApiUrl("/auth/forgot-password");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      return {
+        error:
+          messageFrom(body) ?? "Lütfen hesabınızdaki mail adresini girin.",
+      };
+    }
+
+    const body = (await response.json().catch(() => null)) as
+      | { message?: string }
+      | null;
+
+    return {
+      message:
+        body?.message ??
+        "Şifre yenileme bağlantısı e-posta adresinize gönderildi.",
+    };
+  } catch {
+    return { error: "Sunucuya ulaşılamıyor. Lütfen tekrar deneyin." };
+  }
+}
+
+export async function resetPassword(
+  _prev: PasswordResetFormState,
+  formData: FormData,
+): Promise<PasswordResetFormState> {
+  const token = String(formData.get("token") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const passwordConfirm = String(formData.get("passwordConfirm") ?? "");
+
+  if (!token) {
+    return { error: "Şifre yenileme bağlantısı geçersiz." };
+  }
+  if (!password || !passwordConfirm) {
+    return { error: "Lütfen yeni şifre alanlarını doldurun." };
+  }
+  if (password.length < 8 || password.length > 72) {
+    return { error: "Şifre 8 ile 72 karakter arasında olmalıdır." };
+  }
+  if (password !== passwordConfirm) {
+    return { error: "Yeni şifre alanları aynı olmalıdır." };
+  }
+
+  try {
+    const url = await resolveServerApiUrl("/auth/reset-password");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, password }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      return {
+        error:
+          messageFrom(body) ??
+          "Şifre yenileme yapılamadı. Bağlantıyı tekrar isteyin.",
+      };
+    }
+  } catch {
+    return { error: "Sunucuya ulaşılamıyor. Lütfen tekrar deneyin." };
+  }
+
+  redirect("/login?reset=1");
 }
 
 export async function onboard(

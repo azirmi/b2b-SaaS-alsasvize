@@ -69,6 +69,12 @@ export interface AppointmentFourDayReminderEmailInput {
   applicationId: string;
 }
 
+export interface PasswordResetEmailInput {
+  to: string;
+  customerName: string;
+  resetUrl: string;
+}
+
 // -----------------------------------------------------------------------------
 //  Customer-facing pipeline (4 milestones the customer actually cares about)
 // -----------------------------------------------------------------------------
@@ -298,6 +304,14 @@ function customerLoginUrl(): string {
     process.env.FRONTEND_APP_URL ??
     'https://alsasvize.com/login'
   );
+}
+
+function companyWebsiteUrl(): string {
+  return process.env.COMPANY_WEBSITE_URL ?? 'https://alsasvize.com';
+}
+
+function companyInstagramUrl(): string {
+  return process.env.COMPANY_INSTAGRAM_URL ?? 'https://instagram.com/alsasvize';
 }
 
 function formatDateTimeTr(value: string): string {
@@ -648,6 +662,69 @@ export function renderAppointmentFourDayReminderEmail(
     'Randevunuza 4 gün kaldı',
     '',
     `Randevu tarihiniz yaklaşıyor: ${appointmentLabel}`,
+    '',
+    ...standardClosingText(loginUrl),
+  ].join('\n');
+
+  return { subject, html, text };
+}
+
+export function renderPasswordResetEmail(
+  input: PasswordResetEmailInput,
+): RenderedEmail {
+  const customerName = escapeHtml(input.customerName);
+  const loginUrl = customerLoginUrl();
+  const websiteUrl = companyWebsiteUrl();
+  const instagramUrl = companyInstagramUrl();
+
+  const subject = 'Şifre yenileme bağlantınız hazır';
+  const preheader = 'Alsasvize hesabınız için şifre yenileme bağlantısı gönderildi.';
+
+  const contentHtml = [
+    paragraph(`Merhaba ${customerName},`),
+    heading('Şifrenizi güvenle yenileyin'),
+    paragraph(
+      'Hesabınız için bir şifre yenileme talebi aldık. Yeni şifrenizi belirlemek için aşağıdaki butona tıklayın.',
+    ),
+    actionButton('Şifremi Yenile', input.resetUrl),
+    paragraph(
+      `Buton çalışmazsa bağlantıyı kopyalayarak tarayıcınıza yapıştırabilirsiniz:<br /><a href="${escapeHtml(
+        input.resetUrl,
+      )}" target="_blank" rel="noopener noreferrer" style="color:${INK};word-break:break-all;">${escapeHtml(
+        input.resetUrl,
+      )}</a>`,
+    ),
+    paragraph(
+      'Bu bağlantı sınırlı süreyle geçerlidir. Bu işlemi siz başlatmadıysanız bu e-postayı güvenle yok sayabilirsiniz.',
+    ),
+    calloutBox([
+      {
+        label: 'Resmi web sitemiz',
+        value: websiteUrl,
+      },
+      {
+        label: 'Instagram',
+        value: instagramUrl,
+      },
+    ]),
+    standardClosingHtml(loginUrl),
+  ].join('');
+
+  const html = renderShell({
+    preheader,
+    contentHtml,
+  });
+
+  const text = [
+    `Merhaba ${input.customerName},`,
+    '',
+    'Hesabınız için bir şifre yenileme talebi aldık.',
+    `Şifrenizi yenilemek için bağlantı: ${input.resetUrl}`,
+    '',
+    'Bu bağlantı sınırlı süreyle geçerlidir. İşlemi siz başlatmadıysanız e-postayı yok sayabilirsiniz.',
+    '',
+    `Web: ${websiteUrl}`,
+    `Instagram: ${instagramUrl}`,
     '',
     ...standardClosingText(loginUrl),
   ].join('\n');

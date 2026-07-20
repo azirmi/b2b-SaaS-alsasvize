@@ -3,12 +3,15 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import { StorageService } from '../documents/storage.service';
+import { EmailService } from '../email/email.service';
 import {
   ApplicationType,
   FileType,
@@ -35,6 +38,12 @@ const ALLOWED_PASSPORT_MIMES = new Set([
 
 /** Maximum passport file size: 10 MB. */
 const MAX_PASSPORT_SIZE = 10 * 1024 * 1024;
+const PASSWORD_RESET_EXPIRES_IN_DEFAULT = '30m';
+
+interface PasswordResetTokenPayload {
+  sub: string;
+  purpose: 'PASSWORD_RESET';
+}
 
 interface OnboardingApplicantInput {
   fullName: string;
@@ -46,6 +55,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly storage: StorageService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -360,9 +371,120 @@ export class AuthService {
     return this.jwt.signAsync(payload);
   }
 
+  /** Sends a password reset link to a registered account email. */
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      throw new BadRequestException('Lütfen hesabınızdaki mail adresini girin');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email: { equals: normalizedEmail, mode: 'insensitive' },
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        isActive: true,
+      },
+    });
+
+    if (!user || !user.isActive) {
+      throw new NotFoundException('Lütfen hesabınızdaki mail adresini girin');
+    }
+
+    const resetToken = await this.jwt.signAsync(
+      {
+        sub: user.id,
+        purpose: 'PASSWORD_RESET',
+      } satisfies PasswordResetTokenPayload,
+      {
+        expiresIn: this.config.get<string>(
+          'PASSWORD_RESET_EXPIRES_IN',
+          PASSWORD_RESET_EXPIRES_IN_DEFAULT,
+        ) as unknown as JwtSignOptions['expiresIn'],
+      },
+    );
+
+    await this.email.sendPasswordReset({
+      to: user.email,
+      customerName: user.fullName,
+      resetUrl: this.buildPasswordResetUrl(resetToken),
+    });
+
+    return {
+      message:
+        'Şifre yenileme bağlantısı e-posta adresinize gönderildi. Lütfen gelen kutunuzu kontrol edin.',
+    };
+  }
+
+  /** Verifies a password reset token and persists the new account password. */
+  async resetPassword(
+    token: string,
+    password: string,
+  ): Promise<{ message: string }> {
+    const normalizedToken = token.trim();
+    if (!normalizedToken) {
+      throw new BadRequestException('Şifre yenileme bağlantısı geçersiz');
+    }
+
+    let payload: PasswordResetTokenPayload;
+    try {
+      payload = await this.jwt.verifyAsync<PasswordResetTokenPayload>(
+        normalizedToken,
+      );
+    } catch {
+      throw new BadRequestException(
+        'Şifre yenileme bağlantısı geçersiz veya süresi dolmuş',
+      );
+    }
+
+    if (payload.purpose !== 'PASSWORD_RESET' || !payload.sub) {
+      throw new BadRequestException(
+        'Şifre yenileme bağlantısı geçersiz veya süresi dolmuş',
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, isActive: true },
+    });
+    if (!user || !user.isActive) {
+      throw new BadRequestException(
+        'Şifre yenileme bağlantısı geçersiz veya süresi dolmuş',
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    return {
+      message: 'Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.',
+    };
+  }
+
   // ---------------------------------------------------------------------------
   //  Helpers
   // ---------------------------------------------------------------------------
+
+  private buildPasswordResetUrl(token: string): string {
+    const configuredUrl = this.config.get<string>('PASSWORD_RESET_URL')?.trim();
+    const frontendAppUrl =
+      this.config.get<string>('FRONTEND_APP_URL')?.trim() ||
+      'https://alsasvize.com';
+    const baseUrl =
+      configuredUrl && configuredUrl.length > 0
+        ? configuredUrl
+        : `${frontendAppUrl.replace(/\/+$/, '')}/reset-password`;
+
+    const url = new URL(baseUrl);
+    url.searchParams.set('token', token);
+    return url.toString();
+  }
 
   private sanitizeFileName(fileName: string): string {
     const base = fileName.split(/[\\/]/).pop() ?? 'file';
