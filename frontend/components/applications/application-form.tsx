@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Controller, type FieldErrors, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { CircleAlert, CircleCheck, X } from "lucide-react";
 
 import { saveApplicationDetails } from "@/lib/actions/applications";
 import {
@@ -187,6 +188,19 @@ function fieldErrorMessage(
   return String(error.message);
 }
 
+interface VisibleFieldMeta {
+  name: ApplicationFieldName;
+  label: string;
+  sectionTitle: string;
+}
+
+interface ValidationIssue {
+  fieldName: ApplicationFieldName;
+  fieldLabel: string;
+  sectionTitle: string;
+  message: string;
+}
+
 function Field({
   field,
   control,
@@ -368,6 +382,11 @@ export function ApplicationForm({
 }) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<CrmActionState>({});
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(
+    [],
+  );
+  const [validationCardDismissed, setValidationCardDismissed] = useState(false);
+  const [successCardDismissed, setSuccessCardDismissed] = useState(false);
   const schema = useMemo(
     () => createApplicationFormSchema(targetCountry),
     [targetCountry],
@@ -390,6 +409,28 @@ export function ApplicationForm({
   const isEmployer = form.watch("isEmployer");
   const hasSponsor = form.watch("hasSponsor");
 
+  const visibleFields = useMemo<VisibleFieldMeta[]>(() => {
+    return APPLICATION_FORM_SECTIONS.flatMap((section) => {
+      if (!hasSponsor && section.title === SPONSOR_SECTION_TITLE) {
+        return [];
+      }
+
+      return section.fields
+        .filter((field) => !(!isEmployer && EMPLOYER_FIELD_NAMES.has(field.name)))
+        .map((field) => ({
+          name: field.name,
+          label: field.label,
+          sectionTitle: section.title,
+        }));
+    });
+  }, [hasSponsor, isEmployer]);
+
+  const visibleFieldMap = useMemo(() => {
+    return new Map<ApplicationFieldName, VisibleFieldMeta>(
+      visibleFields.map((field) => [field.name, field]),
+    );
+  }, [visibleFields]);
+
   useEffect(() => {
     if (!isEmployer) {
       form.setValue("employerName", "", { shouldDirty: false });
@@ -407,8 +448,51 @@ export function ApplicationForm({
     }
   }, [hasSponsor, form]);
 
+  function focusField(fieldName: ApplicationFieldName) {
+    const element = document.getElementById(`af-${fieldName}`);
+    if (!element) {
+      return;
+    }
+
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    if ("focus" in element && typeof element.focus === "function") {
+      element.focus();
+    }
+  }
+
+  function collectValidationIssues(
+    errors: FieldErrors<ApplicationFormValues>,
+  ): ValidationIssue[] {
+    const issues: ValidationIssue[] = [];
+
+    for (const [key, error] of Object.entries(errors)) {
+      const fieldName = key as ApplicationFieldName;
+      const meta = visibleFieldMap.get(fieldName);
+      if (!meta) {
+        continue;
+      }
+
+      const message =
+        error && typeof error.message === "string"
+          ? error.message
+          : "Bu alanı kontrol edin.";
+      issues.push({
+        fieldName,
+        fieldLabel: meta.label,
+        sectionTitle: meta.sectionTitle,
+        message,
+      });
+    }
+
+    return issues;
+  }
+
   function onSubmit(values: ApplicationFormValues) {
+    setValidationIssues([]);
+    setValidationCardDismissed(false);
+    setSuccessCardDismissed(false);
     setState({});
+
     startTransition(async () => {
       const formData = new FormData();
       formData.set("applicantIndex", String(applicantIndex));
@@ -424,11 +508,104 @@ export function ApplicationForm({
       }
       const result = await saveApplicationDetails(applicationId, {}, formData);
       setState(result);
+
+      if (result.ok) {
+        setValidationIssues([]);
+      }
     });
   }
 
+  function onInvalid(errors: FieldErrors<ApplicationFormValues>) {
+    setState({});
+
+    const issues = collectValidationIssues(errors);
+    setValidationIssues(issues);
+    setValidationCardDismissed(false);
+
+    if (issues[0]) {
+      focusField(issues[0].fieldName);
+    }
+  }
+
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6" noValidate>
+    <form
+      onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+      className="space-y-6"
+      noValidate
+    >
+      {validationIssues.length > 0 && !validationCardDismissed ? (
+        <div
+          className="rounded-lg border border-amber-300/60 bg-amber-50/70 p-3 text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100"
+          role="alert"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  Formda eksik veya hatalı alanlar var.
+                </p>
+                <p className="text-xs text-amber-900/80 dark:text-amber-100/80">
+                  Aşağıdaki başlıklara dokunarak ilgili alana gidebilirsiniz.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setValidationCardDismissed(true)}
+              className="text-amber-900/70 transition-colors hover:text-amber-950 dark:text-amber-100/80 dark:hover:text-amber-100"
+              aria-label="Eksik alan kartını kapat"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {validationIssues.map((issue) => (
+              <button
+                key={`${issue.fieldName}-${issue.message}`}
+                type="button"
+                onClick={() => focusField(issue.fieldName)}
+                className="rounded-md border border-amber-300/70 bg-amber-100/60 px-2.5 py-1 text-left text-xs transition-colors hover:bg-amber-200/80 dark:border-amber-400/40 dark:bg-amber-900/40 dark:hover:bg-amber-800/50"
+              >
+                <span className="block font-medium">{issue.fieldLabel}</span>
+                <span className="block text-[11px] opacity-80">
+                  {issue.sectionTitle} · {issue.message}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {state.ok && !successCardDismissed ? (
+        <div className="rounded-lg border border-emerald-300/50 bg-emerald-50/70 p-3 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <div>
+                <p className="text-sm font-medium">
+                  Başvuru formunuz oluşturulmuştur.
+                </p>
+                <p className="text-xs text-emerald-900/80 dark:text-emerald-100/80">
+                  Bilgileriniz başarıyla kaydedildi.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSuccessCardDismissed(true)}
+              className="text-emerald-900/70 transition-colors hover:text-emerald-950 dark:text-emerald-100/80 dark:hover:text-emerald-100"
+              aria-label="Başarı kartını kapat"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <fieldset className="space-y-4 rounded-lg border border-border/40 bg-card p-4">
         <legend className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Ek Bilgiler
@@ -511,14 +688,9 @@ export function ApplicationForm({
           {pending ? "Kaydediliyor…" : "Formu Kaydet"}
         </Button>
         {state.ok ? (
-          <>
-            <span className="text-sm text-emerald-700 dark:text-emerald-400">
-              Form kaydedildi.
-            </span>
-            <Button asChild>
-              <Link href="/dashboard">Ana Ekrana Dön</Link>
-            </Button>
-          </>
+          <Button asChild>
+            <Link href="/dashboard">Ana Ekrana Dön</Link>
+          </Button>
         ) : null}
         {state.error ? (
           <span

@@ -233,7 +233,7 @@ export default async function ApplicationDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; applicant?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -243,10 +243,20 @@ export default async function ApplicationDetailPage({
     redirect("/login");
   }
   if (session.role === Role.CUSTOMER) {
+    const preferredApplicantIndex =
+      query.applicant && /^\d+$/.test(query.applicant)
+        ? Number(query.applicant)
+        : undefined;
+
     return (
       <CustomerApplicationDetail
         applicationId={id}
         view={query.view === "form" ? "form" : "documents"}
+        preferredApplicantIndex={
+          preferredApplicantIndex && preferredApplicantIndex > 0
+            ? preferredApplicantIndex
+            : undefined
+        }
       />
     );
   }

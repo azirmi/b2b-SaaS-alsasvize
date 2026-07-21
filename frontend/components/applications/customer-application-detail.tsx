@@ -3,6 +3,7 @@ import { ArrowLeft, FileText } from "lucide-react";
 
 import { ApplicationDetailsView } from "@/components/applications/application-details-view";
 import { ApplicationForm } from "@/components/applications/application-form";
+import { CustomerFormStatusCard } from "@/components/applications/customer-form-status-card";
 import { CustomerPersonUploadPanel } from "@/components/applications/customer-person-upload-panel";
 import {
   type PersonBasedUploadApplicant,
@@ -514,9 +515,11 @@ function Notice({ title, body }: { title: string; body: string }) {
 export async function CustomerApplicationDetail({
   applicationId,
   view = "documents",
+  preferredApplicantIndex,
 }: {
   applicationId: string;
   view?: "documents" | "form";
+  preferredApplicantIndex?: number;
 }) {
   let detail: VisaApplicationDetail | null = null;
   let missing = false;
@@ -604,14 +607,24 @@ export async function CustomerApplicationDetail({
       : null;
   const applicationForms = getApplicationForms(detail);
   const primaryDetails = getPrimaryApplicationDetails(detail);
+  const preferredForm =
+    typeof preferredApplicantIndex === "number" &&
+    applicationForms.some(
+      (form) => form.applicantIndex === preferredApplicantIndex,
+    )
+      ? preferredApplicantIndex
+      : null;
   const defaultFormTabValue = applicationForms[0]
-    ? `applicant-${applicationForms[0].applicantIndex}`
+    ? preferredForm
+      ? `applicant-${preferredForm}`
+      : `applicant-${applicationForms[0].applicantIndex}`
     : "applicant-1";
   const requiredFormCount =
     detail.applicationFormsRequiredCount || applicationForms.length;
   const submittedFormCount =
     detail.applicationFormsSubmittedCount ||
     applicationForms.filter((form) => form.submitted).length;
+  const missingForms = applicationForms.filter((form) => !form.submitted);
   const onboardingTravelStartDate =
     toIsoDate(detail.plannedTravelDate) ??
     toIsoDate(primaryDetails?.plannedTravelStartDate) ??
@@ -722,6 +735,21 @@ export async function CustomerApplicationDetail({
               aşağıda gösteriliyor.
             </p>
           )}
+
+          {canEditForm && !formLockedByStage ? (
+            <div className="mt-3">
+              <CustomerFormStatusCard
+                applicationId={detail.id}
+                requiredFormCount={requiredFormCount}
+                submittedFormCount={submittedFormCount}
+                missingForms={missingForms.map((form) => ({
+                  applicantIndex: form.applicantIndex,
+                  applicantLabel: form.applicantLabel,
+                  applicantFullName: form.applicantFullName,
+                }))}
+              />
+            </div>
+          ) : null}
 
           <Separator className="my-4" />
 
