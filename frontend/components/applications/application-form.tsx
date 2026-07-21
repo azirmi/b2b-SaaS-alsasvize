@@ -533,79 +533,6 @@ export function ApplicationForm({
       className="space-y-6"
       noValidate
     >
-      {validationIssues.length > 0 && !validationCardDismissed ? (
-        <div
-          className="rounded-lg border border-amber-300/60 bg-amber-50/70 p-3 text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100"
-          role="alert"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-2.5">
-              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <div className="space-y-1">
-                <p className="text-sm font-medium">
-                  Formda eksik veya hatalı alanlar var.
-                </p>
-                <p className="text-xs text-amber-900/80 dark:text-amber-100/80">
-                  Aşağıdaki başlıklara dokunarak ilgili alana gidebilirsiniz.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setValidationCardDismissed(true)}
-              className="text-amber-900/70 transition-colors hover:text-amber-950 dark:text-amber-100/80 dark:hover:text-amber-100"
-              aria-label="Eksik alan kartını kapat"
-            >
-              <X className="h-4 w-4" aria-hidden />
-            </button>
-          </div>
-
-          <div className="mt-2 flex flex-wrap gap-2">
-            {validationIssues.map((issue) => (
-              <button
-                key={`${issue.fieldName}-${issue.message}`}
-                type="button"
-                onClick={() => focusField(issue.fieldName)}
-                className="rounded-md border border-amber-300/70 bg-amber-100/60 px-2.5 py-1 text-left text-xs transition-colors hover:bg-amber-200/80 dark:border-amber-400/40 dark:bg-amber-900/40 dark:hover:bg-amber-800/50"
-              >
-                <span className="block font-medium">{issue.fieldLabel}</span>
-                <span className="block text-[11px] opacity-80">
-                  {issue.sectionTitle} · {issue.message}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {state.ok && !successCardDismissed ? (
-        <div className="rounded-lg border border-emerald-300/50 bg-emerald-50/70 p-3 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-2.5">
-              <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <div>
-                <p className="text-sm font-medium">
-                  Başvuru formunuz oluşturulmuştur.
-                </p>
-                <p className="text-xs text-emerald-900/80 dark:text-emerald-100/80">
-                  Bilgileriniz başarıyla kaydedildi.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setSuccessCardDismissed(true)}
-              className="text-emerald-900/70 transition-colors hover:text-emerald-950 dark:text-emerald-100/80 dark:hover:text-emerald-100"
-              aria-label="Başarı kartını kapat"
-            >
-              <X className="h-4 w-4" aria-hidden />
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       <fieldset className="space-y-4 rounded-lg border border-border/40 bg-card p-4">
         <legend className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Ek Bilgiler
@@ -682,6 +609,79 @@ export function ApplicationForm({
       ))}
 
       <Separator />
+
+      {validationIssues.length > 0 && !validationCardDismissed ? (
+        <div
+          className="rounded-lg border border-amber-300/60 bg-amber-50/70 p-3 text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100"
+          role="alert"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  Formda eksik veya hatalı alanlar var.
+                </p>
+                <p className="text-xs text-amber-900/80 dark:text-amber-100/80">
+                  Aşağıdaki başlıklara dokunarak ilgili alana gidebilirsiniz.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setValidationCardDismissed(true)}
+              className="text-amber-900/70 transition-colors hover:text-amber-950 dark:text-amber-100/80 dark:hover:text-amber-100"
+              aria-label="Eksik alan kartını kapat"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {validationIssues.map((issue) => (
+              <button
+                key={`${issue.fieldName}-${issue.message}`}
+                type="button"
+                onClick={() => focusField(issue.fieldName)}
+                className="rounded-md border border-amber-300/70 bg-amber-100/60 px-2.5 py-1 text-left text-xs transition-colors hover:bg-amber-200/80 dark:border-amber-400/40 dark:bg-amber-900/40 dark:hover:bg-amber-800/50"
+              >
+                <span className="block font-medium">{issue.fieldLabel}</span>
+                <span className="block text-[11px] opacity-80">
+                  {issue.sectionTitle} · {issue.message}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {state.ok && !successCardDismissed ? (
+        <div className="rounded-lg border border-emerald-300/50 bg-emerald-50/70 p-3 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <div>
+                <p className="text-sm font-medium">
+                  Başvuru formunuz oluşturulmuştur.
+                </p>
+                <p className="text-xs text-emerald-900/80 dark:text-emerald-100/80">
+                  Bilgileriniz başarıyla kaydedildi.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSuccessCardDismissed(true)}
+              className="text-emerald-900/70 transition-colors hover:text-emerald-950 dark:text-emerald-100/80 dark:hover:text-emerald-100"
+              aria-label="Başarı kartını kapat"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={pending}>

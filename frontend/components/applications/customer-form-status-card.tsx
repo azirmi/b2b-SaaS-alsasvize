@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CircleAlert, CircleCheck, X } from "lucide-react";
+import { CircleAlert, X } from "lucide-react";
 
 interface MissingFormItem {
   applicantIndex: number;
@@ -28,30 +28,7 @@ export function CustomerFormStatusCard({
   }
 
   if (missingForms.length === 0) {
-    return (
-      <div className="rounded-lg border border-emerald-300/50 bg-emerald-50/70 p-3 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-2.5">
-            <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <div>
-              <p className="text-sm font-medium">Başvuru formunuz oluşturulmuştur.</p>
-              <p className="text-xs text-emerald-900/80 dark:text-emerald-100/80">
-                Tüm kişi formları kaydedildi ({submittedFormCount}/{requiredFormCount}).
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setDismissed(true)}
-            className="text-emerald-900/70 transition-colors hover:text-emerald-950 dark:text-emerald-100/80 dark:hover:text-emerald-100"
-            aria-label="Form durum kartını kapat"
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
