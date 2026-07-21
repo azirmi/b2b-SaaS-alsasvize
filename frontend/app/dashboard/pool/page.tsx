@@ -51,7 +51,7 @@ export default async function PoolPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Başvuru Havuzu</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             {isAdmin
-              ? "Tüm birimlerde havuzda bekleyen başvurular."
+              ? "Henüz personel tarafından alınmamış yeni başvurular."
               : "Birim kuyruğunuzdaki alınmamış başvurular. En uzun bekleyenler üstte listelenir."}
           </p>
         </div>

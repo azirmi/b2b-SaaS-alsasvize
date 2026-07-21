@@ -249,7 +249,11 @@ export class VisaApplicationsService {
     });
   }
 
-  /** Returns the role-appropriate work pool (admins see all in-flight apps). */
+  /**
+   * Returns the role-appropriate work pool.
+   * Admin pool is intentionally limited to never-claimed intake files so a
+   * claimed application does not appear in both Pool and Workspace views.
+   */
   getPool(actor: AuthenticatedUser) {
     return this.prisma.visaApplication.findMany({
       where: this.poolWhere(actor.role),
@@ -260,20 +264,22 @@ export class VisaApplicationsService {
 
   /**
    * Staff workspace: the applications the caller is actively working — assigned
-   * to them and sitting in their department's *_PROCESS stage. Admins see every
-   * in-flight *_PROCESS application across all departments.
+   * to them and sitting in their department's *_PROCESS stage.
+   *
+   * Admin workspace shows every in-flight file that has ever been claimed by a
+   * staff member, including handoff waiting points between departments.
    */
   async getAssigned(actor: AuthenticatedUser) {
     if (actor.role === Role.ADMIN) {
       return this.prisma.visaApplication.findMany({
         where: {
-          currentStage: {
-            in: [
-              VisaStage.SALES_PROCESS,
-              VisaStage.DOC_PROCESS,
-              VisaStage.SEC_PROCESS,
-            ],
-          },
+          currentStage: { notIn: [VisaStage.COMPLETED, VisaStage.CANCELLED] },
+          OR: [
+            { assignedSalesId: { not: null } },
+            { assignedDocId: { not: null } },
+            { assignedSecId: { not: null } },
+            { salesStaffId: { not: null } },
+          ],
         },
         include: ASSIGNED_INCLUDE,
         orderBy: { stageUpdatedAt: 'asc' },
@@ -2762,20 +2768,11 @@ export class VisaApplicationsService {
         };
       case Role.ADMIN:
         return {
-          OR: [
-            {
-              currentStage: VisaStage.SALES_POOL,
-              assignedSalesId: null,
-            },
-            {
-              currentStage: VisaStage.DOC_POOL,
-              assignedDocId: null,
-            },
-            {
-              currentStage: VisaStage.SEC_POOL,
-              assignedSecId: null,
-            },
-          ],
+          currentStage: VisaStage.SALES_POOL,
+          assignedSalesId: null,
+          assignedDocId: null,
+          assignedSecId: null,
+          salesStaffId: null,
         };
       default:
         throw new ForbiddenException('Rolünüz için bir iş havuzu tanımlı değil');
