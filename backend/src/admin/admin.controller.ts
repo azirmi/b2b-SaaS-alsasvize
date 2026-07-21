@@ -90,4 +90,19 @@ export class AdminController {
   ) {
     return this.adminService.updateApplicationCoreData(id, dto, actor);
   }
+
+  /** Admin-only: remove one onboarding applicant from an application. */
+  @Delete('applications/:applicationId/applicants/:applicantId')
+  @Roles(Role.ADMIN)
+  removeOnboardingApplicant(
+    @Param('applicationId', ParseUUIDPipe) applicationId: string,
+    @Param('applicantId', ParseUUIDPipe) applicantId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.adminService.removeOnboardingApplicant(
+      applicationId,
+      applicantId,
+      actor,
+    );
+  }
 }

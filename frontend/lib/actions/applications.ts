@@ -206,6 +206,36 @@ export async function updateApplicationCoreData(
   return { ok: true };
 }
 
+/** Admin-only: removes one onboarding applicant from an application. */
+export async function removeOnboardingApplicant(
+  applicationId: string,
+  applicantId: string,
+): Promise<ActionResult & { applicantCount?: number }> {
+  if (!UUID_RE.test(applicationId)) {
+    return { ok: false, error: "Geçersiz başvuru referansı." };
+  }
+  if (!UUID_RE.test(applicantId)) {
+    return { ok: false, error: "Geçersiz kişi referansı." };
+  }
+
+  try {
+    const response = await serverApi.del<{ applicantCount: number }>(
+      `/admin/applications/${applicationId}/applicants/${applicantId}`,
+    );
+
+    revalidatePath("/dashboard", "layout");
+    return { ok: true, applicantCount: response.applicantCount };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, error: error.message };
+    }
+    return {
+      ok: false,
+      error: "Kişi kaydı silinemedi. Lütfen tekrar deneyin.",
+    };
+  }
+}
+
 /** Updates one DOC assistant card status for the given application. */
 export async function updateDocAssistantStatus(
   id: string,

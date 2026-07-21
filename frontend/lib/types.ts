@@ -141,6 +141,13 @@ export interface ApplicationFormEntry {
   details: ApplicationDetailsData | null;
 }
 
+/** Raw onboarding person rows stored for an application. */
+export interface OnboardingApplicantRecord {
+  id: string;
+  fullName: string;
+  createdAt: string;
+}
+
 /** Full application detail returned by `GET /applications/:id` (`APPLICATION_DETAIL_INCLUDE`). */
 export interface VisaApplicationDetail {
   id: string;
@@ -172,6 +179,7 @@ export interface VisaApplicationDetail {
   applicationFormsSubmittedCount: number;
   applicationFormsComplete: boolean;
   applicationForms: ApplicationFormEntry[];
+  onboardingApplicants: OnboardingApplicantRecord[];
   salesReadonlyData?: SalesReadonlyData | null;
   docChecklist: DocChecklistState;
   crmData: CrmData | null;

@@ -423,7 +423,8 @@ export default async function ApplicationDetailPage({
     detail.documents.find((d) => d.fileType === FileType.FINAL_RECEIPT) ?? null;
   const advanceDisabled = advanceBlockedByDocs || advanceBlockedByCrm;
   const canEditCrm =
-    stage === VisaStage.SALES_PROCESS && (isAdmin || isCurrentStageOwner);
+    isAdmin ||
+    (stage === VisaStage.SALES_PROCESS && isCurrentStageOwner);
 
   const canReviewDocs =
     stage === VisaStage.DOC_PROCESS && (session.role === Role.DOC || isAdmin);
@@ -1121,6 +1122,20 @@ export default async function ApplicationDetailPage({
               initialResidenceCity={customerResidenceCity}
               initialPlannedTravelDate={corePlannedTravelDate}
               initialApplicantCount={detail.applicantCount}
+              initialApplicants={
+                detail.onboardingApplicants.length > 0
+                  ? detail.onboardingApplicants.map((applicant) => ({
+                      id: applicant.id,
+                      fullName: applicant.fullName,
+                    }))
+                  : [{ id: "__primary__", fullName: detail.customer.fullName }]
+              }
+              initialPassportDocuments={detail.documents
+                .filter((document) => document.fileType === FileType.PASSPORT)
+                .map((document) => ({
+                  id: document.id,
+                  createdAt: document.createdAt,
+                }))}
             />
           ) : null}
 

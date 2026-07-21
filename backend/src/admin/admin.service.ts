@@ -239,8 +239,11 @@ export class AdminService {
             },
           },
           onboardingApplicants: {
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
             select: {
               id: true,
+              fullName: true,
+              createdAt: true,
             },
           },
           residenceCity: true,
@@ -277,17 +280,11 @@ export class AdminService {
       const existingApplicantCount =
         existingApplicantRows > 0 ? existingApplicantRows : 1;
 
-      if (
-        requestedApplicantCount !== undefined &&
-        requestedApplicantCount < existingApplicantCount
-      ) {
-        throw new BadRequestException(
-          'Kişi sayısı yalnızca artırılabilir; mevcut kayıt sayısından küçük olamaz',
-        );
-      }
-
       let resultingApplicantCount = existingApplicantCount;
       let addedApplicantRows = 0;
+      let removedApplicantRows = 0;
+      let removedDetailRows = 0;
+      let removedApplicantIds: string[] = [];
 
       if (
         requestedApplicantCount !== undefined &&
@@ -318,6 +315,47 @@ export class AdminService {
           await tx.onboardingApplicant.createMany({ data: applicantRows });
           addedApplicantRows = applicantRows.length;
         }
+
+        resultingApplicantCount = requestedApplicantCount;
+      }
+
+      if (
+        requestedApplicantCount !== undefined &&
+        requestedApplicantCount < existingApplicantCount
+      ) {
+        if (actor.role !== Role.ADMIN) {
+          throw new ForbiddenException(
+            'Kişi azaltma işlemi yalnızca yönetici tarafından yapılabilir',
+          );
+        }
+
+        if (existingApplicantRows > 0 && requestedApplicantCount < existingApplicantRows) {
+          const applicantsToRemove = application.onboardingApplicants.slice(
+            requestedApplicantCount,
+          );
+          const applicantIdsToRemove = applicantsToRemove.map(
+            (applicant) => applicant.id,
+          );
+
+          if (applicantIdsToRemove.length > 0) {
+            await tx.onboardingApplicant.deleteMany({
+              where: {
+                id: { in: applicantIdsToRemove },
+                applicationId: application.id,
+              },
+            });
+            removedApplicantRows = applicantIdsToRemove.length;
+            removedApplicantIds = applicantIdsToRemove;
+          }
+        }
+
+        const deletedDetails = await tx.visaApplicationDetails.deleteMany({
+          where: {
+            applicationId: application.id,
+            applicantIndex: { gt: requestedApplicantCount },
+          },
+        });
+        removedDetailRows = deletedDetails.count;
 
         resultingApplicantCount = requestedApplicantCount;
       }
@@ -375,6 +413,9 @@ export class AdminService {
                 : null,
               applicantCount: resultingApplicantCount,
               addedApplicantRows,
+              removedApplicantRows,
+              removedDetailRows,
+              removedApplicantIds,
             },
           },
         },
@@ -390,6 +431,116 @@ export class AdminService {
           ? updatedApplication.plannedTravelDate.toISOString().slice(0, 10)
           : null,
         applicantCount: resultingApplicantCount,
+        removedApplicantRows,
+        removedDetailRows,
+      };
+    });
+  }
+
+  /**
+   * Admin-only: removes one onboarding applicant from an application.
+   * Deletes that applicant's form entry and compacts later applicant indexes
+   * so person-based forms remain contiguous.
+   */
+  async removeOnboardingApplicant(
+    applicationId: string,
+    applicantId: string,
+    actor: AuthenticatedUser,
+  ) {
+    if (actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('Bu işlem yalnızca yönetici tarafından yapılabilir');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const application = await tx.visaApplication.findUnique({
+        where: { id: applicationId },
+        select: {
+          id: true,
+          onboardingApplicants: {
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
+        },
+      });
+
+      if (!application) {
+        throw new NotFoundException(`Başvuru bulunamadı: ${applicationId}`);
+      }
+
+      const currentApplicantCount =
+        application.onboardingApplicants.length > 0
+          ? application.onboardingApplicants.length
+          : 1;
+
+      if (currentApplicantCount <= 1) {
+        throw new BadRequestException('Başvuruda en az 1 kişi kalmalıdır');
+      }
+
+      const removeIndex = application.onboardingApplicants.findIndex(
+        (applicant) => applicant.id === applicantId,
+      );
+      if (removeIndex < 0) {
+        throw new NotFoundException('Silinecek kişi kaydı bulunamadı');
+      }
+
+      if (removeIndex === 0) {
+        throw new BadRequestException('Ana başvuru sahibi bu alandan silinemez');
+      }
+
+      const removedApplicant = application.onboardingApplicants[removeIndex];
+      const removedApplicantIndex = removeIndex + 1;
+
+      await tx.onboardingApplicant.delete({
+        where: { id: removedApplicant.id },
+      });
+
+      const deletedDetails = await tx.visaApplicationDetails.deleteMany({
+        where: {
+          applicationId,
+          applicantIndex: removedApplicantIndex,
+        },
+      });
+
+      const detailsToShift = await tx.visaApplicationDetails.findMany({
+        where: {
+          applicationId,
+          applicantIndex: { gt: removedApplicantIndex },
+        },
+        orderBy: { applicantIndex: 'asc' },
+        select: { id: true, applicantIndex: true },
+      });
+
+      for (const detail of detailsToShift) {
+        await tx.visaApplicationDetails.update({
+          where: { id: detail.id },
+          data: { applicantIndex: detail.applicantIndex - 1 },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          application: { connect: { id: applicationId } },
+          performedBy: { connect: { id: actor.userId } },
+          actionType: 'APPLICANT_REMOVED',
+          details: {
+            removedApplicantId: removedApplicant.id,
+            removedApplicantName: removedApplicant.fullName,
+            removedApplicantIndex,
+            beforeApplicantCount: currentApplicantCount,
+            afterApplicantCount: currentApplicantCount - 1,
+            removedDetailRows: deletedDetails.count,
+            shiftedDetailRows: detailsToShift.length,
+          },
+        },
+      });
+
+      return {
+        applicationId,
+        removedApplicantId: removedApplicant.id,
+        applicantCount: currentApplicantCount - 1,
       };
     });
   }
