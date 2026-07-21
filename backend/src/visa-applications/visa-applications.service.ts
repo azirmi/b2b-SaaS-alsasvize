@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { EmailService } from '../email/email.service';
 import { EventsGateway } from '../events/events.gateway';
@@ -116,6 +117,15 @@ const DOC_REQUIRED_BASE_FILE_TYPES: FileType[] = [
 /** Optional by policy: does not block stage transition when missing. */
 const DOC_OPTIONAL_FILE_TYPES: FileType[] = [FileType.FLIGHT_HOTEL_RESERVATION];
 
+const SALES_VISIBLE_FILE_TYPES = new Set<FileType>([
+  FileType.PASSPORT,
+  FileType.PAYMENT_RECEIPT,
+  FileType.VISA_FEE_RECEIPT,
+  FileType.FINAL_RECEIPT,
+]);
+
+const DEFAULT_CRM_AUTO_ADVANCE_TO_OPERATION = false;
+
 const FILE_TYPE_LABELS_TR: Record<FileType, string> = {
   [FileType.PASSPORT]: 'Pasaport',
   [FileType.BANK_STATEMENT]: 'Banka Hesap Dökümü',
@@ -206,11 +216,19 @@ const APPLICATION_DETAIL_INCLUDE = {
 
 @Injectable()
 export class VisaApplicationsService {
+  private readonly crmAutoAdvanceToOperation: boolean;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
     private readonly email: EmailService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.crmAutoAdvanceToOperation = this.resolveBoolean(
+      config.get('CRM_AUTO_ADVANCE_TO_OPERATION'),
+      DEFAULT_CRM_AUTO_ADVANCE_TO_OPERATION,
+    );
+  }
 
   /**
    * Creates an application in SALES_POOL together with its first audit-log
@@ -618,7 +636,7 @@ export class VisaApplicationsService {
     const scopedDocuments =
       actor.role === Role.SALES
         ? application.documents.filter(
-            (document) => document.fileType === FileType.PASSPORT,
+            (document) => SALES_VISIBLE_FILE_TYPES.has(document.fileType),
           )
         : application.documents;
     const salesReadonlyData = primaryDetails
@@ -1523,6 +1541,7 @@ export class VisaApplicationsService {
             data.paymentType !== 'PREPAID' ||
             (typeof data.upfrontPaid === 'number' && data.upfrontPaid > 0);
           const shouldMoveToOperation =
+            this.crmAutoAdvanceToOperation &&
             before.currentStage === VisaStage.SALES_PROCESS &&
             this.isCrmComplete({
               salesDate: data.salesDate,
@@ -2685,6 +2704,22 @@ export class VisaApplicationsService {
       );
     }
     return true;
+  }
+
+  private resolveBoolean(raw: unknown, fallback: boolean): boolean {
+    if (typeof raw === 'boolean') {
+      return raw;
+    }
+    if (typeof raw === 'string') {
+      const normalized = raw.trim().toLowerCase();
+      if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+        return true;
+      }
+      if (['0', 'false', 'no', 'off'].includes(normalized)) {
+        return false;
+      }
+    }
+    return fallback;
   }
 
   private buildDocChecklist(
