@@ -1,9 +1,27 @@
 export type CountrySpecificFormType = "UK" | "USA";
 
+/**
+ * Input behavior for a country-specific field, mirroring the default form's
+ * masking/uppercase rules so UK/USA forms feel identical.
+ */
+export type CountrySpecificFieldInput =
+  | "name"
+  | "alpha"
+  | "text"
+  | "note"
+  | "phone"
+  | "tc"
+  | "passport"
+  | "email"
+  | "date";
+
 export interface CountrySpecificFieldDefinition {
   key: string;
   label: string;
   kind?: "text" | "textarea" | "date";
+  /** Masking/normalization behavior; defaults to uppercase English text. */
+  input?: CountrySpecificFieldInput;
+  maxLength?: number;
 }
 
 export interface CountrySpecificCommonInput {
@@ -70,47 +88,81 @@ export const UK_FORM_NOTICE = "Eksiksiz doldurulması gerekmektedir.";
 export const USA_FORM_NOTICE = "MADDİ GELİRLER VE GİDERLER NET YAZILMALIDIR";
 
 export const UK_VISA_FIELDS: readonly CountrySpecificFieldDefinition[] = [
-  { key: "adiniz", label: "ADINIZ:" },
-  { key: "soyadiniz", label: "SOYADINIZ:" },
-  { key: "kizlik_soyadi", label: "Varsa kızlık soyadı belirtiniz:" },
+  { key: "adiniz", label: "ADINIZ:", input: "name", maxLength: 80 },
+  { key: "soyadiniz", label: "SOYADINIZ:", input: "name", maxLength: 80 },
+  {
+    key: "kizlik_soyadi",
+    label: "Varsa kızlık soyadı belirtiniz:",
+    input: "name",
+    maxLength: 80,
+  },
   { key: "dogum_tarihi", label: "DOĞUM TARİHİ:", kind: "date" },
-  { key: "tc_kimlik_numarasi", label: "TC KİMLİK NUMARASI:" },
+  {
+    key: "tc_kimlik_numarasi",
+    label: "TC KİMLİK NUMARASI:",
+    input: "tc",
+    maxLength: 11,
+  },
   {
     key: "kimlik_verilis_ve_bitis_tarihi",
     label: "KİMLİK VERİLİŞ VE BİTİŞ TARİHİ:",
+    input: "text",
+    maxLength: 120,
   },
   {
     key: "ev_adresiniz",
     label: "EV ADRESİNİZ (E-devlette kayıtlı olan adresiniz):",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
   {
     key: "bu_adreste_ne_kadardir_yasiyorsunuz",
     label: "BU ADRESTE NE KADARDIR YAŞIYORSUNUZ (Yıl / Ay):",
+    input: "text",
+    maxLength: 60,
   },
   {
     key: "oturdugunuz_ev_kira_mi_size_mi_ait",
     label: "OTURDUĞUNUZ EV KİRA MI, SİZE Mİ AİT:",
+    input: "text",
+    maxLength: 60,
   },
-  { key: "telefon_numarasi", label: "TELEFON NUMARASI:" },
-  { key: "email_adresi", label: "E-MAIL ADRESİ:", kind: "text" },
+  {
+    key: "telefon_numarasi",
+    label: "TELEFON NUMARASI:",
+    input: "phone",
+    maxLength: 32,
+  },
+  { key: "email_adresi", label: "E-MAIL ADRESİ:", input: "email", maxLength: 160 },
   {
     key: "baska_ulke_vatandasligi",
     label: "BAŞKA BİR ÜLKE VATANDAŞLIĞINIZ VAR MI? (Varsa belirtiniz):",
+    input: "text",
+    maxLength: 120,
   },
-  { key: "pasaport_numarasi", label: "PASAPORT NUMARASI:" },
+  {
+    key: "pasaport_numarasi",
+    label: "PASAPORT NUMARASI:",
+    input: "passport",
+    maxLength: 9,
+  },
   { key: "pasaport_verilis_tarihi", label: "VERİLİŞ TARİHİ:", kind: "date" },
   { key: "pasaport_bitis_tarihi", label: "BİTİŞ TARİHİ:", kind: "date" },
-  { key: "veren_makam", label: "VEREN MAKAM:" },
+  { key: "veren_makam", label: "VEREN MAKAM:", input: "alpha", maxLength: 120 },
   {
     key: "baba_bilgileri",
     label: "BABA ADI SOYADI / DOĞUM TARİHİ / DOĞUM YERİ / UYRUĞU:",
     kind: "textarea",
+    input: "note",
+    maxLength: 240,
   },
   {
     key: "anne_bilgileri",
     label: "ANNE ADI SOYADI / DOĞUM TARİHİ / DOĞUM YERİ / UYRUĞU:",
     kind: "textarea",
+    input: "note",
+    maxLength: 240,
   },
   {
     key: "evlilik_tarihi",
@@ -121,168 +173,280 @@ export const UK_VISA_FIELDS: readonly CountrySpecificFieldDefinition[] = [
     key: "es_bilgileri",
     label: "EŞİNİZİN ADI SOYADI / DOĞUM TARİHİ / DOĞUM YERİ / UYRUĞU:",
     kind: "textarea",
+    input: "note",
+    maxLength: 240,
   },
   {
     key: "es_pasaport_no",
     label: "EŞİNİZ SEYAHAT ETMEYECEKSE BİLE PASAPORT NO:",
+    input: "text",
+    maxLength: 32,
   },
   {
     key: "cocuk_bilgileri",
     label: "ÇOCUĞUNUZ VARSA ADI / DOĞUM TARİHİ / DOĞUM YERİ:",
     kind: "textarea",
+    input: "note",
+    maxLength: 240,
   },
   {
     key: "es_ve_cocuklar_sizinle_mi",
     label: "EŞ VE ÇOCUKLARINIZ SİZİNLE BİRLİKTE Mİ YAŞIYOR?:",
+    input: "text",
+    maxLength: 60,
   },
-  { key: "degilse_adresleri", label: "DEĞİLSE ADRESLERİ:", kind: "textarea" },
-  { key: "is_yeri_adi", label: "İŞ YERİ ADI:" },
-  { key: "is_yeri_adresi", label: "İŞ YERİ ADRESİ:", kind: "textarea" },
+  {
+    key: "degilse_adresleri",
+    label: "DEĞİLSE ADRESLERİ:",
+    kind: "textarea",
+    input: "note",
+    maxLength: 500,
+  },
+  { key: "is_yeri_adi", label: "İŞ YERİ ADI:", input: "text", maxLength: 160 },
+  {
+    key: "is_yeri_adresi",
+    label: "İŞ YERİ ADRESİ:",
+    kind: "textarea",
+    input: "note",
+    maxLength: 500,
+  },
   { key: "ise_giris_tarihi", label: "İŞE GİRİŞ TARİHİ:", kind: "date" },
-  { key: "is_telefonu", label: "İŞ TELEFONU:" },
-  { key: "pozisyonunuz", label: "POZİSYONUNUZ:" },
-  { key: "aylik_net_gelir", label: "AYLIK NET GELİR:" },
-  { key: "yillik_gelir", label: "YILLIK GELİR:" },
+  { key: "is_telefonu", label: "İŞ TELEFONU:", input: "phone", maxLength: 32 },
+  { key: "pozisyonunuz", label: "POZİSYONUNUZ:", input: "text", maxLength: 120 },
+  { key: "aylik_net_gelir", label: "AYLIK NET GELİR:", input: "text", maxLength: 60 },
+  { key: "yillik_gelir", label: "YILLIK GELİR:", input: "text", maxLength: 60 },
   {
     key: "baska_gelir_veya_birikim",
     label:
       "BAŞKA GELİR YA DA BİRİKİMİNİZ VAR MI?: (KİRA GELİRİ VS ) VARSA TUTARI:",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
-  { key: "aylik_giderler_toplami", label: "AYLIK GİDERLER TOPLAMI:" },
-  { key: "aileye_verilen_aylik_tutar", label: "AİLEYE VERİLEN AYLIK TUTAR:" },
-  { key: "bu_gezi_icin_elde_para", label: "BU GEZİ İÇİN ELİNİZDE BULUNAN PARA:" },
+  {
+    key: "aylik_giderler_toplami",
+    label: "AYLIK GİDERLER TOPLAMI:",
+    input: "text",
+    maxLength: 60,
+  },
+  {
+    key: "aileye_verilen_aylik_tutar",
+    label: "AİLEYE VERİLEN AYLIK TUTAR:",
+    input: "text",
+    maxLength: 60,
+  },
+  {
+    key: "bu_gezi_icin_elde_para",
+    label: "BU GEZİ İÇİN ELİNİZDE BULUNAN PARA:",
+    input: "text",
+    maxLength: 60,
+  },
   {
     key: "askeriye_kamu_basin",
     label: "DAHA ÖNCE ASKERİYE / KAMU / BASIN SEKTÖRÜNDE ÇALIŞTINIZ MI?:",
+    input: "text",
+    maxLength: 120,
   },
-  { key: "detay", label: "DETAY:", kind: "textarea" },
-  { key: "seyahat_amaci", label: "SEYAHAT AMACI:", kind: "textarea" },
+  { key: "detay", label: "DETAY:", kind: "textarea", input: "note", maxLength: 500 },
+  {
+    key: "seyahat_amaci",
+    label: "SEYAHAT AMACI:",
+    kind: "textarea",
+    input: "note",
+    maxLength: 1000,
+  },
   {
     key: "seyahat_tarihleri",
     label: "SEYAHAT TARİHLERİ (Gidiş / Dönüş):",
+    input: "text",
+    maxLength: 60,
   },
-  { key: "ingiltere_davetiyesi", label: "İNGİLTERE DAVETİYESİ VAR MI?:" },
-  { key: "vize_reddi_aldiniz_mi", label: "VİZE REDDİ ALDINIZ MI?:" },
+  {
+    key: "ingiltere_davetiyesi",
+    label: "İNGİLTERE DAVETİYESİ VAR MI?:",
+    input: "text",
+    maxLength: 60,
+  },
+  {
+    key: "vize_reddi_aldiniz_mi",
+    label: "VİZE REDDİ ALDINIZ MI?:",
+    input: "text",
+    maxLength: 60,
+  },
   {
     key: "daha_once_ingiltere_basvuru",
     label: "DAHA ÖNCE İNGİLTERE VİZESİNE BAŞVURDUNUZ MU?:",
+    input: "text",
+    maxLength: 60,
   },
   {
     key: "red_tarihi_ve_nedeni",
     label: "RED VARSA TARİHİ VE NEDENİ:",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
   {
     key: "ingilterede_yasayan_akraba",
     label: "İNGİLTERE’DE YAŞAYAN AKRABA VAR MI?:",
+    input: "text",
+    maxLength: 120,
   },
   {
     key: "yurtdisi_seyahatleriniz",
     label: "DAHA ÖNCE YURTDIŞI SEYAHATLERİNİZ:",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
-  { key: "kiminle_seyahat", label: "KİMİNLE SEYAHAT EDECEKSİNİZ?:" },
+  {
+    key: "kiminle_seyahat",
+    label: "KİMİNLE SEYAHAT EDECEKSİNİZ?:",
+    input: "text",
+    maxLength: 120,
+  },
   {
     key: "seyahat_masraflarini_kim_karsilayacak",
     label: "SEYAHAT MASRAFLARINI KİM KARŞILAYACAK?:",
+    input: "text",
+    maxLength: 120,
   },
   {
     key: "birlesik_krallik_harcama",
     label:
       "BIRLEŞIK KRALLIK'A ZIYARETINIZDE NE KADAR PARA HARCAMAYI PLANLAMAKTASINIZ?:",
+    input: "text",
+    maxLength: 60,
   },
   {
     key: "talep_edilen_vize_suresi",
     label: "TALEP EDİLEN VİZE SÜRESİ (6 AY / 2 SENE / 5 SENE / 10 SENE ):",
+    input: "text",
+    maxLength: 60,
   },
 ] as const;
 
 export const USA_VISA_FIELDS: readonly CountrySpecificFieldDefinition[] = [
-  { key: "ad_soyad", label: "AD-SOYAD:" },
-  { key: "medeni_hal", label: "MEDENİ HAL:" },
-  { key: "ev_adresi", label: "EV ADRESİ:", kind: "textarea" },
-  { key: "telefon_no", label: "TELEFON NO:" },
-  { key: "mail_adresi", label: "MAİL ADRESİ:" },
+  { key: "ad_soyad", label: "AD-SOYAD:", input: "name", maxLength: 120 },
+  { key: "medeni_hal", label: "MEDENİ HAL:", input: "alpha", maxLength: 32 },
+  { key: "ev_adresi", label: "EV ADRESİ:", kind: "textarea", input: "note", maxLength: 500 },
+  { key: "telefon_no", label: "TELEFON NO:", input: "phone", maxLength: 32 },
+  { key: "mail_adresi", label: "MAİL ADRESİ:", input: "email", maxLength: 160 },
   {
     key: "sosyal_medya_kullanici_ismi",
     label: "SOSYAL MEDYA HESAPLARI KULLANICI İSMİ:",
+    input: "text",
+    maxLength: 160,
   },
   {
     key: "bakmakla_yukumlu_oldugunuz_kisiler",
     label: "BAKMAKLA YÜKÜMLÜ OLDUĞUNUZ KİŞİLER(EŞ ,COCUK ,ANNE -BABA):",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
   {
     key: "anne_baba_bilgileri",
     label: "ANNE BABA İSİM SOY İSİM DOĞUM TARİHİ:",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
   {
     key: "isyeri_bilgileri",
     label:
       "İŞYERİ BİLGİLERİ (İŞLETME İSMİ, İŞLETME SAHİBİ ADI SOYAD,TELEFON,İŞLETME ADRESİ ,İŞLETMEDE GÖREVİNİZ NEDİR):",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
-  { key: "abdye_gidis_amaci", label: "ABD’YE GIDIŞ AMACı:", kind: "textarea" },
+  {
+    key: "abdye_gidis_amaci",
+    label: "ABD’YE GIDIŞ AMACı:",
+    kind: "textarea",
+    input: "note",
+    maxLength: 1000,
+  },
   {
     key: "planlanan_giris_tarihi",
     label: "PLANLANAN GIRIŞ TARIHI:",
     kind: "date",
   },
-  { key: "kalis_suresi", label: "KALıŞ SÜRESI:" },
+  { key: "kalis_suresi", label: "KALıŞ SÜRESI:", input: "text", maxLength: 60 },
   {
     key: "abdde_kalacaginiz_adres",
     label: "ABD’DE KALACAĞıNıZ ADRES:",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
   {
     key: "seyahat_masraflarini_kim",
     label: "SEYAHAT MASRAFLARıNı KIM KARŞıLıYOR:",
+    input: "text",
+    maxLength: 120,
   },
   {
     key: "abdde_tanidiginiz_kisi_veya_kurum",
     label: "ABD’DE TANıDıĞıNıZ KIŞI VEYA KURUM:",
+    input: "text",
+    maxLength: 160,
   },
   {
     key: "adres_ve_telefon",
     label: "ADRES VE TELEFON (OTEL, AKRABA, OKUL VB.):",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
   {
     key: "abdde_yasayan_akraba_var_mi",
     label: "ABD’DE YAŞAYAN AKRABA VAR Mı?:",
+    input: "text",
+    maxLength: 120,
   },
   {
     key: "egitim_durumu",
     label: "EGİTİM DURUMUNUZ NEDİR? MEZUNİYET TARİHİNİZ NEDİR?:",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
   {
     key: "onceki_is_egitim_gecmisi",
     label: "ÖNCEKI IŞ VE EĞITIM GEÇMIŞI TAMAMINI YAZALIM:",
     kind: "textarea",
+    input: "note",
+    maxLength: 1000,
   },
-  { key: "aylik_gelir", label: "AYLIK GELİR:" },
-  { key: "aylik_harcama", label: "AYLIK HARCAMA:" },
+  { key: "aylik_gelir", label: "AYLIK GELİR:", input: "text", maxLength: 60 },
+  { key: "aylik_harcama", label: "AYLIK HARCAMA:", input: "text", maxLength: 60 },
   {
     key: "abdde_kalis_harcama",
     label: "ABD DE KALIŞ SÜRENİZDE NE KADAR HARCAMA YAPACAKSINIZ?:",
+    input: "text",
+    maxLength: 60,
   },
   {
     key: "ek_otel_ucak_biletleri",
     label: "EK OTEL UÇAK BİLETLERİ SATIN ALMA YAPILACAK MI?:",
+    input: "text",
+    maxLength: 60,
   },
   {
     key: "daha_onceki_vize_ziyaretleriniz",
     label: "DAHA ÖNCEKİ VİZE VE YURTDIŞI ZİYARETLERİNİZ?:",
     kind: "textarea",
+    input: "note",
+    maxLength: 500,
   },
   {
     key: "kendinize_ait_ek_notlar",
     label:
       "KENDİNİZE AİT VEREBİLECEĞİNİZ BİLGİLER :EK NOTLARA YAZABİLMEMİZ İÇİN FORMDA",
     kind: "textarea",
+    input: "note",
+    maxLength: 1000,
   },
 ] as const;
 

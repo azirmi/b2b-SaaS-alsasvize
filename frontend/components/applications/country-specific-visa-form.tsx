@@ -11,12 +11,64 @@ import {
   getInitialCountrySpecificValues,
 } from "@/lib/country-visa-forms";
 import type { ApplicationDetailsData, CrmActionState } from "@/lib/types";
+import {
+  maskAlphaTextInput,
+  maskEnglishNoteInput,
+  maskEnglishTextInput,
+  maskNameInput,
+  maskPassportNumberInput,
+  maskPhoneInput,
+  maskTcKimlikInput,
+  normalizeEnglishChars,
+} from "@/lib/input-masks";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LocalizedDatePickerInput } from "@/components/ui/localized-date-picker";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import type { CountrySpecificFieldInput } from "@/lib/country-visa-forms";
+
+/** Field kinds that get UPPERCASE + English-only normalization like the default form. */
+const UPPERCASE_INPUTS = new Set<CountrySpecificFieldInput | undefined>([
+  "name",
+  "alpha",
+  "text",
+  "note",
+  "passport",
+]);
+
+function toUppercaseInput(value: string): string {
+  return normalizeEnglishChars(value).toUpperCase();
+}
+
+/** Applies the same masking rules the default application form uses. */
+function maskCountryFieldInput(
+  input: CountrySpecificFieldInput | undefined,
+  value: string,
+  maxLength?: number,
+): string {
+  switch (input) {
+    case "tc":
+      return maskTcKimlikInput(value);
+    case "passport":
+      return maskPassportNumberInput(value);
+    case "phone":
+      return maskPhoneInput(value, maxLength ?? 32);
+    case "name":
+      return maskNameInput(value, maxLength);
+    case "alpha":
+      return maskAlphaTextInput(value, maxLength);
+    case "note":
+      return maskEnglishNoteInput(value, maxLength);
+    case "email":
+      return value.slice(0, maxLength ?? 160);
+    case "text":
+    default:
+      return maskEnglishTextInput(value, maxLength);
+  }
+}
 
 interface MissingFieldIssue {
   key: string;
@@ -300,7 +352,18 @@ export function CountrySpecificVisaForm({
               <Input
                 id={commonFieldDomId(formType, applicantIndex, "employerName")}
                 value={employerName}
-                onChange={(event) => setEmployerName(event.target.value)}
+                onChange={(event) =>
+                  setEmployerName(
+                    toUppercaseInput(
+                      maskEnglishTextInput(event.target.value, 160),
+                    ),
+                  )
+                }
+                maxLength={160}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                className="uppercase"
               />
             </div>
 
@@ -309,7 +372,11 @@ export function CountrySpecificVisaForm({
               <Input
                 id={commonFieldDomId(formType, applicantIndex, "employerPhone")}
                 value={employerPhone}
-                onChange={(event) => setEmployerPhone(event.target.value)}
+                onChange={(event) =>
+                  setEmployerPhone(maskPhoneInput(event.target.value, 32))
+                }
+                maxLength={32}
+                autoComplete="off"
               />
             </div>
 
@@ -318,8 +385,19 @@ export function CountrySpecificVisaForm({
               <Textarea
                 id={commonFieldDomId(formType, applicantIndex, "employerAddress")}
                 value={employerAddress}
-                onChange={(event) => setEmployerAddress(event.target.value)}
+                onChange={(event) =>
+                  setEmployerAddress(
+                    toUppercaseInput(
+                      maskEnglishNoteInput(event.target.value, 500),
+                    ),
+                  )
+                }
                 rows={3}
+                maxLength={500}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                className="uppercase"
               />
             </div>
           </div>
@@ -332,7 +410,16 @@ export function CountrySpecificVisaForm({
               <Input
                 id={commonFieldDomId(formType, applicantIndex, "sponsorFullName")}
                 value={sponsorFullName}
-                onChange={(event) => setSponsorFullName(event.target.value)}
+                onChange={(event) =>
+                  setSponsorFullName(
+                    toUppercaseInput(maskNameInput(event.target.value, 120)),
+                  )
+                }
+                maxLength={120}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                className="uppercase"
               />
             </div>
 
@@ -341,7 +428,18 @@ export function CountrySpecificVisaForm({
               <Input
                 id={commonFieldDomId(formType, applicantIndex, "sponsorIdentity")}
                 value={sponsorIdentity}
-                onChange={(event) => setSponsorIdentity(event.target.value)}
+                onChange={(event) =>
+                  setSponsorIdentity(
+                    toUppercaseInput(
+                      maskEnglishTextInput(event.target.value, 120),
+                    ),
+                  )
+                }
+                maxLength={120}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                className="uppercase"
               />
             </div>
 
@@ -350,8 +448,15 @@ export function CountrySpecificVisaForm({
               <Textarea
                 id={commonFieldDomId(formType, applicantIndex, "sponsorContact")}
                 value={sponsorContact}
-                onChange={(event) => setSponsorContact(event.target.value)}
+                onChange={(event) =>
+                  setSponsorContact(
+                    maskEnglishNoteInput(event.target.value, 240),
+                  )
+                }
                 rows={3}
+                maxLength={240}
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
 
@@ -360,7 +465,18 @@ export function CountrySpecificVisaForm({
               <Input
                 id={commonFieldDomId(formType, applicantIndex, "sponsorRelation")}
                 value={sponsorRelation}
-                onChange={(event) => setSponsorRelation(event.target.value)}
+                onChange={(event) =>
+                  setSponsorRelation(
+                    toUppercaseInput(
+                      maskAlphaTextInput(event.target.value, 80),
+                    ),
+                  )
+                }
+                maxLength={80}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                className="uppercase"
               />
             </div>
           </div>
@@ -372,6 +488,8 @@ export function CountrySpecificVisaForm({
           const value = values[field.key] ?? "";
           const id = fieldDomId(formType, applicantIndex, field.key);
           const isTextarea = field.kind === "textarea";
+          const isDate = field.kind === "date";
+          const shouldUppercase = UPPERCASE_INPUTS.has(field.input);
 
           return (
             <div
@@ -383,16 +501,67 @@ export function CountrySpecificVisaForm({
                 <Textarea
                   id={id}
                   value={value}
-                  onChange={(event) => updateValue(field.key, event.target.value)}
+                  onChange={(event) =>
+                    updateValue(
+                      field.key,
+                      shouldUppercase
+                        ? toUppercaseInput(
+                            maskCountryFieldInput(
+                              field.input,
+                              event.target.value,
+                              field.maxLength,
+                            ),
+                          )
+                        : maskCountryFieldInput(
+                            field.input,
+                            event.target.value,
+                            field.maxLength,
+                          ),
+                    )
+                  }
                   rows={4}
+                  maxLength={field.maxLength}
+                  autoCapitalize={shouldUppercase ? "characters" : "none"}
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className={shouldUppercase ? "uppercase" : undefined}
+                />
+              ) : isDate ? (
+                <LocalizedDatePickerInput
+                  id={id}
+                  value={value}
+                  onChange={(nextValue) => updateValue(field.key, nextValue)}
+                  placeholder="DD.MM.YYYY"
                 />
               ) : (
                 <Input
                   id={id}
-                  type={field.kind === "date" ? "date" : "text"}
+                  type={field.input === "email" ? "email" : "text"}
                   value={value}
-                  onChange={(event) => updateValue(field.key, event.target.value)}
+                  onChange={(event) =>
+                    updateValue(
+                      field.key,
+                      shouldUppercase
+                        ? toUppercaseInput(
+                            maskCountryFieldInput(
+                              field.input,
+                              event.target.value,
+                              field.maxLength,
+                            ),
+                          )
+                        : maskCountryFieldInput(
+                            field.input,
+                            event.target.value,
+                            field.maxLength,
+                          ),
+                    )
+                  }
+                  maxLength={field.maxLength}
                   autoComplete="off"
+                  autoCapitalize={shouldUppercase ? "characters" : "none"}
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className={shouldUppercase ? "uppercase" : undefined}
                 />
               )}
             </div>
