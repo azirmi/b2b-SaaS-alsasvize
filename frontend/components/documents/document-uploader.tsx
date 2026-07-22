@@ -67,6 +67,7 @@ export interface UploadDocumentOption {
   description: string;
   fileType: FileType;
   optional?: boolean;
+  highlightNote?: string;
 }
 
 function toDefaultOption(
@@ -313,6 +314,11 @@ export function DocumentUploader({
         <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
           {selectedOption?.description ?? "Belge talimatı bulunamadı."}
         </p>
+        {selectedOption?.highlightNote ? (
+          <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+            {selectedOption.highlightNote}
+          </p>
+        ) : null}
       </div>
 
       <div

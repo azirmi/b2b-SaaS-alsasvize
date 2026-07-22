@@ -296,44 +296,84 @@ const SPECIAL_STATUS_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
 
 const SPONSOR_DOCUMENT_OPTIONS: UploadDocumentOption[] = [
   {
-    id: "sponsor-letter",
+    id: "sponsor-tax-certificate",
     category: "Sponsor Evrakları",
-    label: "Sponsor Dilekçesi",
+    label: "Vergi Levhası",
     fileType: FileType.OTHER,
     description:
-      "Sponsorun masrafları üstlendiğini belirten imzalı sponsor dilekçesini yükleyin.",
+      "Sponsor şirkete ait vergi levhasını tek PDF dosya halinde yükleyin.",
+    highlightNote: "(Güncel ve barkodlu)",
   },
   {
-    id: "sponsor-id",
+    id: "sponsor-activity-certificate",
     category: "Sponsor Evrakları",
-    label: "Sponsor Kimlik/Pasaport",
+    label: "Faaliyet Belgesi",
     fileType: FileType.OTHER,
     description:
-      "Sponsorun kimlik kartı veya pasaport kimlik sayfasını net ve okunur şekilde yükleyin.",
+      "Sponsor şirkete ait faaliyet belgesini yükleyin.",
+    highlightNote:
+      "(Odadan 7 gün içinde alınmış kaşe imzalı veya elektronik imzalı)",
   },
   {
-    id: "sponsor-work-letter",
+    id: "sponsor-signature-circular",
     category: "Sponsor Evrakları",
-    label: "Sponsor İş Yeri Yazısı",
+    label: "İmza Sirküleri",
     fileType: FileType.OTHER,
     description:
-      "Sponsor çalışan ise iş yerinden antetli kağıda alınmış görev/izin yazısını yükleyin.",
+      "Sponsor şirketin imza yetkisini gösteren imza sirkülerini yükleyin.",
+    highlightNote: "(Noter imzalı)",
   },
   {
-    id: "sponsor-payroll",
+    id: "sponsor-trade-registry",
     category: "Sponsor Evrakları",
-    label: "Sponsor Maaş Bordrosu",
+    label: "Ticari Sicil Gazetesi Fotokopisi",
+    fileType: FileType.OTHER,
+    description:
+      "Sponsor şirkete ait ticari sicil gazetesi fotokopisini yükleyin.",
+  },
+  {
+    id: "sponsor-payroll-last-3-months",
+    category: "Sponsor Evrakları",
+    label: "Son 3 Aylık Maaş Bordrosu",
+    fileType: FileType.OTHER,
+    description:
+      "Sponsor çalışan ise son 3 aya ait maaş bordrolarını tek dosyada yükleyin.",
+    highlightNote: "(İşyerinden kaşeli imzalı)",
+  },
+  {
+    id: "sponsor-bank-last-3-months",
+    category: "Sponsor Evrakları",
+    label: "Son 3 Aylık Banka Hesap Dökümü",
     fileType: FileType.BANK_STATEMENT,
     description:
-      "Sponsor çalışan ise son 3 aya ait maaş bordrolarını yükleyin.",
+      "Sponsorun son 3 aya ait banka hesap dökümünü yükleyin.",
+    highlightNote: "(Banka imza sirküleriyle birlikte ıslak imzalı)",
   },
   {
-    id: "sponsor-bank",
+    id: "sponsor-employment-entry",
     category: "Sponsor Evrakları",
-    label: "Sponsor Banka Hesap Dökümü",
-    fileType: FileType.BANK_STATEMENT,
+    label: "İşe Giriş Bildirgesi",
+    fileType: FileType.OTHER,
+    description: "Sponsorun işe giriş bildirgesini yükleyin.",
+    highlightNote: "(E-Devlet)",
+  },
+  {
+    id: "sponsor-sgk-service",
+    category: "Sponsor Evrakları",
+    label: "SGK Hizmet Dökümü",
+    fileType: FileType.OTHER,
+    description: "Sponsorun SGK hizmet dökümünü yükleyin.",
+    highlightNote: "(E-Devlet)",
+  },
+  {
+    id: "sponsor-retirement-certificate",
+    category: "Sponsor Evrakları",
+    label: "Emeklilik Belgesi",
+    fileType: FileType.OTHER,
     description:
-      "Sponsorun son 3 aya ait kaşeli-imzalı banka hesap dökümünü yükleyin.",
+      "Sponsor emekli ise emeklilik durumunu gösteren resmi belgeyi yükleyin.",
+    highlightNote: "(Eğer sponsorunuz emekli ise)",
+    optional: true,
   },
 ];
 
