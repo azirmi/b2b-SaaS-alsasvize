@@ -463,6 +463,7 @@ export function ApplicationForm({
         applicationId={applicationId}
         applicantIndex={applicantIndex}
         initialValues={countrySpecificInitialValues}
+        details={details}
       />
     );
   }
@@ -473,6 +474,7 @@ export function ApplicationForm({
         applicationId={applicationId}
         applicantIndex={applicantIndex}
         initialValues={countrySpecificInitialValues}
+        details={details}
       />
     );
   }

@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { CircleAlert, CircleCheck, X } from "lucide-react";
 
 import { saveCountrySpecificApplicationDetails } from "@/lib/actions/applications";
 import {
+  type CountrySpecificCommonInput,
   type CountrySpecificFieldDefinition,
   type CountrySpecificFormType,
   getInitialCountrySpecificValues,
 } from "@/lib/country-visa-forms";
-import type { CrmActionState } from "@/lib/types";
+import type { ApplicationDetailsData, CrmActionState } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 interface MissingFieldIssue {
   key: string;
   label: string;
+  domId: string;
 }
 
 function fieldDomId(
@@ -29,6 +32,14 @@ function fieldDomId(
   return `country-form-${formType}-${applicantIndex}-${key}`;
 }
 
+function commonFieldDomId(
+  formType: CountrySpecificFormType,
+  applicantIndex: number,
+  key: string,
+): string {
+  return `country-form-common-${formType}-${applicantIndex}-${key}`;
+}
+
 export function CountrySpecificVisaForm({
   applicationId,
   applicantIndex,
@@ -37,6 +48,7 @@ export function CountrySpecificVisaForm({
   notice,
   fields,
   initialValues,
+  commonInitialValues,
 }: {
   applicationId: string;
   applicantIndex: number;
@@ -45,27 +57,77 @@ export function CountrySpecificVisaForm({
   notice: string;
   fields: readonly CountrySpecificFieldDefinition[];
   initialValues?: Record<string, string> | null;
+  commonInitialValues?: ApplicationDetailsData | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<CrmActionState>({});
   const [values, setValues] = useState<Record<string, string>>(() =>
     getInitialCountrySpecificValues(fields, initialValues),
   );
+  const [isEmployer, setIsEmployer] = useState(
+    Boolean(commonInitialValues?.isEmployer),
+  );
+  const [hasSponsor, setHasSponsor] = useState(
+    Boolean(commonInitialValues?.hasSponsor),
+  );
+  const [employerName, setEmployerName] = useState(
+    commonInitialValues?.employerName ?? "",
+  );
+  const [employerAddress, setEmployerAddress] = useState(
+    commonInitialValues?.employerAddress ?? "",
+  );
+  const [employerPhone, setEmployerPhone] = useState(
+    commonInitialValues?.employerPhone ?? "",
+  );
+  const [sponsorFullName, setSponsorFullName] = useState(
+    commonInitialValues?.sponsorFullName ?? "",
+  );
+  const [sponsorIdentity, setSponsorIdentity] = useState(
+    commonInitialValues?.sponsorIdentity ?? "",
+  );
+  const [sponsorContact, setSponsorContact] = useState(
+    commonInitialValues?.sponsorContact ?? "",
+  );
+  const [sponsorRelation, setSponsorRelation] = useState(
+    commonInitialValues?.sponsorRelation ?? "",
+  );
   const [issues, setIssues] = useState<MissingFieldIssue[]>([]);
   const [issuesDismissed, setIssuesDismissed] = useState(false);
   const [successDismissed, setSuccessDismissed] = useState(false);
 
-  const fieldMap = useMemo(() => {
-    return new Map(fields.map((field) => [field.key, field]));
-  }, [fields]);
-
   useEffect(() => {
     setValues(getInitialCountrySpecificValues(fields, initialValues));
+    setIsEmployer(Boolean(commonInitialValues?.isEmployer));
+    setHasSponsor(Boolean(commonInitialValues?.hasSponsor));
+    setEmployerName(commonInitialValues?.employerName ?? "");
+    setEmployerAddress(commonInitialValues?.employerAddress ?? "");
+    setEmployerPhone(commonInitialValues?.employerPhone ?? "");
+    setSponsorFullName(commonInitialValues?.sponsorFullName ?? "");
+    setSponsorIdentity(commonInitialValues?.sponsorIdentity ?? "");
+    setSponsorContact(commonInitialValues?.sponsorContact ?? "");
+    setSponsorRelation(commonInitialValues?.sponsorRelation ?? "");
     setIssues([]);
     setIssuesDismissed(false);
     setSuccessDismissed(false);
     setState({});
-  }, [fields, initialValues, formType, applicantIndex]);
+  }, [fields, initialValues, formType, applicantIndex, commonInitialValues]);
+
+  useEffect(() => {
+    if (!isEmployer) {
+      setEmployerName("");
+      setEmployerAddress("");
+      setEmployerPhone("");
+    }
+  }, [isEmployer]);
+
+  useEffect(() => {
+    if (!hasSponsor) {
+      setSponsorFullName("");
+      setSponsorIdentity("");
+      setSponsorContact("");
+      setSponsorRelation("");
+    }
+  }, [hasSponsor]);
 
   function updateValue(key: string, value: string) {
     setValues((previous) => ({
@@ -74,8 +136,8 @@ export function CountrySpecificVisaForm({
     }));
   }
 
-  function focusField(key: string) {
-    const element = document.getElementById(fieldDomId(formType, applicantIndex, key));
+  function focusDomId(domId: string) {
+    const element = document.getElementById(domId);
     if (!element) {
       return;
     }
@@ -87,9 +149,63 @@ export function CountrySpecificVisaForm({
   }
 
   function collectMissingFields(): MissingFieldIssue[] {
-    return fields
+    const missing: MissingFieldIssue[] = fields
       .filter((field) => (values[field.key] ?? "").trim().length === 0)
-      .map((field) => ({ key: field.key, label: field.label }));
+      .map((field) => ({
+        key: field.key,
+        label: field.label,
+        domId: fieldDomId(formType, applicantIndex, field.key),
+      }));
+
+    if (isEmployer) {
+      if (!employerName.trim()) {
+        missing.push({
+          key: "employerName",
+          label: "İşveren Adı",
+          domId: commonFieldDomId(formType, applicantIndex, "employerName"),
+        });
+      }
+      if (!employerAddress.trim()) {
+        missing.push({
+          key: "employerAddress",
+          label: "İşveren Adresi",
+          domId: commonFieldDomId(formType, applicantIndex, "employerAddress"),
+        });
+      }
+    }
+
+    if (hasSponsor) {
+      if (!sponsorFullName.trim()) {
+        missing.push({
+          key: "sponsorFullName",
+          label: "Sponsorun Tam Adı",
+          domId: commonFieldDomId(formType, applicantIndex, "sponsorFullName"),
+        });
+      }
+      if (!sponsorIdentity.trim()) {
+        missing.push({
+          key: "sponsorIdentity",
+          label: "Sponsorun Kimliği",
+          domId: commonFieldDomId(formType, applicantIndex, "sponsorIdentity"),
+        });
+      }
+      if (!sponsorContact.trim()) {
+        missing.push({
+          key: "sponsorContact",
+          label: "Sponsorun İletişim Bilgileri",
+          domId: commonFieldDomId(formType, applicantIndex, "sponsorContact"),
+        });
+      }
+      if (!sponsorRelation.trim()) {
+        missing.push({
+          key: "sponsorRelation",
+          label: "Yakınlık Derecesi",
+          domId: commonFieldDomId(formType, applicantIndex, "sponsorRelation"),
+        });
+      }
+    }
+
+    return missing;
   }
 
   function submitForm() {
@@ -100,18 +216,31 @@ export function CountrySpecificVisaForm({
     if (missing.length > 0) {
       setIssues(missing);
       setIssuesDismissed(false);
-      focusField(missing[0].key);
+      focusDomId(missing[0].domId);
       return;
     }
 
     setIssues([]);
 
     startTransition(async () => {
+      const commonPayload: CountrySpecificCommonInput = {
+        isEmployer,
+        employerName,
+        employerAddress,
+        employerPhone,
+        hasSponsor,
+        sponsorFullName,
+        sponsorIdentity,
+        sponsorContact,
+        sponsorRelation,
+      };
+
       const result = await saveCountrySpecificApplicationDetails(
         applicationId,
         applicantIndex,
         formType,
         values,
+        commonPayload,
       );
       setState(result);
 
@@ -129,6 +258,114 @@ export function CountrySpecificVisaForm({
         <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
         <p className="text-xs text-muted-foreground">{notice}</p>
       </div>
+
+      <fieldset className="space-y-4 rounded-lg border border-border/40 bg-card p-4">
+        <legend className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          Ek Bilgiler
+        </legend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="flex items-start gap-2.5 rounded-md border border-border/40 bg-background px-3 py-2.5 text-sm">
+            <Checkbox
+              checked={isEmployer}
+              onCheckedChange={(checked) => setIsEmployer(Boolean(checked))}
+              aria-label="İşverenim"
+            />
+            <span>
+              <span className="block font-medium">İşverenim</span>
+              <span className="block text-xs text-muted-foreground">
+                İşveren bilgilerini aktif olarak beyan ediyorum.
+              </span>
+            </span>
+          </label>
+
+          <label className="flex items-start gap-2.5 rounded-md border border-border/40 bg-background px-3 py-2.5 text-sm">
+            <Checkbox
+              checked={hasSponsor}
+              onCheckedChange={(checked) => setHasSponsor(Boolean(checked))}
+              aria-label="Sponsorum Var"
+            />
+            <span>
+              <span className="block font-medium">Sponsorum Var</span>
+              <span className="block text-xs text-muted-foreground">
+                Sponsor bilgileri bölümünü doldurmak istiyorum.
+              </span>
+            </span>
+          </label>
+        </div>
+
+        {isEmployer ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={commonFieldDomId(formType, applicantIndex, "employerName")}>İşveren Adı</Label>
+              <Input
+                id={commonFieldDomId(formType, applicantIndex, "employerName")}
+                value={employerName}
+                onChange={(event) => setEmployerName(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor={commonFieldDomId(formType, applicantIndex, "employerPhone")}>İşveren Telefonu (opsiyonel)</Label>
+              <Input
+                id={commonFieldDomId(formType, applicantIndex, "employerPhone")}
+                value={employerPhone}
+                onChange={(event) => setEmployerPhone(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor={commonFieldDomId(formType, applicantIndex, "employerAddress")}>İşveren Adresi</Label>
+              <Textarea
+                id={commonFieldDomId(formType, applicantIndex, "employerAddress")}
+                value={employerAddress}
+                onChange={(event) => setEmployerAddress(event.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {hasSponsor ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={commonFieldDomId(formType, applicantIndex, "sponsorFullName")}>Sponsorun Tam Adı</Label>
+              <Input
+                id={commonFieldDomId(formType, applicantIndex, "sponsorFullName")}
+                value={sponsorFullName}
+                onChange={(event) => setSponsorFullName(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor={commonFieldDomId(formType, applicantIndex, "sponsorIdentity")}>Sponsorun Kimliği</Label>
+              <Input
+                id={commonFieldDomId(formType, applicantIndex, "sponsorIdentity")}
+                value={sponsorIdentity}
+                onChange={(event) => setSponsorIdentity(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor={commonFieldDomId(formType, applicantIndex, "sponsorContact")}>Sponsorun İletişim Bilgileri (Telefon / E-posta)</Label>
+              <Textarea
+                id={commonFieldDomId(formType, applicantIndex, "sponsorContact")}
+                value={sponsorContact}
+                onChange={(event) => setSponsorContact(event.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor={commonFieldDomId(formType, applicantIndex, "sponsorRelation")}>Yakınlık Derecesi</Label>
+              <Input
+                id={commonFieldDomId(formType, applicantIndex, "sponsorRelation")}
+                value={sponsorRelation}
+                onChange={(event) => setSponsorRelation(event.target.value)}
+              />
+            </div>
+          </div>
+        ) : null}
+      </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
         {fields.map((field) => {
@@ -194,15 +431,9 @@ export function CountrySpecificVisaForm({
           <div className="mt-2 flex flex-wrap gap-2">
             {issues.map((issue) => (
               <button
-                key={issue.key}
+                key={`${issue.key}-${issue.domId}`}
                 type="button"
-                onClick={() => {
-                  const field = fieldMap.get(issue.key);
-                  if (!field) {
-                    return;
-                  }
-                  focusField(field.key);
-                }}
+                onClick={() => focusDomId(issue.domId)}
                 className="rounded-md border border-amber-300/70 bg-amber-100/60 px-2.5 py-1 text-left text-xs transition-colors hover:bg-amber-200/80 dark:border-amber-400/40 dark:bg-amber-900/40 dark:hover:bg-amber-800/50"
               >
                 {issue.label}

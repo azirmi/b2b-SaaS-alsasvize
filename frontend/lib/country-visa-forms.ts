@@ -6,6 +6,18 @@ export interface CountrySpecificFieldDefinition {
   kind?: "text" | "textarea" | "date";
 }
 
+export interface CountrySpecificCommonInput {
+  isEmployer: boolean;
+  employerName?: string;
+  employerAddress?: string;
+  employerPhone?: string;
+  hasSponsor: boolean;
+  sponsorFullName?: string;
+  sponsorIdentity?: string;
+  sponsorContact?: string;
+  sponsorRelation?: string;
+}
+
 export interface CountrySpecificDetailsPayload {
   applicantIndex: number;
   firstName: string;
@@ -50,6 +62,7 @@ export interface CountrySpecificDetailsPayload {
   countrySpecificFormData: {
     formType: CountrySpecificFormType;
     fields: Record<string, string>;
+    common: CountrySpecificCommonInput;
   };
 }
 
@@ -430,11 +443,29 @@ function normalizeFieldMap(fields: Record<string, string>): Record<string, strin
   return normalized;
 }
 
+function normalizeCommonInput(
+  common: CountrySpecificCommonInput | undefined,
+): CountrySpecificCommonInput {
+  return {
+    isEmployer: Boolean(common?.isEmployer),
+    employerName: clean(common?.employerName),
+    employerAddress: clean(common?.employerAddress),
+    employerPhone: clean(common?.employerPhone),
+    hasSponsor: Boolean(common?.hasSponsor),
+    sponsorFullName: clean(common?.sponsorFullName),
+    sponsorIdentity: clean(common?.sponsorIdentity),
+    sponsorContact: clean(common?.sponsorContact),
+    sponsorRelation: clean(common?.sponsorRelation),
+  };
+}
+
 function buildUkPayload(
   fields: Record<string, string>,
   applicantIndex: number,
+  common: CountrySpecificCommonInput | undefined,
 ): CountrySpecificDetailsPayload {
   const normalized = normalizeFieldMap(fields);
+  const normalizedCommon = normalizeCommonInput(common);
   const { start, end } = parseDateRange(normalized.seyahat_tarihleri ?? "");
 
   return {
@@ -459,11 +490,27 @@ function buildUkPayload(
     residenceCity: FALLBACK_TEXT,
     registeredAddress: pick(normalized.ev_adresiniz, FALLBACK_TEXT, 500),
     occupation: pick(normalized.pozisyonunuz, FALLBACK_TEXT, 120),
-    employmentStatus: normalized.is_yeri_adi ? "Çalışıyor" : "Belirtilmedi",
-    isEmployer: false,
-    employerName: crop(clean(normalized.is_yeri_adi), 160),
-    employerAddress: crop(clean(normalized.is_yeri_adresi), 500),
-    employerPhone: crop(clean(normalized.is_telefonu), 32),
+    employmentStatus: normalizedCommon.isEmployer
+      ? "İşveren"
+      : normalized.is_yeri_adi
+        ? "Çalışıyor"
+        : "Belirtilmedi",
+    isEmployer: normalizedCommon.isEmployer,
+    employerName: normalizedCommon.isEmployer
+      ? crop(
+          normalizedCommon.employerName || normalized.is_yeri_adi,
+          160,
+        )
+      : "",
+    employerAddress: normalizedCommon.isEmployer
+      ? crop(
+          normalizedCommon.employerAddress || normalized.is_yeri_adresi,
+          500,
+        )
+      : "",
+    employerPhone: normalizedCommon.isEmployer
+      ? crop(normalizedCommon.employerPhone || normalized.is_telefonu, 32)
+      : "",
     educationInstitution: "",
     educationLevel: "",
     passportType: "Umuma Mahsus (Bordo)",
@@ -482,14 +529,23 @@ function buildUkPayload(
     purposeOfTravel: pick(normalized.seyahat_amaci, FALLBACK_TEXT, 1000),
     plannedTravelStartDate: start,
     plannedTravelEndDate: end,
-    hasSponsor: false,
-    sponsorFullName: "",
-    sponsorIdentity: "",
-    sponsorContact: "",
-    sponsorRelation: "",
+    hasSponsor: normalizedCommon.hasSponsor,
+    sponsorFullName: normalizedCommon.hasSponsor
+      ? crop(normalizedCommon.sponsorFullName || "", 120)
+      : "",
+    sponsorIdentity: normalizedCommon.hasSponsor
+      ? crop(normalizedCommon.sponsorIdentity || "", 120)
+      : "",
+    sponsorContact: normalizedCommon.hasSponsor
+      ? crop(normalizedCommon.sponsorContact || "", 240)
+      : "",
+    sponsorRelation: normalizedCommon.hasSponsor
+      ? crop(normalizedCommon.sponsorRelation || "", 80)
+      : "",
     countrySpecificFormData: {
       formType: "UK",
       fields: normalized,
+      common: normalizedCommon,
     },
   };
 }
@@ -497,8 +553,10 @@ function buildUkPayload(
 function buildUsaPayload(
   fields: Record<string, string>,
   applicantIndex: number,
+  common: CountrySpecificCommonInput | undefined,
 ): CountrySpecificDetailsPayload {
   const normalized = normalizeFieldMap(fields);
+  const normalizedCommon = normalizeCommonInput(common);
   const { firstName, lastName } = splitFullName(normalized.ad_soyad ?? "");
   const startDate = toIsoDate(normalized.planlanan_giris_tarihi);
   const stayDaysMatch = clean(normalized.kalis_suresi).match(/\d+/);
@@ -521,11 +579,21 @@ function buildUsaPayload(
     residenceCity: FALLBACK_TEXT,
     registeredAddress: pick(normalized.ev_adresi, FALLBACK_TEXT, 500),
     occupation: pick(normalized.isyeri_bilgileri, FALLBACK_TEXT, 120),
-    employmentStatus: normalized.isyeri_bilgileri ? "Çalışıyor" : "Belirtilmedi",
-    isEmployer: false,
-    employerName: "",
-    employerAddress: "",
-    employerPhone: "",
+    employmentStatus: normalizedCommon.isEmployer
+      ? "İşveren"
+      : normalized.isyeri_bilgileri
+        ? "Çalışıyor"
+        : "Belirtilmedi",
+    isEmployer: normalizedCommon.isEmployer,
+    employerName: normalizedCommon.isEmployer
+      ? crop(normalizedCommon.employerName || "", 160)
+      : "",
+    employerAddress: normalizedCommon.isEmployer
+      ? crop(normalizedCommon.employerAddress || "", 500)
+      : "",
+    employerPhone: normalizedCommon.isEmployer
+      ? crop(normalizedCommon.employerPhone || "", 32)
+      : "",
     educationInstitution: crop(clean(normalized.egitim_durumu), 160),
     educationLevel: "",
     passportType: "Umuma Mahsus (Bordo)",
@@ -544,14 +612,23 @@ function buildUsaPayload(
     purposeOfTravel: pick(normalized.abdye_gidis_amaci, FALLBACK_TEXT, 1000),
     plannedTravelStartDate: startDate,
     plannedTravelEndDate: endDate,
-    hasSponsor: false,
-    sponsorFullName: "",
-    sponsorIdentity: "",
-    sponsorContact: "",
-    sponsorRelation: "",
+    hasSponsor: normalizedCommon.hasSponsor,
+    sponsorFullName: normalizedCommon.hasSponsor
+      ? crop(normalizedCommon.sponsorFullName || "", 120)
+      : "",
+    sponsorIdentity: normalizedCommon.hasSponsor
+      ? crop(normalizedCommon.sponsorIdentity || "", 120)
+      : "",
+    sponsorContact: normalizedCommon.hasSponsor
+      ? crop(normalizedCommon.sponsorContact || "", 240)
+      : "",
+    sponsorRelation: normalizedCommon.hasSponsor
+      ? crop(normalizedCommon.sponsorRelation || "", 80)
+      : "",
     countrySpecificFormData: {
       formType: "USA",
       fields: normalized,
+      common: normalizedCommon,
     },
   };
 }
@@ -560,12 +637,13 @@ export function buildCountrySpecificDetailsPayload(
   formType: CountrySpecificFormType,
   fields: Record<string, string>,
   applicantIndex: number,
+  common?: CountrySpecificCommonInput,
 ): CountrySpecificDetailsPayload {
   if (formType === "UK") {
-    return buildUkPayload(fields, applicantIndex);
+    return buildUkPayload(fields, applicantIndex, common);
   }
 
-  return buildUsaPayload(fields, applicantIndex);
+  return buildUsaPayload(fields, applicantIndex, common);
 }
 
 export function getInitialCountrySpecificValues(

@@ -5,15 +5,18 @@ import {
   USA_FORM_NOTICE,
   USA_VISA_FIELDS,
 } from "@/lib/country-visa-forms";
+import type { ApplicationDetailsData } from "@/lib/types";
 
 export function USAVisaForm({
   applicationId,
   applicantIndex,
   initialValues,
+  details,
 }: {
   applicationId: string;
   applicantIndex: number;
   initialValues?: Record<string, string> | null;
+  details?: ApplicationDetailsData | null;
 }) {
   return (
     <CountrySpecificVisaForm
@@ -24,6 +27,7 @@ export function USAVisaForm({
       notice={USA_FORM_NOTICE}
       fields={USA_VISA_FIELDS}
       initialValues={initialValues}
+      commonInitialValues={details}
     />
   );
 }

@@ -7,6 +7,7 @@ import { serverApi } from "@/lib/api.server";
 import { APPLICATION_FORM_FIELDS } from "@/lib/application-form";
 import {
   buildCountrySpecificDetailsPayload,
+  type CountrySpecificCommonInput,
   type CountrySpecificFormType,
 } from "@/lib/country-visa-forms";
 import {
@@ -639,6 +640,7 @@ export async function saveCountrySpecificApplicationDetails(
   applicantIndex: number,
   formType: CountrySpecificFormType,
   fields: Record<string, string>,
+  common: CountrySpecificCommonInput,
 ): Promise<CrmActionState> {
   if (!UUID_RE.test(id)) {
     return { error: "Geçersiz başvuru referansı." };
@@ -657,10 +659,35 @@ export async function saveCountrySpecificApplicationDetails(
     };
   }
 
+  if (common.isEmployer) {
+    if (!common.employerName?.trim() || !common.employerAddress?.trim()) {
+      return {
+        error: "İşveren seçiliyse işveren adı ve adresi zorunludur.",
+      };
+    }
+  }
+
+  if (common.hasSponsor) {
+    const sponsorMissing = [
+      common.sponsorFullName,
+      common.sponsorIdentity,
+      common.sponsorContact,
+      common.sponsorRelation,
+    ].some((value) => String(value ?? "").trim().length === 0);
+
+    if (sponsorMissing) {
+      return {
+        error:
+          "Sponsor bilgisi girilecekse tüm sponsor alanları doldurulmalıdır.",
+      };
+    }
+  }
+
   const payload = buildCountrySpecificDetailsPayload(
     formType,
     fields,
     applicantIndex,
+    common,
   );
 
   try {
