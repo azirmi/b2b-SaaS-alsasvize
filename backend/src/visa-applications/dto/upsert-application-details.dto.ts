@@ -4,6 +4,7 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -223,4 +224,8 @@ export class UpsertApplicationDetailsDto {
   @IsString()
   @MaxLength(80)
   sponsorRelation?: string;
+
+  @IsOptional()
+  @IsObject({ message: 'Ülkeye özel form verisi geçersiz.' })
+  countrySpecificFormData?: Record<string, unknown>;
 }

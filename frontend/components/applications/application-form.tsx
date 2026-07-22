@@ -13,6 +13,9 @@ import {
   type ApplicationFieldName,
   type FormField,
 } from "@/lib/application-form";
+import { USAVisaForm } from "@/components/applications/usa-visa-form";
+import { UKVisaForm } from "@/components/applications/uk-visa-form";
+import { detectCountrySpecificFormType } from "@/lib/country-visa-forms";
 import {
   maskAlphaTextInput,
   maskEnglishNoteInput,
@@ -373,12 +376,14 @@ export function ApplicationForm({
   details,
   targetCountry,
   customerPrefill,
+  countrySpecificInitialValues,
 }: {
   applicationId: string;
   applicantIndex: number;
   details: ApplicationDetailsData | null;
   targetCountry?: string | null;
   customerPrefill?: ApplicationFormPrefill;
+  countrySpecificInitialValues?: Record<string, string> | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<CrmActionState>({});
@@ -394,6 +399,10 @@ export function ApplicationForm({
   const formDefaults = useMemo(
     () => withCustomerPrefill(toApplicationFormDefaults(details), customerPrefill),
     [details, customerPrefill],
+  );
+  const countrySpecificFormType = useMemo(
+    () => detectCountrySpecificFormType(targetCountry),
+    [targetCountry],
   );
 
   const form = useForm<ApplicationFormValues>({
@@ -447,6 +456,26 @@ export function ApplicationForm({
       form.setValue("sponsorRelation", "", { shouldDirty: false });
     }
   }, [hasSponsor, form]);
+
+  if (countrySpecificFormType === "UK") {
+    return (
+      <UKVisaForm
+        applicationId={applicationId}
+        applicantIndex={applicantIndex}
+        initialValues={countrySpecificInitialValues}
+      />
+    );
+  }
+
+  if (countrySpecificFormType === "USA") {
+    return (
+      <USAVisaForm
+        applicationId={applicationId}
+        applicantIndex={applicantIndex}
+        initialValues={countrySpecificInitialValues}
+      />
+    );
+  }
 
   function focusField(fieldName: ApplicationFieldName) {
     const element = document.getElementById(`af-${fieldName}`);

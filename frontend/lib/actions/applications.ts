@@ -6,6 +6,10 @@ import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
 import { APPLICATION_FORM_FIELDS } from "@/lib/application-form";
 import {
+  buildCountrySpecificDetailsPayload,
+  type CountrySpecificFormType,
+} from "@/lib/country-visa-forms";
+import {
   ASCII_MULTILINE_RE,
   maskEnglishNoteInput,
 } from "@/lib/input-masks";
@@ -623,6 +627,51 @@ export async function saveApplicationDetails(
       return { error: error.message };
     }
     return { error: "Form kaydedilemedi. Lütfen tekrar deneyin." };
+  }
+
+  revalidatePath("/dashboard", "layout");
+  return { ok: true };
+}
+
+/** Saves country-specific (UK/USA) customer form data without breaking default flow. */
+export async function saveCountrySpecificApplicationDetails(
+  id: string,
+  applicantIndex: number,
+  formType: CountrySpecificFormType,
+  fields: Record<string, string>,
+): Promise<CrmActionState> {
+  if (!UUID_RE.test(id)) {
+    return { error: "Geçersiz başvuru referansı." };
+  }
+
+  if (!Number.isInteger(applicantIndex) || applicantIndex < 1) {
+    return { error: "Kişi sırası geçersiz." };
+  }
+
+  const hasMissingField = Object.values(fields).some(
+    (value) => String(value ?? "").trim().length === 0,
+  );
+  if (hasMissingField) {
+    return {
+      error: "Lütfen tüm alanları doldurun.",
+    };
+  }
+
+  const payload = buildCountrySpecificDetailsPayload(
+    formType,
+    fields,
+    applicantIndex,
+  );
+
+  try {
+    await serverApi.put(`/applications/${id}/details`, payload);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { error: error.message };
+    }
+    return {
+      error: "Ülkeye özel başvuru formu kaydedilemedi. Lütfen tekrar deneyin.",
+    };
   }
 
   revalidatePath("/dashboard", "layout");

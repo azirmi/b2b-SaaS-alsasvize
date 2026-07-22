@@ -2485,6 +2485,7 @@ export class VisaApplicationsService {
         select: {
           customerId: true,
           currentStage: true,
+          metadata: true,
           onboardingApplicants: {
             select: {
               id: true,
@@ -2637,6 +2638,49 @@ export class VisaApplicationsService {
         update: data,
       });
 
+      let countrySpecificFormStored = false;
+      let countrySpecificFormType: string | null = null;
+
+      if (
+        dto.countrySpecificFormData &&
+        typeof dto.countrySpecificFormData === 'object' &&
+        !Array.isArray(dto.countrySpecificFormData)
+      ) {
+        const metadataSnapshot =
+          before.metadata &&
+          typeof before.metadata === 'object' &&
+          !Array.isArray(before.metadata)
+            ? (JSON.parse(
+                JSON.stringify(before.metadata),
+              ) as Record<string, unknown>)
+            : {};
+
+        const existingFormsNode = metadataSnapshot.countrySpecificForms;
+        const countrySpecificForms =
+          existingFormsNode &&
+          typeof existingFormsNode === 'object' &&
+          !Array.isArray(existingFormsNode)
+            ? (existingFormsNode as Record<string, unknown>)
+            : {};
+
+        countrySpecificForms[String(applicantIndex)] = dto.countrySpecificFormData;
+        metadataSnapshot.countrySpecificForms = countrySpecificForms;
+
+        await tx.visaApplication.update({
+          where: { id },
+          data: {
+            metadata: metadataSnapshot as Prisma.InputJsonValue,
+          },
+        });
+
+        const extractedFormType = (dto.countrySpecificFormData as {
+          formType?: unknown;
+        }).formType;
+        countrySpecificFormType =
+          typeof extractedFormType === 'string' ? extractedFormType : null;
+        countrySpecificFormStored = true;
+      }
+
       await tx.auditLog.create({
         data: {
           application: { connect: { id } },
@@ -2649,6 +2693,13 @@ export class VisaApplicationsService {
             formProgress: {
               requiredApplicantCount,
             },
+            countrySpecificForm: countrySpecificFormStored
+              ? {
+                  stored: true,
+                  formType: countrySpecificFormType,
+                  metadataKey: String(applicantIndex),
+                }
+              : null,
             before: existingDetails
               ? (JSON.parse(
                   JSON.stringify(existingDetails),

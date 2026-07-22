@@ -486,6 +486,39 @@ function toIsoDate(value: string | null | undefined): string | null {
   return parsed.toISOString().slice(0, 10);
 }
 
+function getCountrySpecificInitialValues(
+  metadata: Record<string, unknown> | null | undefined,
+  applicantIndex: number,
+): Record<string, string> | null {
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+
+  const formsNode = metadata.countrySpecificForms;
+  if (!formsNode || typeof formsNode !== "object" || Array.isArray(formsNode)) {
+    return null;
+  }
+
+  const candidate = (formsNode as Record<string, unknown>)[String(applicantIndex)];
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return null;
+  }
+
+  const fieldsNode = (candidate as Record<string, unknown>).fields;
+  if (!fieldsNode || typeof fieldsNode !== "object" || Array.isArray(fieldsNode)) {
+    return null;
+  }
+
+  const values: Record<string, string> = {};
+  for (const [key, value] of Object.entries(fieldsNode as Record<string, unknown>)) {
+    if (typeof value === "string") {
+      values[key] = value;
+    }
+  }
+
+  return Object.keys(values).length > 0 ? values : null;
+}
+
 function Notice({ title, body }: { title: string; body: string }) {
   return (
     <div className="space-y-4">
@@ -808,6 +841,10 @@ export async function CustomerApplicationDetail({
                         applicantIndex={formEntry.applicantIndex}
                         details={formEntry.details}
                         targetCountry={detail.customer.targetCountry}
+                        countrySpecificInitialValues={getCountrySpecificInitialValues(
+                          metadata,
+                          formEntry.applicantIndex,
+                        )}
                         customerPrefill={{
                           fullName:
                             formEntry.applicantFullName ||
