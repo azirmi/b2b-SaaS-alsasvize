@@ -4,12 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { ApiError } from "@/lib/api";
 import { serverApi } from "@/lib/api.server";
-import { APPLICATION_FORM_FIELDS } from "@/lib/application-form";
 import {
-  buildCountrySpecificDetailsPayload,
-  type CountrySpecificCommonInput,
-  type CountrySpecificFormType,
-} from "@/lib/country-visa-forms";
+  APPLICATION_FORM_FIELDS,
+  getCountryExtraSections,
+} from "@/lib/application-form";
+import { detectCountrySpecificFormType } from "@/lib/country-visa-forms";
 import {
   ASCII_MULTILINE_RE,
   maskEnglishNoteInput,
@@ -597,7 +596,7 @@ export async function saveApplicationDetails(
     };
   }
 
-  const payload: Record<string, string | number | boolean> = {
+  const payload: Record<string, unknown> = {
     ...parsedPayload.data,
     applicantIndex,
   };
@@ -621,6 +620,22 @@ export async function saveApplicationDetails(
     delete payload.sponsorRelation;
   }
 
+  // UK/USA bilgi-form extras are stored in metadata, never as top-level DTO
+  // columns — the backend whitelist would otherwise reject unknown properties.
+  const targetCountry = String(formData.get("targetCountry") ?? "").trim();
+  const countryFormType = detectCountrySpecificFormType(targetCountry);
+  if (countryFormType) {
+    const extraFields = getCountryExtraSections(countryFormType).flatMap(
+      (section) => section.fields,
+    );
+    const fields: Record<string, string> = {};
+    for (const field of extraFields) {
+      fields[field.name] = String(formData.get(field.name) ?? "").trim();
+      delete payload[field.name];
+    }
+    payload.countrySpecificFormData = { formType: countryFormType, fields };
+  }
+
   try {
     await serverApi.put(`/applications/${id}/details`, payload);
   } catch (error) {
@@ -628,77 +643,6 @@ export async function saveApplicationDetails(
       return { error: error.message };
     }
     return { error: "Form kaydedilemedi. Lütfen tekrar deneyin." };
-  }
-
-  revalidatePath("/dashboard", "layout");
-  return { ok: true };
-}
-
-/** Saves country-specific (UK/USA) customer form data without breaking default flow. */
-export async function saveCountrySpecificApplicationDetails(
-  id: string,
-  applicantIndex: number,
-  formType: CountrySpecificFormType,
-  fields: Record<string, string>,
-  common: CountrySpecificCommonInput,
-): Promise<CrmActionState> {
-  if (!UUID_RE.test(id)) {
-    return { error: "Geçersiz başvuru referansı." };
-  }
-
-  if (!Number.isInteger(applicantIndex) || applicantIndex < 1) {
-    return { error: "Kişi sırası geçersiz." };
-  }
-
-  const hasMissingField = Object.values(fields).some(
-    (value) => String(value ?? "").trim().length === 0,
-  );
-  if (hasMissingField) {
-    return {
-      error: "Lütfen tüm alanları doldurun.",
-    };
-  }
-
-  if (common.isEmployer) {
-    if (!common.employerName?.trim() || !common.employerAddress?.trim()) {
-      return {
-        error: "İşveren seçiliyse işveren adı ve adresi zorunludur.",
-      };
-    }
-  }
-
-  if (common.hasSponsor) {
-    const sponsorMissing = [
-      common.sponsorFullName,
-      common.sponsorIdentity,
-      common.sponsorContact,
-      common.sponsorRelation,
-    ].some((value) => String(value ?? "").trim().length === 0);
-
-    if (sponsorMissing) {
-      return {
-        error:
-          "Sponsor bilgisi girilecekse tüm sponsor alanları doldurulmalıdır.",
-      };
-    }
-  }
-
-  const payload = buildCountrySpecificDetailsPayload(
-    formType,
-    fields,
-    applicantIndex,
-    common,
-  );
-
-  try {
-    await serverApi.put(`/applications/${id}/details`, payload);
-  } catch (error) {
-    if (error instanceof ApiError) {
-      return { error: error.message };
-    }
-    return {
-      error: "Ülkeye özel başvuru formu kaydedilemedi. Lütfen tekrar deneyin.",
-    };
   }
 
   revalidatePath("/dashboard", "layout");

@@ -19,6 +19,10 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { ApiError } from "@/lib/api";
+import {
+  detectCountrySpecificFormType,
+  extractCountryExtraValues,
+} from "@/lib/country-visa-forms";
 import { serverApi } from "@/lib/api.server";
 import { deriveDownloadFileName } from "@/lib/download";
 import {
@@ -526,39 +530,6 @@ function toIsoDate(value: string | null | undefined): string | null {
   return parsed.toISOString().slice(0, 10);
 }
 
-function getCountrySpecificInitialValues(
-  metadata: Record<string, unknown> | null | undefined,
-  applicantIndex: number,
-): Record<string, string> | null {
-  if (!metadata || typeof metadata !== "object") {
-    return null;
-  }
-
-  const formsNode = metadata.countrySpecificForms;
-  if (!formsNode || typeof formsNode !== "object" || Array.isArray(formsNode)) {
-    return null;
-  }
-
-  const candidate = (formsNode as Record<string, unknown>)[String(applicantIndex)];
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
-    return null;
-  }
-
-  const fieldsNode = (candidate as Record<string, unknown>).fields;
-  if (!fieldsNode || typeof fieldsNode !== "object" || Array.isArray(fieldsNode)) {
-    return null;
-  }
-
-  const values: Record<string, string> = {};
-  for (const [key, value] of Object.entries(fieldsNode as Record<string, unknown>)) {
-    if (typeof value === "string") {
-      values[key] = value;
-    }
-  }
-
-  return Object.keys(values).length > 0 ? values : null;
-}
-
 function Notice({ title, body }: { title: string; body: string }) {
   return (
     <div className="space-y-4">
@@ -662,6 +633,9 @@ export async function CustomerApplicationDetail({
     (document) => document.fileType !== FileType.PAYMENT_RECEIPT,
   );
   const metadata = detail.metadata;
+  const countryFormType = detectCountrySpecificFormType(
+    detail.customer.targetCountry,
+  );
   const metadataFullName =
     metadata && typeof metadata.fullName === "string"
       ? metadata.fullName
@@ -881,7 +855,7 @@ export async function CustomerApplicationDetail({
                         applicantIndex={formEntry.applicantIndex}
                         details={formEntry.details}
                         targetCountry={detail.customer.targetCountry}
-                        countrySpecificInitialValues={getCountrySpecificInitialValues(
+                        countrySpecificInitialValues={extractCountryExtraValues(
                           metadata,
                           formEntry.applicantIndex,
                         )}
@@ -902,7 +876,14 @@ export async function CustomerApplicationDetail({
                       />
                     )
                   ) : formEntry.details ? (
-                    <ApplicationDetailsView details={formEntry.details} />
+                    <ApplicationDetailsView
+                      details={formEntry.details}
+                      countryFormType={countryFormType}
+                      countryExtraValues={extractCountryExtraValues(
+                        metadata,
+                        formEntry.applicantIndex,
+                      )}
+                    />
                   ) : (
                     <p className="text-xs text-muted-foreground">
                       Bu kişi için henüz başvuru formu gönderilmedi.

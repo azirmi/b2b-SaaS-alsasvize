@@ -36,6 +36,7 @@ import {
   PHONE_INPUT_RE,
   TC_KIMLIK_RE,
 } from "@/lib/input-masks";
+import { COUNTRY_EXTRA_FIELDS } from "@/lib/application-form";
 import type { ApplicationDetailsData } from "@/lib/types";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -205,6 +206,26 @@ const requiredIsoDate = (label: string) =>
     .min(1, { message: "Bu alan zorunludur." })
     .regex(ISO_DATE_RE, { message: "Lütfen geçerli bir tarih giriniz." });
 
+/**
+ * Country-extra fields (UK/USA) are stored as free-form strings in metadata, not
+ * DB columns, so they only get a length guard here — never a char/regex gate.
+ * Optional so an empty extra never blocks the standard form from saving.
+ */
+function buildCountryExtraShape(): Record<string, z.ZodTypeAny> {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const field of COUNTRY_EXTRA_FIELDS) {
+    const maxLength = field.maxLength ?? 1000;
+    shape[field.name] = z
+      .string()
+      .trim()
+      .max(maxLength, {
+        message: `${field.label} en fazla ${maxLength} karakter olabilir.`,
+      })
+      .optional();
+  }
+  return shape;
+}
+
 const optionalIsoDate = () =>
   z.preprocess(
     (value) => {
@@ -291,6 +312,8 @@ function buildApplicationFormSchema(targetCountry?: string | null) {
     sponsorIdentity: optionalSingleLineText("Sponsor kimliği", 120),
     sponsorContact: optionalMultilineText("Sponsor iletişim bilgisi", 240),
     sponsorRelation: optionalAlphaText("Yakınlık derecesi", 80),
+
+    ...buildCountryExtraShape(),
     })
     .superRefine((value, ctx) => {
       if (
@@ -380,10 +403,22 @@ function valueOrEmpty(value: string | null | undefined): string {
   return value ?? "";
 }
 
+function buildCountryExtraDefaults(
+  countryExtraValues?: Record<string, string> | null,
+): Record<string, string> {
+  const defaults: Record<string, string> = {};
+  for (const field of COUNTRY_EXTRA_FIELDS) {
+    defaults[field.name] = countryExtraValues?.[field.name] ?? "";
+  }
+  return defaults;
+}
+
 export function toApplicationFormDefaults(
   details: ApplicationDetailsData | null,
+  countryExtraValues?: Record<string, string> | null,
 ): ApplicationFormValues {
   return {
+    ...buildCountryExtraDefaults(countryExtraValues),
     firstName: valueOrEmpty(details?.firstName),
     lastName: valueOrEmpty(details?.lastName),
     maidenSurname: valueOrEmpty(details?.maidenSurname),

@@ -9,12 +9,12 @@ import { CircleAlert, CircleCheck, X } from "lucide-react";
 import { saveApplicationDetails } from "@/lib/actions/applications";
 import {
   APPLICATION_FORM_SECTIONS,
+  COUNTRY_EXTRA_FIELDS,
   SPONSOR_SECTION_TITLE,
-  type ApplicationFieldName,
+  getCountryExtraSections,
   type FormField,
+  type FormFieldName,
 } from "@/lib/application-form";
-import { USAVisaForm } from "@/components/applications/usa-visa-form";
-import { UKVisaForm } from "@/components/applications/uk-visa-form";
 import { detectCountrySpecificFormType } from "@/lib/country-visa-forms";
 import {
   maskAlphaTextInput,
@@ -63,23 +63,23 @@ const EMPLOYER_FIELD_NAMES = new Set([
   "employerPhone",
 ]);
 
-const NAME_FIELD_NAMES = new Set<ApplicationFieldName>([
+const NAME_FIELD_NAMES = new Set<FormFieldName>([
   "firstName",
   "lastName",
   "maidenSurname",
   "sponsorFullName",
 ]);
 
-const TC_FIELD_NAMES = new Set<ApplicationFieldName>(["nationalId"]);
+const TC_FIELD_NAMES = new Set<FormFieldName>(["nationalId"]);
 
-const PASSPORT_FIELD_NAMES = new Set<ApplicationFieldName>(["passportNumber"]);
+const PASSPORT_FIELD_NAMES = new Set<FormFieldName>(["passportNumber"]);
 
-const PHONE_FIELD_NAMES = new Set<ApplicationFieldName>([
+const PHONE_FIELD_NAMES = new Set<FormFieldName>([
   "phone",
   "employerPhone",
 ]);
 
-const ALPHA_FIELD_NAMES = new Set<ApplicationFieldName>([
+const ALPHA_FIELD_NAMES = new Set<FormFieldName>([
   "placeOfBirth",
   "nationality",
   "residenceCity",
@@ -92,13 +92,16 @@ const ALPHA_FIELD_NAMES = new Set<ApplicationFieldName>([
 
 const UPPERCASE_FIELD_KINDS = new Set(["text", "tel"]);
 
-const UPPERCASE_FIELD_NAMES = new Set<ApplicationFieldName>(
-  APPLICATION_FORM_SECTIONS.flatMap((section) =>
+const UPPERCASE_FIELD_NAMES = new Set<FormFieldName>([
+  ...APPLICATION_FORM_SECTIONS.flatMap((section) =>
     section.fields
       .filter((field) => UPPERCASE_FIELD_KINDS.has(field.kind))
       .map((field) => field.name),
   ),
-);
+  ...COUNTRY_EXTRA_FIELDS.filter((field) =>
+    UPPERCASE_FIELD_KINDS.has(field.kind),
+  ).map((field) => field.name),
+]);
 
 function toUppercaseInput(value: string): string {
   return normalizeEnglishChars(value).toUpperCase();
@@ -192,13 +195,13 @@ function fieldErrorMessage(
 }
 
 interface VisibleFieldMeta {
-  name: ApplicationFieldName;
+  name: FormFieldName;
   label: string;
   sectionTitle: string;
 }
 
 interface ValidationIssue {
-  fieldName: ApplicationFieldName;
+  fieldName: FormFieldName;
   fieldLabel: string;
   sectionTitle: string;
   message: string;
@@ -397,12 +400,20 @@ export function ApplicationForm({
     [targetCountry],
   );
   const formDefaults = useMemo(
-    () => withCustomerPrefill(toApplicationFormDefaults(details), customerPrefill),
-    [details, customerPrefill],
+    () =>
+      withCustomerPrefill(
+        toApplicationFormDefaults(details, countrySpecificInitialValues),
+        customerPrefill,
+      ),
+    [details, customerPrefill, countrySpecificInitialValues],
   );
   const countrySpecificFormType = useMemo(
     () => detectCountrySpecificFormType(targetCountry),
     [targetCountry],
+  );
+  const countryExtraSections = useMemo(
+    () => getCountryExtraSections(countrySpecificFormType),
+    [countrySpecificFormType],
   );
 
   const form = useForm<ApplicationFormValues>({
@@ -435,7 +446,7 @@ export function ApplicationForm({
   }, [hasSponsor, isEmployer]);
 
   const visibleFieldMap = useMemo(() => {
-    return new Map<ApplicationFieldName, VisibleFieldMeta>(
+    return new Map<FormFieldName, VisibleFieldMeta>(
       visibleFields.map((field) => [field.name, field]),
     );
   }, [visibleFields]);
@@ -457,29 +468,7 @@ export function ApplicationForm({
     }
   }, [hasSponsor, form]);
 
-  if (countrySpecificFormType === "UK") {
-    return (
-      <UKVisaForm
-        applicationId={applicationId}
-        applicantIndex={applicantIndex}
-        initialValues={countrySpecificInitialValues}
-        details={details}
-      />
-    );
-  }
-
-  if (countrySpecificFormType === "USA") {
-    return (
-      <USAVisaForm
-        applicationId={applicationId}
-        applicantIndex={applicantIndex}
-        initialValues={countrySpecificInitialValues}
-        details={details}
-      />
-    );
-  }
-
-  function focusField(fieldName: ApplicationFieldName) {
+  function focusField(fieldName: FormFieldName) {
     const element = document.getElementById(`af-${fieldName}`);
     if (!element) {
       return;
@@ -497,7 +486,7 @@ export function ApplicationForm({
     const issues: ValidationIssue[] = [];
 
     for (const [key, error] of Object.entries(errors)) {
-      const fieldName = key as ApplicationFieldName;
+      const fieldName = key as FormFieldName;
       const meta = visibleFieldMap.get(fieldName);
       if (!meta) {
         continue;
@@ -527,11 +516,10 @@ export function ApplicationForm({
     startTransition(async () => {
       const formData = new FormData();
       formData.set("applicantIndex", String(applicantIndex));
+      formData.set("targetCountry", targetCountry ?? "");
       for (const [key, value] of Object.entries(values)) {
         const normalizedValue = String(value ?? "").trim();
-        const shouldUppercase = UPPERCASE_FIELD_NAMES.has(
-          key as ApplicationFieldName,
-        );
+        const shouldUppercase = UPPERCASE_FIELD_NAMES.has(key as FormFieldName);
         formData.set(
           key,
           shouldUppercase ? toUppercaseInput(normalizedValue) : normalizedValue,
@@ -637,6 +625,24 @@ export function ApplicationForm({
           </div>
         </fieldset>
         )
+      ))}
+
+      {countryExtraSections.map((section) => (
+        <fieldset key={section.title} className="space-y-4">
+          <legend className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            {section.title}
+          </legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {section.fields.map((field) => (
+              <Field
+                key={field.name}
+                field={field}
+                control={form.control}
+                errors={form.formState.errors}
+              />
+            ))}
+          </div>
+        </fieldset>
       ))}
 
       <Separator />

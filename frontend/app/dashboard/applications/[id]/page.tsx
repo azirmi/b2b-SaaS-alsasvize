@@ -27,6 +27,10 @@ import {
 } from "@/components/ui/tabs";
 import { ApiError } from "@/lib/api";
 import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
+import {
+  detectCountrySpecificFormType,
+  extractCountryExtraValues,
+} from "@/lib/country-visa-forms";
 import { getSession, serverApi } from "@/lib/api.server";
 import { isCrmComplete, formatTl, PAYMENT_TYPE_LABEL } from "@/lib/crm";
 import { Department, FileType, Role, VisaStage } from "@/lib/enums";
@@ -381,6 +385,9 @@ export default async function ApplicationDetailPage({
   };
   const applicationForms = getApplicationForms(detail);
   const primaryDetails = getPrimaryApplicationDetails(detail);
+  const staffCountryFormType = detectCountrySpecificFormType(
+    detail.customer.targetCountry,
+  );
   const defaultStaffFormTabValue = applicationForms[0]
     ? `staff-form-${applicationForms[0].applicantIndex}`
     : "staff-form-1";
@@ -783,7 +790,14 @@ export default async function ApplicationDetailPage({
                         </p>
                       ) : formEntry.details ? (
                         <div id={printTargetId}>
-                          <ApplicationDetailsView details={formEntry.details} />
+                          <ApplicationDetailsView
+                            details={formEntry.details}
+                            countryFormType={staffCountryFormType}
+                            countryExtraValues={extractCountryExtraValues(
+                              detail.metadata,
+                              formEntry.applicantIndex,
+                            )}
+                          />
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">
