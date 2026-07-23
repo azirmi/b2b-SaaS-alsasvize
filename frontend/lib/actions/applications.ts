@@ -161,6 +161,7 @@ export async function updateApplicationCoreData(
     residenceCity: string;
     plannedTravelDate: string;
     applicantCount: number;
+    applicantNames: string[];
   },
 ): Promise<ActionResult> {
   if (!UUID_RE.test(id)) {
@@ -173,6 +174,7 @@ export async function updateApplicationCoreData(
   const residenceCity = payload.residenceCity.trim();
   const plannedTravelDate = payload.plannedTravelDate.trim();
   const applicantCount = payload.applicantCount;
+  const applicantNames = payload.applicantNames.map((name) => name.trim());
 
   if (
     !applicationType ||
@@ -189,6 +191,15 @@ export async function updateApplicationCoreData(
   if (!Number.isInteger(applicantCount) || applicantCount < 1) {
     return { ok: false, error: "Kişi sayısı en az 1 olmalıdır." };
   }
+  if (applicantNames.length !== applicantCount) {
+    return {
+      ok: false,
+      error: "Kişi isim listesi kişi sayısıyla eşleşmelidir.",
+    };
+  }
+  if (applicantNames.some((name) => name.length === 0)) {
+    return { ok: false, error: "Her kişi için ad-soyad zorunludur." };
+  }
 
   try {
     await serverApi.put(`/admin/applications/${id}/core-data`, {
@@ -198,6 +209,7 @@ export async function updateApplicationCoreData(
       residenceCity,
       plannedTravelDate,
       applicantCount,
+      applicantNames,
     });
   } catch (error) {
     if (error instanceof ApiError) {

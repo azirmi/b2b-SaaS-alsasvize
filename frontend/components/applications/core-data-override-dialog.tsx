@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Pencil, ShieldCheck, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,14 +34,26 @@ import {
   removeOnboardingApplicant,
   updateApplicationCoreData,
 } from "@/lib/actions/applications";
-import { deleteDocument } from "@/lib/actions/documents";
+import {
+  deleteDocument,
+  requestDocumentUpload,
+} from "@/lib/actions/documents";
 import { COUNTRY_RULES, SUPPORTED_COUNTRIES } from "@/lib/countries";
-import { ApplicationType } from "@/lib/enums";
+import { ApplicationType, FileType } from "@/lib/enums";
 import { maskNameInput, normalizeEnglishChars } from "@/lib/input-masks";
 
 const APPLICATION_TYPES = new Set<ApplicationType>(
   APPLICATION_TYPE_OPTIONS.map((option) => option.value),
 );
+
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+const UPLOAD_ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
+const UPLOAD_MIME_SET = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
 
 function toIsoDate(value: string | null | undefined): string {
   if (!value) {
@@ -60,6 +72,11 @@ function toIsoDate(value: string | null | undefined): string {
 function normalizeResidenceCity(value: string): string {
   const masked = maskNameInput(value, 120);
   return normalizeEnglishChars(masked).toUpperCase();
+}
+
+function normalizeApplicantFullName(value: string): string {
+  const masked = maskNameInput(value, 120);
+  return normalizeEnglishChars(masked).toUpperCase().trim();
 }
 
 function formatShortDate(value: string): string {
@@ -105,6 +122,7 @@ export function CoreDataOverrideDialog({
   const [pending, startTransition] = useTransition();
   const [deletingApplicant, startDeletingApplicant] = useTransition();
   const [deletingPassport, startDeletingPassport] = useTransition();
+  const [uploadingPassport, startUploadingPassport] = useTransition();
   const [applicationType, setApplicationType] = useState(initialApplicationType);
   const [targetCountry, setTargetCountry] = useState(initialTargetCountry);
   const [appointmentCity, setAppointmentCity] = useState(initialAppointmentCity);
@@ -118,9 +136,15 @@ export function CoreDataOverrideDialog({
     String(Math.max(1, initialApplicantCount)),
   );
   const [applicants, setApplicants] = useState(initialApplicants);
+  const [applicantNames, setApplicantNames] = useState<string[]>(
+    initialApplicants.map((applicant) =>
+      normalizeApplicantFullName(applicant.fullName),
+    ),
+  );
   const [passportDocuments, setPassportDocuments] = useState(
     initialPassportDocuments,
   );
+  const [passportFile, setPassportFile] = useState<File | null>(null);
   const [activeApplicantDeleteId, setActiveApplicantDeleteId] = useState<
     string | null
   >(null);
@@ -135,6 +159,54 @@ export function CoreDataOverrideDialog({
     [targetCountry],
   );
 
+  const requestedApplicantCount = Number(applicantCount.trim());
+  const normalizedRequestedApplicantCount =
+    Number.isInteger(requestedApplicantCount) && requestedApplicantCount > 0
+      ? requestedApplicantCount
+      : Math.max(1, applicants.length);
+  const renderedApplicantCount = Math.max(
+    normalizedRequestedApplicantCount,
+    applicants.length,
+  );
+  const missingPassportCount = Math.max(
+    0,
+    normalizedRequestedApplicantCount - passportDocuments.length,
+  );
+  const busy = pending || deletingApplicant || deletingPassport || uploadingPassport;
+
+  const applicantRows = useMemo(
+    () =>
+      Array.from({ length: renderedApplicantCount }, (_, index) => ({
+        index,
+        id: applicants[index]?.id ?? null,
+        isPrimary: index === 0,
+      })),
+    [applicants, renderedApplicantCount],
+  );
+
+  useEffect(() => {
+    setApplicantNames((previous) => {
+      const next = [...previous];
+
+      while (next.length < renderedApplicantCount) {
+        next.push("");
+      }
+
+      if (next.length > renderedApplicantCount) {
+        next.length = renderedApplicantCount;
+      }
+
+      if (
+        next.length === previous.length &&
+        next.every((value, index) => value === previous[index])
+      ) {
+        return previous;
+      }
+
+      return next;
+    });
+  }, [renderedApplicantCount]);
+
   function resetToInitial() {
     setApplicationType(initialApplicationType);
     setTargetCountry(initialTargetCountry);
@@ -143,7 +215,13 @@ export function CoreDataOverrideDialog({
     setPlannedTravelDate(toIsoDate(initialPlannedTravelDate));
     setApplicantCount(String(Math.max(1, initialApplicantCount)));
     setApplicants(initialApplicants);
+    setApplicantNames(
+      initialApplicants.map((applicant) =>
+        normalizeApplicantFullName(applicant.fullName),
+      ),
+    );
     setPassportDocuments(initialPassportDocuments);
+    setPassportFile(null);
     setActiveApplicantDeleteId(null);
     setActivePassportDeleteId(null);
     setError(null);
@@ -166,6 +244,27 @@ export function CoreDataOverrideDialog({
       return;
     }
 
+    const normalizedApplicantNames = applicantNames
+      .slice(0, parsedApplicantCount)
+      .map((name) => normalizeApplicantFullName(name));
+
+    if (normalizedApplicantNames.length !== parsedApplicantCount) {
+      setError("Her kişi için isim alanını doldurun.");
+      return;
+    }
+
+    if (normalizedApplicantNames.some((name) => name.length === 0)) {
+      setError("Her kişi için ad-soyad bilgisi zorunludur.");
+      return;
+    }
+
+    if (passportDocuments.length < parsedApplicantCount) {
+      setError(
+        `Kişi sayısı ${parsedApplicantCount} olduğu için en az ${parsedApplicantCount} pasaport yüklenmelidir.`,
+      );
+      return;
+    }
+
     startTransition(async () => {
       const result = await updateApplicationCoreData(applicationId, {
         applicationType,
@@ -174,6 +273,7 @@ export function CoreDataOverrideDialog({
         residenceCity,
         plannedTravelDate,
         applicantCount: parsedApplicantCount,
+        applicantNames: normalizedApplicantNames,
       });
 
       if (!result.ok) {
@@ -189,6 +289,7 @@ export function CoreDataOverrideDialog({
   function handleRemoveApplicant(applicantId: string) {
     setError(null);
     setNote(null);
+    const removeIndex = applicants.findIndex((applicant) => applicant.id === applicantId);
     setActiveApplicantDeleteId(applicantId);
 
     startDeletingApplicant(async () => {
@@ -203,10 +304,92 @@ export function CoreDataOverrideDialog({
       setApplicants((previous) =>
         previous.filter((applicant) => applicant.id !== applicantId),
       );
+
+      if (removeIndex >= 0) {
+        setApplicantNames((previous) =>
+          previous.filter((_, index) => index !== removeIndex),
+        );
+      }
+
       if (typeof result.applicantCount === "number") {
         setApplicantCount(String(Math.max(1, result.applicantCount)));
       }
       setNote("Kişi kaydı silindi.");
+    });
+  }
+
+  function handlePassportFileSelect(file: File | null) {
+    if (!file) {
+      setPassportFile(null);
+      return;
+    }
+
+    const loweredName = file.name.toLocaleLowerCase("en-US");
+    const extensionAllowed =
+      loweredName.endsWith(".jpg") ||
+      loweredName.endsWith(".jpeg") ||
+      loweredName.endsWith(".png") ||
+      loweredName.endsWith(".webp") ||
+      loweredName.endsWith(".pdf");
+    const mimeAllowed = UPLOAD_MIME_SET.has(file.type);
+
+    if (!mimeAllowed && !extensionAllowed) {
+      setError("Desteklenmeyen dosya türü. JPG, PNG, WebP veya PDF yükleyin.");
+      setPassportFile(null);
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_SIZE) {
+      setError("Dosya 10 MB sınırını aşıyor.");
+      setPassportFile(null);
+      return;
+    }
+
+    setError(null);
+    setPassportFile(file);
+  }
+
+  function uploadPassport() {
+    if (!passportFile) {
+      setError("Lütfen önce bir pasaport dosyası seçin.");
+      return;
+    }
+
+    setError(null);
+    setNote(null);
+
+    startUploadingPassport(async () => {
+      const ticket = await requestDocumentUpload(
+        applicationId,
+        FileType.PASSPORT,
+        passportFile.name,
+      );
+
+      if (!ticket.ok) {
+        setError(ticket.error ?? "Pasaport yükleme başlatılamadı.");
+        return;
+      }
+
+      try {
+        const response = await fetch(ticket.uploadUrl, {
+          method: "PUT",
+          body: passportFile,
+        });
+        if (!response.ok) {
+          setError("Depolama alanına yükleme başarısız oldu. Lütfen tekrar deneyin.");
+          return;
+        }
+      } catch {
+        setError("Depolama hizmetine ulaşılamadı. Lütfen tekrar deneyin.");
+        return;
+      }
+
+      setPassportDocuments((previous) => [
+        ...previous,
+        { id: ticket.documentId, createdAt: new Date().toISOString() },
+      ]);
+      setPassportFile(null);
+      setNote("Pasaport belgesi yüklendi.");
     });
   }
 
@@ -387,59 +570,99 @@ export function CoreDataOverrideDialog({
 
               <div className="space-y-2">
                 <Label>Kişi Kayıtları</Label>
+                <p className="text-xs text-muted-foreground">
+                  Her kişi için ad-soyad girilmelidir. Sekmelerde ve dosya alanında
+                  bu isimler gösterilir.
+                </p>
                 <div className="rounded-md border border-border/40">
-                  {applicants.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-muted-foreground">
-                      Kayıtlı ek kişi bulunmuyor.
-                    </p>
-                  ) : (
-                    applicants.map((applicant, index) => {
-                      const isPrimary = index === 0;
-                      const isDeleting =
-                        deletingApplicant && activeApplicantDeleteId === applicant.id;
+                  {applicantRows.map((row) => {
+                    const isDeleting =
+                      deletingApplicant && activeApplicantDeleteId === row.id;
+                    const nameValue = applicantNames[row.index] ?? "";
 
-                      return (
-                        <div
-                          key={applicant.id}
-                          className="flex items-center justify-between gap-3 border-b border-border/30 px-3 py-2 last:border-b-0"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">
-                              {index + 1}. {applicant.fullName}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {isPrimary
-                                ? "Ana başvuru sahibi"
-                                : "Ek başvuru sahibi"}
-                            </p>
-                          </div>
+                    return (
+                      <div
+                        key={row.id ?? `virtual-${row.index + 1}`}
+                        className="space-y-2 border-b border-border/30 px-3 py-2 last:border-b-0"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-muted-foreground">
+                            {row.index + 1}. kişi
+                          </p>
 
-                          {isPrimary ? (
-                            <span className="text-xs text-muted-foreground">
-                              Silinemez
-                            </span>
-                          ) : (
+                          {row.id && !row.isPrimary ? (
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleRemoveApplicant(applicant.id)}
-                              disabled={pending || deletingApplicant || deletingPassport}
+                              onClick={() => handleRemoveApplicant(row.id as string)}
+                              disabled={busy}
                               className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                             >
                               <Trash2 className="h-4 w-4" aria-hidden />
                               {isDeleting ? "Siliniyor…" : "Sil"}
                             </Button>
+                          ) : row.isPrimary ? (
+                            <span className="text-xs text-muted-foreground">
+                              Ana başvuru sahibi
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Yeni kişi</span>
                           )}
                         </div>
-                      );
-                    })
-                  )}
+
+                        <Input
+                          value={nameValue}
+                          onChange={(event) => {
+                            const normalized = normalizeApplicantFullName(
+                              event.target.value,
+                            );
+                            setApplicantNames((previous) => {
+                              const next = [...previous];
+                              next[row.index] = normalized;
+                              return next;
+                            });
+                          }}
+                          placeholder="Örn: AYSE YILMAZ"
+                          maxLength={120}
+                          className="uppercase"
+                          autoCapitalize="characters"
+                          autoCorrect="off"
+                          spellCheck={false}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label>Pasaport Belgeleri</Label>
+                <p className="text-xs text-muted-foreground">
+                  Zorunlu: {normalizedRequestedApplicantCount} pasaport · Yüklü: {passportDocuments.length}
+                  {missingPassportCount > 0 ? ` · Eksik: ${missingPassportCount}` : ""}
+                </p>
+
+                <div className="grid gap-2 rounded-md border border-border/40 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                  <Input
+                    type="file"
+                    accept={UPLOAD_ACCEPT}
+                    onChange={(event) =>
+                      handlePassportFileSelect(event.target.files?.[0] ?? null)
+                    }
+                    className="text-xs"
+                    disabled={busy}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={uploadPassport}
+                    disabled={!passportFile || busy}
+                  >
+                    {uploadingPassport ? "Yükleniyor…" : "Pasaport Yükle"}
+                  </Button>
+                </div>
+
                 <div className="rounded-md border border-border/40">
                   {passportDocuments.length === 0 ? (
                     <p className="px-3 py-2 text-xs text-muted-foreground">
@@ -456,9 +679,7 @@ export function CoreDataOverrideDialog({
                           className="flex items-center justify-between gap-3 border-b border-border/30 px-3 py-2 last:border-b-0"
                         >
                           <div>
-                            <p className="text-sm font-medium">
-                              Pasaport #{index + 1}
-                            </p>
+                            <p className="text-sm font-medium">Pasaport #{index + 1}</p>
                             <p className="text-xs text-muted-foreground">
                               Yüklenme: {formatShortDate(document.createdAt)}
                             </p>
@@ -469,7 +690,7 @@ export function CoreDataOverrideDialog({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRemovePassport(document.id)}
-                            disabled={pending || deletingApplicant || deletingPassport}
+                            disabled={busy}
                             className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                           >
                             <Trash2 className="h-4 w-4" aria-hidden />
@@ -494,15 +715,11 @@ export function CoreDataOverrideDialog({
                 type="button"
                 variant="ghost"
                 onClick={() => setOpen(false)}
-                disabled={pending || deletingApplicant || deletingPassport}
+                disabled={busy}
               >
                 Vazgeç
               </Button>
-              <Button
-                type="button"
-                onClick={submitOverride}
-                disabled={pending || deletingApplicant || deletingPassport}
-              >
+              <Button type="button" onClick={submitOverride} disabled={busy}>
                 {pending ? "Kaydediliyor…" : "Kaydet"}
               </Button>
             </DialogFooter>
@@ -510,9 +727,7 @@ export function CoreDataOverrideDialog({
         </Dialog>
 
         {note ? (
-          <p className="text-xs text-emerald-600 dark:text-emerald-400">
-            {note}
-          </p>
+          <p className="text-xs text-emerald-600 dark:text-emerald-400">{note}</p>
         ) : null}
       </CardContent>
     </Card>

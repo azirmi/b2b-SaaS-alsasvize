@@ -808,7 +808,8 @@ export async function CustomerApplicationDetail({
                   value={`applicant-${formEntry.applicantIndex}`}
                   className="shrink-0"
                 >
-                  {formEntry.applicantIndex}. Kişi
+                  {formEntry.applicantFullName?.trim() ||
+                    `${formEntry.applicantIndex}. Kişi`}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -822,7 +823,11 @@ export async function CustomerApplicationDetail({
                 <article className="rounded-md border border-border/40 bg-background p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium">{formEntry.applicantLabel}</p>
+                      <p className="text-sm font-medium">
+                        {(formEntry.applicantFullName?.trim() ||
+                          `${formEntry.applicantIndex}. Kişi`)}{" "}
+                        Formu
+                      </p>
                       {formEntry.applicantFullName ? (
                         <p className="text-xs text-muted-foreground">
                           {formEntry.applicantFullName}

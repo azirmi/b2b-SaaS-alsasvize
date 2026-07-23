@@ -203,6 +203,16 @@ export class AdminService {
     const residenceCity = dto.residenceCity.trim();
     const plannedTravelDate = dto.plannedTravelDate.trim();
     const requestedApplicantCount = dto.applicantCount;
+    const requestedApplicantNames = dto.applicantNames?.map((name) =>
+      name.trim(),
+    );
+
+    if (
+      requestedApplicantNames &&
+      requestedApplicantNames.some((name) => name.length === 0)
+    ) {
+      throw new BadRequestException('Kişi adı boş olamaz');
+    }
 
     if (!Object.values(ApplicationType).includes(applicationType)) {
       throw new BadRequestException('Geçersiz vize türü seçimi');
@@ -246,6 +256,11 @@ export class AdminService {
               createdAt: true,
             },
           },
+          documents: {
+            select: {
+              fileType: true,
+            },
+          },
           residenceCity: true,
           plannedTravelDate: true,
         },
@@ -279,11 +294,35 @@ export class AdminService {
       const existingApplicantRows = application.onboardingApplicants.length;
       const existingApplicantCount =
         existingApplicantRows > 0 ? existingApplicantRows : 1;
+      const targetApplicantCount = requestedApplicantCount ?? existingApplicantCount;
+
+      if (
+        requestedApplicantNames &&
+        requestedApplicantNames.length !== targetApplicantCount
+      ) {
+        throw new BadRequestException(
+          `Kişi sayısı ${targetApplicantCount} ise ${targetApplicantCount} adet kişi adı girilmelidir`,
+        );
+      }
+
+      const passportDocumentCount = application.documents.filter(
+        (document) => document.fileType === FileType.PASSPORT,
+      ).length;
+      if (
+        requestedApplicantCount !== undefined &&
+        requestedApplicantCount > existingApplicantCount &&
+        passportDocumentCount < requestedApplicantCount
+      ) {
+        throw new BadRequestException(
+          `Kişi sayısını ${requestedApplicantCount} yapmak için en az ${requestedApplicantCount} pasaport yüklenmelidir`,
+        );
+      }
 
       let resultingApplicantCount = existingApplicantCount;
       let addedApplicantRows = 0;
       let removedApplicantRows = 0;
       let removedDetailRows = 0;
+      let renamedApplicantRows = 0;
       let removedApplicantIds: string[] = [];
 
       if (
@@ -302,9 +341,10 @@ export class AdminService {
           const applicantRows = Array.from({ length: rowsToCreate }, (_, offset) => {
             const ordinal = firstGeneratedOrdinal + offset;
             const fullName =
-              existingApplicantRows === 0 && offset === 0
+              requestedApplicantNames?.[ordinal - 1] ??
+              (existingApplicantRows === 0 && offset === 0
                 ? application.customer.fullName
-                : `Ek Basvuru ${ordinal}`;
+                : `Ek Basvuru ${ordinal}`);
 
             return {
               applicationId: application.id,
@@ -318,6 +358,72 @@ export class AdminService {
 
         resultingApplicantCount = requestedApplicantCount;
       }
+
+      let currentApplicants = await tx.onboardingApplicant.findMany({
+        where: { applicationId: application.id },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          fullName: true,
+        },
+      });
+
+      if (currentApplicants.length === 0 && resultingApplicantCount > 0) {
+        const seededRows = Array.from(
+          { length: resultingApplicantCount },
+          (_, index) => ({
+            applicationId: application.id,
+            fullName:
+              requestedApplicantNames?.[index] ??
+              (index === 0
+                ? application.customer.fullName
+                : `Ek Basvuru ${index + 1}`),
+          }),
+        );
+
+        await tx.onboardingApplicant.createMany({ data: seededRows });
+        addedApplicantRows += seededRows.length;
+
+        currentApplicants = await tx.onboardingApplicant.findMany({
+          where: { applicationId: application.id },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: {
+            id: true,
+            fullName: true,
+          },
+        });
+      }
+
+      if (requestedApplicantNames) {
+        const namesToApply = requestedApplicantNames.slice(0, resultingApplicantCount);
+
+        for (let index = 0; index < namesToApply.length; index += 1) {
+          const applicant = currentApplicants[index];
+          if (!applicant) {
+            continue;
+          }
+
+          const nextName = namesToApply[index];
+          if (applicant.fullName.trim() === nextName) {
+            continue;
+          }
+
+          await tx.onboardingApplicant.update({
+            where: { id: applicant.id },
+            data: { fullName: nextName },
+          });
+          renamedApplicantRows += 1;
+        }
+      }
+
+      const finalApplicants = await tx.onboardingApplicant.findMany({
+        where: { applicationId: application.id },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          fullName: true,
+        },
+      });
 
       if (
         requestedApplicantCount !== undefined &&
@@ -402,6 +508,9 @@ export class AdminService {
                 ? application.plannedTravelDate.toISOString().slice(0, 10)
                 : null,
               applicantCount: existingApplicantCount,
+              applicantNames: application.onboardingApplicants.map(
+                (applicant) => applicant.fullName,
+              ),
             },
             after: {
               applicationType: updatedApplication.applicationType,
@@ -415,7 +524,12 @@ export class AdminService {
               addedApplicantRows,
               removedApplicantRows,
               removedDetailRows,
+              renamedApplicantRows,
               removedApplicantIds,
+              passportDocumentCount,
+              applicantNames: finalApplicants
+                .slice(0, resultingApplicantCount)
+                .map((applicant) => applicant.fullName),
             },
           },
         },
@@ -433,6 +547,7 @@ export class AdminService {
         applicantCount: resultingApplicantCount,
         removedApplicantRows,
         removedDetailRows,
+        renamedApplicantRows,
       };
     });
   }

@@ -737,7 +737,8 @@ export default async function ApplicationDetailPage({
                     value={`staff-form-${formEntry.applicantIndex}`}
                     className="shrink-0"
                   >
-                    {formEntry.applicantIndex}. Kişi
+                    {formEntry.applicantFullName?.trim() ||
+                      `${formEntry.applicantIndex}. Kişi`}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -755,7 +756,9 @@ export default async function ApplicationDetailPage({
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-medium">
-                            {formEntry.applicantIndex}. Kişi Formu
+                            {(formEntry.applicantFullName?.trim() ||
+                              `${formEntry.applicantIndex}. Kişi`)}{" "}
+                            Formu
                           </p>
                           {formEntry.applicantFullName ? (
                             <p className="text-xs text-muted-foreground">

@@ -2,7 +2,9 @@ import {
   ApplicationType,
 } from '../../generated/prisma/enums';
 import {
+  ArrayMinSize,
   IsEnum,
+  IsArray,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -46,4 +48,15 @@ export class UpdateApplicationCoreDataDto {
   @IsInt({ message: 'Kişi sayısı tam sayı olmalıdır' })
   @Min(1, { message: 'Kişi sayısı en az 1 olmalıdır' })
   applicantCount?: number;
+
+  @IsOptional()
+  @IsArray({ message: 'Kişi isimleri liste formatında olmalıdır' })
+  @ArrayMinSize(1, { message: 'En az 1 kişi adı girilmelidir' })
+  @IsString({ each: true, message: 'Kişi adı metin olmalıdır' })
+  @IsNotEmpty({ each: true, message: 'Kişi adı boş olamaz' })
+  @MaxLength(120, {
+    each: true,
+    message: 'Kişi adı en fazla 120 karakter olabilir',
+  })
+  applicantNames?: string[];
 }
