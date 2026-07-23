@@ -438,7 +438,7 @@ export function CoreDataOverrideDialog({
             </Button>
           </DialogTrigger>
 
-          <DialogContent className="sm:max-w-xl">
+          <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-xl">
             <DialogHeader>
               <DialogTitle>Başvuru Temel Bilgilerini Düzenle</DialogTitle>
               <DialogDescription>
@@ -447,7 +447,7 @@ export function CoreDataOverrideDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label htmlFor="core-data-application-type">Vize Türü</Label>
                 <Select
