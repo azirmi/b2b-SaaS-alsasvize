@@ -342,6 +342,20 @@ export interface StaffPerformance {
   processed: number;
 }
 
+/** Timestamped productivity actions for one staff member. */
+export interface StaffActivityEvent {
+  staffId: string;
+  userId: string;
+  staffName: string;
+  department: Department;
+  applicationId: string;
+  customerName: string;
+  actionType: string;
+  stageFrom: VisaStage | null;
+  stageTo: VisaStage | null;
+  happenedAt: string;
+}
+
 /** Payload from `GET /admin/stats`. */
 export interface AdminStats {
   totalApplications: number;
@@ -349,6 +363,7 @@ export interface AdminStats {
   salesProductivity: StaffPerformance[];
   docPipeline: StageCount[];
   docProductivity: StaffPerformance[];
+  staffActivityEvents: StaffActivityEvent[];
   avgProcessingMs: number;
   completedCount: number;
 }

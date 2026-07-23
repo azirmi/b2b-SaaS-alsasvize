@@ -996,6 +996,64 @@ export class AdminService {
     );
     const docPipeline = mapPipelineCounts(docPipelineRaw, DOC_PIPELINE_STAGES);
 
+    const staffByUserId = new Map(
+      staff.map((member) => [member.user.id, member]),
+    );
+    const activityLogs =
+      staffByUserId.size > 0
+        ? await this.prisma.auditLog.findMany({
+            where: {
+              actionType: {
+                in: ['CLAIMED', 'STAGE_CHANGED'],
+              },
+              performedById: {
+                in: Array.from(staffByUserId.keys()),
+              },
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            select: {
+              applicationId: true,
+              performedById: true,
+              actionType: true,
+              details: true,
+              createdAt: true,
+              application: {
+                select: {
+                  customer: {
+                    select: {
+                      fullName: true,
+                    },
+                  },
+                },
+              },
+            },
+          })
+        : [];
+
+    const staffActivityEvents = activityLogs
+      .map((log) => {
+        const member = staffByUserId.get(log.performedById);
+        if (!member) {
+          return null;
+        }
+
+        return {
+          staffId: member.id,
+          userId: member.user.id,
+          staffName: member.user.fullName,
+          department: member.department,
+          applicationId: log.applicationId,
+          customerName: log.application.customer.fullName,
+          actionType: log.actionType,
+          stageFrom: readDetailStage(log.details, 'previousStage'),
+          stageTo: readDetailStage(log.details, 'newStage'),
+          happenedAt: log.createdAt.toISOString(),
+        };
+      })
+      .filter((event): event is NonNullable<typeof event> => Boolean(event));
+
     const avgProcessingMs = completed.length
       ? Math.round(
           completed.reduce(
@@ -1012,6 +1070,7 @@ export class AdminService {
       salesProductivity,
       docPipeline,
       docProductivity,
+      staffActivityEvents,
       avgProcessingMs,
       completedCount: completed.length,
     };

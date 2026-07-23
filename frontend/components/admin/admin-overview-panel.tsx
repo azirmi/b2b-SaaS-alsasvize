@@ -277,10 +277,9 @@ export function AdminOverviewPanel({
       </div>
 
       <AdminStatsCharts
-        salesPipeline={stats.salesPipeline}
         salesProductivity={stats.salesProductivity}
-        docPipeline={stats.docPipeline}
         docProductivity={stats.docProductivity}
+        staffActivityEvents={stats.staffActivityEvents}
         selectedStaffId={selectedStaffId}
         onStaffSelect={(staffId) => {
           setSelectedStaffId((current) =>
