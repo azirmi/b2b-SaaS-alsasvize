@@ -83,9 +83,6 @@ function Calendar({
         day_button:
           "h-9 w-9 rounded-none text-sm font-normal text-slate-900 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b63f6]/30 aria-selected:bg-[#0b63f6] aria-selected:text-white aria-selected:font-semibold aria-selected:hover:bg-[#0b63f6]",
         selected: "bg-[#0b63f6] text-white rounded-none font-semibold",
-        range_start: "bg-[#0b63f6] text-white rounded-none font-semibold",
-        range_middle: "!bg-[#0b63f6]/15 !text-slate-900 rounded-none",
-        range_end: "bg-[#0b63f6] text-white rounded-none font-semibold",
         today: "font-semibold text-slate-900",
         outside: "text-slate-400",
         disabled: "text-slate-300",

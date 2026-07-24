@@ -282,7 +282,9 @@ export function AdminOverviewPanel({
         staffActivityEvents={stats.staffActivityEvents}
         selectedStaffId={selectedStaffId}
         onStaffSelect={(staffId) => {
-          setSelectedStaffId(staffId);
+          setSelectedStaffId((current) =>
+            current === staffId ? null : staffId,
+          );
         }}
       />
 

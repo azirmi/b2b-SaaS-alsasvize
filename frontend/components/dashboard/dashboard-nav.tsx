@@ -25,6 +25,10 @@ function linksForRole(role: RoleType): NavLink[] {
     links.push({ href: "/dashboard/calendar", label: "Takvim" });
   }
 
+  if (role === Role.ADMIN) {
+    links.push({ href: "/dashboard/staff-activity", label: "Personel Aktivite" });
+  }
+
   return links;
 }
 

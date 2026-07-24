@@ -97,6 +97,9 @@ export default async function AdminDashboardPage() {
           <TabsTrigger value="calendar" className="flex-none">
             Takvim
           </TabsTrigger>
+          <TabsTrigger value="staff-activity" className="flex-none">
+            Personel Aktivite
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -145,6 +148,21 @@ export default async function AdminDashboardPage() {
               className="mt-4 inline-flex items-center rounded-md border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
             >
               Takvimi Aç
+            </Link>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="staff-activity">
+          <section className="rounded-lg border border-border/40 bg-card p-4 text-sm shadow-sm sm:p-5">
+            <h2 className="text-sm font-medium">Personel Aktivite Takibi</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Trivago tarzı personel ve tarih filtreleme ekranına geçerek işlem zaman akışını detaylı inceleyin.
+            </p>
+            <Link
+              href="/dashboard/staff-activity"
+              className="mt-4 inline-flex items-center rounded-md border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              Personel Aktivite Ekranını Aç
             </Link>
           </section>
         </TabsContent>
