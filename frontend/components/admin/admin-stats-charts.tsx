@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, Search, Users } from "lucide-react";
+import { type DateRange } from "react-day-picker";
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 
+import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   ChartContainer,
@@ -13,24 +16,40 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { STAGE_LABEL } from "@/lib/status";
-import type {
-  StaffActivityEvent,
-  StaffPerformance,
-} from "@/lib/types";
+import type { StaffActivityEvent, StaffPerformance } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const productivityConfig = {
   claimed: { label: "Alınan", color: "var(--muted-foreground)" },
   processed: { label: "İşlenen", color: "var(--foreground)" },
 } satisfies ChartConfig;
 
+const STAFF_PLACEHOLDER_VALUE = "__NONE__";
+
 type ProductivityPoint = {
   staffId: string;
   name: string;
   claimed: number;
   processed: number;
+};
+
+type StaffOption = {
+  staffId: string;
+  fullName: string;
+  department: StaffPerformance["department"];
 };
 
 type ActivityPoint = StaffActivityEvent & {
@@ -60,45 +79,70 @@ function parseDayKey(dayKey: string): Date | null {
   return new Date(year, month - 1, day);
 }
 
-function formatMonthValue(value: Date): string {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
+function startOfDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
 }
 
-function parseMonthValue(value: string): { year: number; monthIndex: number } | null {
-  if (!/^\d{4}-\d{2}$/.test(value)) {
-    return null;
-  }
+function endOfDay(value: Date): Date {
+  return new Date(
+    value.getFullYear(),
+    value.getMonth(),
+    value.getDate(),
+    23,
+    59,
+    59,
+    999,
+  );
+}
 
-  const [yearPart, monthPart] = value.split("-");
-  const year = Number(yearPart);
-  const month = Number(monthPart);
-  if (!year || !month || month < 1 || month > 12) {
-    return null;
-  }
-
+function createDefaultRange(): { from: Date; to: Date } {
+  const today = startOfDay(new Date());
   return {
-    year,
-    monthIndex: month - 1,
+    from: new Date(today.getFullYear(), today.getMonth(), 1),
+    to: today,
   };
 }
 
-function getDaysInMonth(year: number, monthIndex: number): number {
-  return new Date(year, monthIndex + 1, 0).getDate();
+function resolveRange(range: DateRange | undefined): { from: Date; to: Date } | null {
+  const from = range?.from ? startOfDay(range.from) : null;
+  if (!from) {
+    return null;
+  }
+
+  const to = range?.to ? startOfDay(range.to) : from;
+  if (from.getTime() <= to.getTime()) {
+    return { from, to };
+  }
+
+  return { from: to, to: from };
 }
 
-function clampDay(day: number, maxDay: number): number {
-  if (!Number.isFinite(day)) {
-    return 1;
+function formatRangeDate(value: Date): string {
+  return value.toLocaleDateString("tr-TR", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatRangeLabel(range: DateRange | undefined): string {
+  const resolved = resolveRange(range);
+  if (!resolved) {
+    return "Tarih seçin";
   }
-  if (day < 1) {
-    return 1;
+
+  if (resolved.from.getTime() === resolved.to.getTime()) {
+    return formatRangeDate(resolved.from);
   }
-  if (day > maxDay) {
-    return maxDay;
+
+  return `${formatRangeDate(resolved.from)} - ${formatRangeDate(resolved.to)}`;
+}
+
+function formatAppliedRangeLabel(range: { from: Date; to: Date }): string {
+  if (range.from.getTime() === range.to.getTime()) {
+    return formatRangeDate(range.from);
   }
-  return Math.round(day);
+
+  return `${formatRangeDate(range.from)} - ${formatRangeDate(range.to)}`;
 }
 
 function stageLabel(stage: StaffActivityEvent["stageFrom"]): string {
@@ -121,14 +165,6 @@ function formatTime(value: Date): string {
   });
 }
 
-function formatDayLabel(value: Date): string {
-  return value.toLocaleDateString("tr-TR", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 function readStaffId(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") {
     return null;
@@ -139,8 +175,7 @@ function readStaffId(payload: unknown): string | null {
     return direct;
   }
 
-  const nested = (payload as { payload?: { staffId?: unknown } }).payload
-    ?.staffId;
+  const nested = (payload as { payload?: { staffId?: unknown } }).payload?.staffId;
   return typeof nested === "string" ? nested : null;
 }
 
@@ -157,12 +192,11 @@ function StaffAxisTick({
   payload?: { value?: unknown };
   namesById: Map<string, string>;
   selectedStaffId?: string | null;
-  onStaffSelect?: (staffId: string) => void;
+  onStaffSelect?: (staffId: string | null) => void;
 }) {
   const positionX = typeof x === "number" ? x : Number(x) || 0;
   const positionY = typeof y === "number" ? y : Number(y) || 0;
-  const staffId =
-    typeof payload?.value === "string" ? (payload.value as string) : "";
+  const staffId = typeof payload?.value === "string" ? (payload.value as string) : "";
   const label = namesById.get(staffId) ?? staffId;
   const isSelected = selectedStaffId === staffId;
 
@@ -179,7 +213,7 @@ function StaffAxisTick({
         style={{ cursor: "pointer" }}
         onClick={() => {
           if (staffId) {
-            onStaffSelect?.(staffId);
+            onStaffSelect?.(isSelected ? null : staffId);
           }
         }}
       >
@@ -200,7 +234,7 @@ function ProductivityChart({
   description: string;
   rows: StaffPerformance[];
   selectedStaffId?: string | null;
-  onStaffSelect?: (staffId: string) => void;
+  onStaffSelect?: (staffId: string | null) => void;
 }) {
   const data: ProductivityPoint[] = rows.map((row) => ({
     staffId: row.staffId,
@@ -215,17 +249,11 @@ function ProductivityChart({
       <h2 className="text-sm font-medium">{title}</h2>
       <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       {data.length === 0 ? (
-        <p className="mt-4 text-sm text-muted-foreground">
-          Henüz personel aktivitesi kaydedilmedi.
-        </p>
+        <p className="mt-4 text-sm text-muted-foreground">Henüz personel aktivitesi kaydedilmedi.</p>
       ) : (
         <ChartContainer config={productivityConfig} className="mt-4 h-60 w-full">
           <BarChart data={data} margin={{ left: -16, top: 8, right: 8 }}>
-            <CartesianGrid
-              vertical={false}
-              stroke="var(--border)"
-              strokeDasharray="3 3"
-            />
+            <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
             <XAxis
               dataKey="staffId"
               tickLine={false}
@@ -259,7 +287,7 @@ function ProductivityChart({
               onClick={(payload) => {
                 const staffId = readStaffId(payload);
                 if (staffId) {
-                  onStaffSelect?.(staffId);
+                  onStaffSelect?.(selectedStaffId === staffId ? null : staffId);
                 }
               }}
             >
@@ -281,7 +309,7 @@ function ProductivityChart({
               onClick={(payload) => {
                 const staffId = readStaffId(payload);
                 if (staffId) {
-                  onStaffSelect?.(staffId);
+                  onStaffSelect?.(selectedStaffId === staffId ? null : staffId);
                 }
               }}
             >
@@ -304,150 +332,155 @@ function ProductivityChart({
 }
 
 function ActivityCalendarPanel({
-  selectedStaffName,
-  selectedStaffId,
-  monthValue,
-  onMonthChange,
-  startDay,
-  endDay,
-  maxDay,
-  onStartDayChange,
-  onEndDayChange,
-  onResetRange,
-  selectedDay,
-  onSelectedDayChange,
-  daysWithActivity,
+  staffOptions,
+  draftStaffId,
+  onDraftStaffChange,
+  draftRange,
+  onDraftRangeChange,
+  calendarMonth,
+  onCalendarMonthChange,
+  isDatePopoverOpen,
+  onDatePopoverOpenChange,
+  onClearDraftRange,
+  onUseTodayRange,
+  onApplyFilters,
+  canApplyFilters,
+  appliedStaffName,
+  appliedRangeLabel,
   filteredCount,
+  daysWithActivity,
 }: {
-  selectedStaffName: string | null;
-  selectedStaffId?: string | null;
-  monthValue: string;
-  onMonthChange: (value: string) => void;
-  startDay: number;
-  endDay: number;
-  maxDay: number;
-  onStartDayChange: (value: number) => void;
-  onEndDayChange: (value: number) => void;
-  onResetRange: () => void;
-  selectedDay: Date;
-  onSelectedDayChange: (value: Date) => void;
-  daysWithActivity: Date[];
+  staffOptions: StaffOption[];
+  draftStaffId: string;
+  onDraftStaffChange: (value: string) => void;
+  draftRange: DateRange | undefined;
+  onDraftRangeChange: (value: DateRange | undefined) => void;
+  calendarMonth: Date;
+  onCalendarMonthChange: (value: Date) => void;
+  isDatePopoverOpen: boolean;
+  onDatePopoverOpenChange: (value: boolean) => void;
+  onClearDraftRange: () => void;
+  onUseTodayRange: () => void;
+  onApplyFilters: () => void;
+  canApplyFilters: boolean;
+  appliedStaffName: string | null;
+  appliedRangeLabel: string;
   filteredCount: number;
+  daysWithActivity: Date[];
 }) {
-  const parsedMonth = parseMonthValue(monthValue);
-  const monthDate = parsedMonth
-    ? new Date(parsedMonth.year, parsedMonth.monthIndex, 1)
-    : new Date();
-  const rangeFrom = Math.min(startDay, endDay);
-  const rangeTo = Math.max(startDay, endDay);
-
   return (
     <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
       <h2 className="text-sm font-medium">Personel İşlem Takvimi</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Verimlilik grafiğinden bir personel seçin, sonra ay içinde gün aralığı belirleyin.
+        Çalışan ve tarih aralığı seçerek işlem zaman akışını filtreleyin.
       </p>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        <label className="space-y-1">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Ay
-          </span>
-          <Input
-            type="month"
-            value={monthValue}
-            onChange={(event) => onMonthChange(event.target.value)}
-          />
-        </label>
+      <div className="mt-4 rounded-lg border border-border/40 bg-background shadow-sm">
+        <div className="flex flex-col md:flex-row">
+          <div className="border-b border-border/40 md:flex-1 md:border-r md:border-b-0">
+            <Select value={draftStaffId} onValueChange={onDraftStaffChange}>
+              <SelectTrigger className="h-14 w-full rounded-none border-0 px-4 shadow-none focus-visible:ring-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  <div className="flex min-w-0 flex-col items-start text-left">
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Çalışan</span>
+                    <SelectValue
+                      placeholder="Çalışan seçin"
+                      className="max-w-full truncate text-sm font-medium text-foreground"
+                    />
+                  </div>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={STAFF_PLACEHOLDER_VALUE}>Çalışan seçin</SelectItem>
+                {staffOptions.map((staff) => (
+                  <SelectItem key={staff.staffId} value={staff.staffId}>
+                    {staff.fullName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <label className="space-y-1">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Başlangıç Günü
-          </span>
-          <Input
-            type="number"
-            min={1}
-            max={maxDay}
-            value={startDay}
-            onChange={(event) => {
-              const raw = Number(event.target.value);
-              onStartDayChange(clampDay(raw, maxDay));
-            }}
-          />
-        </label>
+          <div className="border-b border-border/40 md:flex-1 md:border-r md:border-b-0">
+            <Popover open={isDatePopoverOpen} onOpenChange={onDatePopoverOpenChange}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="flex h-14 w-full items-center justify-between px-4 text-left transition-colors hover:bg-muted/20"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden />
+                    <div className="flex min-w-0 flex-col">
+                      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Tarih</span>
+                      <span
+                        className={cn(
+                          "max-w-full truncate text-sm font-medium",
+                          resolveRange(draftRange) ? "text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {formatRangeLabel(draftRange)}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              </PopoverTrigger>
 
-        <label className="space-y-1">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Bitiş Günü
-          </span>
-          <Input
-            type="number"
-            min={1}
-            max={maxDay}
-            value={endDay}
-            onChange={(event) => {
-              const raw = Number(event.target.value);
-              onEndDayChange(clampDay(raw, maxDay));
-            }}
-          />
-        </label>
+              <PopoverContent className="w-auto p-2" align="start">
+                <Calendar
+                  mode="range"
+                  selected={draftRange}
+                  onSelect={onDraftRangeChange}
+                  month={calendarMonth}
+                  onMonthChange={onCalendarMonthChange}
+                  fromYear={1900}
+                  toYear={2100}
+                  modifiers={{
+                    hasActivity: daysWithActivity,
+                  }}
+                  modifiersClassNames={{
+                    hasActivity: "font-semibold text-slate-900",
+                  }}
+                />
+
+                <div className="mt-2 flex items-center justify-between border-t border-slate-200 px-1 pt-2">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-[#0b63f6] underline-offset-4 transition-colors hover:text-[#0a57d9] hover:underline"
+                    onClick={onClearDraftRange}
+                  >
+                    Temizle
+                  </button>
+
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-[#0b63f6] underline-offset-4 transition-colors hover:text-[#0a57d9] hover:underline"
+                    onClick={onUseTodayRange}
+                  >
+                    Bugün
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="p-1.5 md:w-[140px]">
+            <Button type="button" className="h-11 w-full" onClick={onApplyFilters} disabled={!canApplyFilters}>
+              <Search className="h-4 w-4" aria-hidden />
+              Getir
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          Aralık: {rangeFrom}-{rangeTo}
-        </p>
-        <Button type="button" size="sm" variant="outline" onClick={onResetRange}>
-          Ayın Tamamı
-        </Button>
-      </div>
-
-      {!selectedStaffId ? (
-        <p className="mt-4 rounded-md border border-border/50 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          Takvimi görmek için Satış veya Evrak verimliliği grafiğinden bir personel seçin.
+      {appliedStaffName ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Seçili personel: <span className="font-medium text-foreground">{appliedStaffName}</span> · Aralık: {appliedRangeLabel} · {filteredCount} işlem
         </p>
       ) : (
-        <>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Seçili personel: <span className="font-medium text-foreground">{selectedStaffName}</span> ·
-            Aralıkta {filteredCount} işlem
-          </p>
-
-          <div className="mt-3 w-full overflow-x-auto">
-            <div className="min-w-[320px]">
-              <Calendar
-                mode="single"
-                month={monthDate}
-                onMonthChange={(nextMonth) => onMonthChange(formatMonthValue(nextMonth))}
-                selected={selectedDay}
-                onSelect={(value) => {
-                  if (value) {
-                    onSelectedDayChange(
-                      new Date(value.getFullYear(), value.getMonth(), value.getDate()),
-                    );
-                  }
-                }}
-                disabled={(day) => {
-                  if (
-                    day.getFullYear() !== monthDate.getFullYear() ||
-                    day.getMonth() !== monthDate.getMonth()
-                  ) {
-                    return true;
-                  }
-
-                  const dayOfMonth = day.getDate();
-                  return dayOfMonth < rangeFrom || dayOfMonth > rangeTo;
-                }}
-                modifiers={{
-                  hasActivity: daysWithActivity,
-                }}
-                modifiersClassNames={{
-                  hasActivity: "bg-muted text-foreground font-semibold",
-                }}
-              />
-            </div>
-          </div>
-        </>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Önce çalışan ve tarih aralığı seçip Getir düğmesine tıklayın.
+        </p>
       )}
     </section>
   );
@@ -456,26 +489,24 @@ function ActivityCalendarPanel({
 function ActivityTimelinePanel({
   selectedStaffName,
   selectedStaffId,
-  selectedDay,
-  selectedDayEvents,
+  appliedRangeLabel,
   timelineEvents,
 }: {
   selectedStaffName: string | null;
   selectedStaffId?: string | null;
-  selectedDay: Date;
-  selectedDayEvents: ActivityPoint[];
+  appliedRangeLabel: string;
   timelineEvents: ActivityPoint[];
 }) {
   return (
     <section className="rounded-lg border border-border/40 bg-card p-5 shadow-sm">
       <h2 className="text-sm font-medium">Personel Zaman Akışı</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Seçili gün ve aralık içindeki son işlemler.
+        Getir ile uygulanan tarih aralığındaki işlem kayıtları.
       </p>
 
       {!selectedStaffId ? (
         <p className="mt-4 rounded-md border border-border/50 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          Personel seçildiğinde burada işlem saatleri ve dosyalar listelenir.
+          Çalışan seçildiğinde burada işlem saatleri ve dosyalar listelenir.
         </p>
       ) : timelineEvents.length === 0 ? (
         <p className="mt-4 rounded-md border border-border/50 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
@@ -484,68 +515,40 @@ function ActivityTimelinePanel({
       ) : (
         <>
           <p className="mt-4 text-xs text-muted-foreground">
-            Gün: <span className="font-medium text-foreground">{formatDayLabel(selectedDay)}</span> ·
-            Bu gün {selectedDayEvents.length} işlem
+            Personel: <span className="font-medium text-foreground">{selectedStaffName}</span> · Aralık: {appliedRangeLabel} · {timelineEvents.length} işlem
           </p>
 
-          <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
-            {selectedDayEvents.length === 0 ? (
-              <p className="rounded-md border border-border/50 bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                Seçili günde işlem yok.
-              </p>
-            ) : (
-              selectedDayEvents.map((event) => (
-                <article
-                  key={`${event.applicationId}-${event.happenedAtMs}-${event.actionType}`}
-                  className="rounded-md border border-border/50 bg-muted/20 p-2.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium text-foreground">
-                        {event.customerName}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {event.actionType} · {describeActivity(event)}
-                      </p>
-                    </div>
-                    <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
-                      {formatTime(event.happenedAtDate)}
+          <div className="mt-3 max-h-[26rem] space-y-2 overflow-y-auto pr-1">
+            {timelineEvents.map((event) => (
+              <article
+                key={`${event.applicationId}-${event.happenedAtMs}-${event.actionType}`}
+                className="rounded-md border border-border/50 bg-muted/20 p-2.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-foreground">{event.customerName}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {event.actionType} · {describeActivity(event)}
                     </p>
                   </div>
-                  <Link
-                    href={`/dashboard/applications/${event.applicationId}`}
-                    className="mt-1 inline-block text-[11px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                  >
-                    Dosyayı aç
-                  </Link>
-                </article>
-              ))
-            )}
-          </div>
-
-          <div className="mt-4 border-t border-border/40 pt-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Aralıktaki Son İşlemler
-            </p>
-            <div className="mt-2 max-h-44 space-y-2 overflow-y-auto pr-1">
-              {timelineEvents.slice(0, 16).map((event) => (
-                <div
-                  key={`recent-${event.applicationId}-${event.happenedAtMs}-${event.actionType}`}
-                  className="flex items-center justify-between gap-2 rounded-md border border-border/40 bg-background px-2.5 py-1.5"
-                >
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {event.customerName}
-                  </p>
-                  <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                  <p className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">
                     {event.happenedAtDate.toLocaleDateString("tr-TR", {
                       day: "2-digit",
                       month: "2-digit",
-                    })}{" "}
+                      year: "numeric",
+                    })}
+                    <br />
                     {formatTime(event.happenedAtDate)}
                   </p>
                 </div>
-              ))}
-            </div>
+                <Link
+                  href={`/dashboard/applications/${event.applicationId}`}
+                  className="mt-1 inline-block text-[11px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  Dosyayı aç
+                </Link>
+              </article>
+            ))}
           </div>
         </>
       )}
@@ -564,67 +567,49 @@ export function AdminStatsCharts({
   docProductivity: StaffPerformance[];
   staffActivityEvents: StaffActivityEvent[];
   selectedStaffId?: string | null;
-  onStaffSelect?: (staffId: string) => void;
+  onStaffSelect?: (staffId: string | null) => void;
 }) {
-  const [monthValue, setMonthValue] = useState(() => formatMonthValue(new Date()));
-  const [startDay, setStartDay] = useState(1);
-  const [endDay, setEndDay] = useState(() => new Date().getDate());
-  const [selectedDayKey, setSelectedDayKey] = useState(() => toDayKey(new Date()));
-
-  const parsedMonth = useMemo(
-    () =>
-      parseMonthValue(monthValue) ?? {
-        year: new Date().getFullYear(),
-        monthIndex: new Date().getMonth(),
-      },
-    [monthValue],
+  const [draftStaffId, setDraftStaffId] = useState<string>(
+    selectedStaffId ?? STAFF_PLACEHOLDER_VALUE,
+  );
+  const [isDatePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [draftRange, setDraftRange] = useState<DateRange | undefined>(() => {
+    const initialRange = createDefaultRange();
+    return {
+      from: initialRange.from,
+      to: initialRange.to,
+    };
+  });
+  const [appliedRange, setAppliedRange] = useState<{ from: Date; to: Date }>(
+    () => createDefaultRange(),
+  );
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => createDefaultRange().from);
+  const [appliedStaffId, setAppliedStaffId] = useState<string | null>(
+    selectedStaffId ?? null,
   );
 
-  const maxDay = useMemo(
-    () => getDaysInMonth(parsedMonth.year, parsedMonth.monthIndex),
-    [parsedMonth.monthIndex, parsedMonth.year],
-  );
+  const staffOptions = useMemo(() => {
+    const deduped = new Map<string, StaffOption>();
 
-  useEffect(() => {
-    setStartDay((current) => clampDay(current, maxDay));
-    setEndDay((current) => clampDay(current, maxDay));
-  }, [maxDay]);
+    for (const staff of [...salesProductivity, ...docProductivity]) {
+      if (!deduped.has(staff.staffId)) {
+        deduped.set(staff.staffId, {
+          staffId: staff.staffId,
+          fullName: staff.fullName,
+          department: staff.department,
+        });
+      }
+    }
 
-  const rangeStartDay = Math.min(startDay, endDay);
-  const rangeEndDay = Math.max(startDay, endDay);
-
-  const rangeStartMs = useMemo(
-    () => new Date(parsedMonth.year, parsedMonth.monthIndex, rangeStartDay).getTime(),
-    [parsedMonth.monthIndex, parsedMonth.year, rangeStartDay],
-  );
-  const rangeEndMs = useMemo(
-    () =>
-      new Date(
-        parsedMonth.year,
-        parsedMonth.monthIndex,
-        rangeEndDay,
-        23,
-        59,
-        59,
-        999,
-      ).getTime(),
-    [parsedMonth.monthIndex, parsedMonth.year, rangeEndDay],
-  );
+    return Array.from(deduped.values()).sort((a, b) =>
+      a.fullName.localeCompare(b.fullName, "tr", { sensitivity: "base" }),
+    );
+  }, [docProductivity, salesProductivity]);
 
   const staffNameMap = useMemo(
-    () =>
-      new Map(
-        [...salesProductivity, ...docProductivity].map((staff) => [
-          staff.staffId,
-          staff.fullName,
-        ]),
-      ),
-    [docProductivity, salesProductivity],
+    () => new Map(staffOptions.map((staff) => [staff.staffId, staff.fullName])),
+    [staffOptions],
   );
-
-  const selectedStaffName = selectedStaffId
-    ? staffNameMap.get(selectedStaffId) ?? "Bilinmeyen personel"
-    : null;
 
   const normalizedEvents = useMemo(
     () =>
@@ -646,130 +631,133 @@ export function AdminStatsCharts({
     [staffActivityEvents],
   );
 
+  const resolvedDraftRange = useMemo(() => resolveRange(draftRange), [draftRange]);
+
+  const canApplyFilters = Boolean(
+    resolvedDraftRange && draftStaffId !== STAFF_PLACEHOLDER_VALUE,
+  );
+
+  const appliedRangeLabel = useMemo(
+    () => formatAppliedRangeLabel(appliedRange),
+    [appliedRange],
+  );
+
+  const appliedRangeStartMs = useMemo(
+    () => appliedRange.from.getTime(),
+    [appliedRange],
+  );
+
+  const appliedRangeEndMs = useMemo(
+    () => endOfDay(appliedRange.to).getTime(),
+    [appliedRange],
+  );
+
   const filteredEvents = useMemo(() => {
-    if (!selectedStaffId) {
+    if (!appliedStaffId) {
       return [];
     }
 
     return normalizedEvents
-      .filter((event) => event.staffId === selectedStaffId)
+      .filter((event) => event.staffId === appliedStaffId)
       .filter(
         (event) =>
-          event.happenedAtMs >= rangeStartMs && event.happenedAtMs <= rangeEndMs,
+          event.happenedAtMs >= appliedRangeStartMs && event.happenedAtMs <= appliedRangeEndMs,
       )
-      .sort((a, b) => a.happenedAtMs - b.happenedAtMs);
-  }, [normalizedEvents, rangeEndMs, rangeStartMs, selectedStaffId]);
+      .sort((a, b) => b.happenedAtMs - a.happenedAtMs);
+  }, [appliedRangeEndMs, appliedRangeStartMs, appliedStaffId, normalizedEvents]);
+
+  const draftStaffActivityDays = useMemo(() => {
+    const selectedId = draftStaffId === STAFF_PLACEHOLDER_VALUE ? null : draftStaffId;
+    if (!selectedId) {
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        normalizedEvents
+          .filter((event) => event.staffId === selectedId)
+          .map((event) => event.dayKey),
+      ),
+    )
+      .map(parseDayKey)
+      .filter((value): value is Date => Boolean(value));
+  }, [draftStaffId, normalizedEvents]);
+
+  const highlightedStaffId = draftStaffId === STAFF_PLACEHOLDER_VALUE ? null : draftStaffId;
+
+  const appliedStaffName = appliedStaffId
+    ? staffNameMap.get(appliedStaffId) ?? "Bilinmeyen personel"
+    : null;
 
   useEffect(() => {
-    const selectedDate = parseDayKey(selectedDayKey);
-    if (!selectedDate) {
-      setSelectedDayKey(toDayKey(new Date(parsedMonth.year, parsedMonth.monthIndex, rangeStartDay)));
+    setDraftStaffId(selectedStaffId ?? STAFF_PLACEHOLDER_VALUE);
+    setAppliedStaffId(selectedStaffId ?? null);
+  }, [selectedStaffId]);
+
+  function handleApplyFilters() {
+    if (!resolvedDraftRange) {
       return;
     }
 
-    const sameMonth =
-      selectedDate.getFullYear() === parsedMonth.year &&
-      selectedDate.getMonth() === parsedMonth.monthIndex;
-    const inRange =
-      selectedDate.getDate() >= rangeStartDay &&
-      selectedDate.getDate() <= rangeEndDay;
+    const nextStaffId =
+      draftStaffId === STAFF_PLACEHOLDER_VALUE ? null : draftStaffId;
 
-    if (!sameMonth || !inRange) {
-      setSelectedDayKey(toDayKey(new Date(parsedMonth.year, parsedMonth.monthIndex, rangeStartDay)));
-    }
-  }, [parsedMonth.monthIndex, parsedMonth.year, rangeEndDay, rangeStartDay, selectedDayKey]);
+    setAppliedStaffId(nextStaffId);
+    setAppliedRange(resolvedDraftRange);
+    onStaffSelect?.(nextStaffId);
+    setDatePopoverOpen(false);
+  }
 
-  useEffect(() => {
-    if (!selectedStaffId) {
-      return;
-    }
-
-    if (filteredEvents.length === 0) {
-      setSelectedDayKey(toDayKey(new Date(parsedMonth.year, parsedMonth.monthIndex, rangeStartDay)));
-      return;
-    }
-
-    const exists = filteredEvents.some((event) => event.dayKey === selectedDayKey);
-    if (!exists) {
-      const latestEvent = filteredEvents[filteredEvents.length - 1];
-      setSelectedDayKey(latestEvent.dayKey);
-    }
-  }, [filteredEvents, parsedMonth.monthIndex, parsedMonth.year, rangeStartDay, selectedDayKey, selectedStaffId]);
-
-  const selectedDay = useMemo(
-    () =>
-      parseDayKey(selectedDayKey) ??
-      new Date(parsedMonth.year, parsedMonth.monthIndex, rangeStartDay),
-    [parsedMonth.monthIndex, parsedMonth.year, rangeStartDay, selectedDayKey],
-  );
-
-  const selectedDayEvents = useMemo(
-    () =>
-      filteredEvents
-        .filter((event) => event.dayKey === selectedDayKey)
-        .sort((a, b) => b.happenedAtMs - a.happenedAtMs),
-    [filteredEvents, selectedDayKey],
-  );
-
-  const timelineEvents = useMemo(
-    () => [...filteredEvents].sort((a, b) => b.happenedAtMs - a.happenedAtMs),
-    [filteredEvents],
-  );
-
-  const daysWithActivity = useMemo(
-    () =>
-      Array.from(new Set(filteredEvents.map((event) => event.dayKey)))
-        .map(parseDayKey)
-        .filter((event): event is Date => Boolean(event)),
-    [filteredEvents],
-  );
+  function handleChartStaffSelect(nextStaffId: string | null) {
+    setDraftStaffId(nextStaffId ?? STAFF_PLACEHOLDER_VALUE);
+    setAppliedStaffId(nextStaffId);
+    onStaffSelect?.(nextStaffId);
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <ActivityCalendarPanel
-        selectedStaffName={selectedStaffName}
-        selectedStaffId={selectedStaffId}
-        monthValue={monthValue}
-        onMonthChange={(value) => {
-          if (!value) {
-            return;
-          }
-          setMonthValue(value);
+        staffOptions={staffOptions}
+        draftStaffId={draftStaffId}
+        onDraftStaffChange={setDraftStaffId}
+        draftRange={draftRange}
+        onDraftRangeChange={setDraftRange}
+        calendarMonth={calendarMonth}
+        onCalendarMonthChange={setCalendarMonth}
+        isDatePopoverOpen={isDatePopoverOpen}
+        onDatePopoverOpenChange={setDatePopoverOpen}
+        onClearDraftRange={() => setDraftRange(undefined)}
+        onUseTodayRange={() => {
+          const today = startOfDay(new Date());
+          setDraftRange({ from: today, to: today });
+          setCalendarMonth(today);
         }}
-        startDay={startDay}
-        endDay={endDay}
-        maxDay={maxDay}
-        onStartDayChange={setStartDay}
-        onEndDayChange={setEndDay}
-        onResetRange={() => {
-          setStartDay(1);
-          setEndDay(maxDay);
-        }}
-        selectedDay={selectedDay}
-        onSelectedDayChange={(value) => setSelectedDayKey(toDayKey(value))}
-        daysWithActivity={daysWithActivity}
+        onApplyFilters={handleApplyFilters}
+        canApplyFilters={canApplyFilters}
+        appliedStaffName={appliedStaffName}
+        appliedRangeLabel={appliedRangeLabel}
         filteredCount={filteredEvents.length}
+        daysWithActivity={draftStaffActivityDays}
       />
       <ProductivityChart
         title="Satış Verimliliği"
         description="Satış personeli bazında alınan ve işlenen başvurular."
         rows={salesProductivity}
-        selectedStaffId={selectedStaffId}
-        onStaffSelect={onStaffSelect}
+        selectedStaffId={highlightedStaffId}
+        onStaffSelect={handleChartStaffSelect}
       />
       <ActivityTimelinePanel
-        selectedStaffName={selectedStaffName}
-        selectedStaffId={selectedStaffId}
-        selectedDay={selectedDay}
-        selectedDayEvents={selectedDayEvents}
-        timelineEvents={timelineEvents}
+        selectedStaffName={appliedStaffName}
+        selectedStaffId={appliedStaffId}
+        appliedRangeLabel={appliedRangeLabel}
+        timelineEvents={filteredEvents}
       />
       <ProductivityChart
         title="Evrak Verimliliği"
         description="Evrak personeli bazında alınan ve işlenen başvurular."
         rows={docProductivity}
-        selectedStaffId={selectedStaffId}
-        onStaffSelect={onStaffSelect}
+        selectedStaffId={highlightedStaffId}
+        onStaffSelect={handleChartStaffSelect}
       />
     </div>
   );
