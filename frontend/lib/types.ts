@@ -342,7 +342,7 @@ export interface StaffPerformance {
   processed: number;
 }
 
-/** Timestamped productivity actions for one staff member. */
+/** Timestamped receipt-upload actions for one staff member. */
 export interface StaffActivityEvent {
   staffId: string;
   userId: string;
@@ -350,9 +350,7 @@ export interface StaffActivityEvent {
   department: Department;
   applicationId: string;
   customerName: string;
-  actionType: string;
-  stageFrom: VisaStage | null;
-  stageTo: VisaStage | null;
+  receiptType: FileType;
   happenedAt: string;
 }
 

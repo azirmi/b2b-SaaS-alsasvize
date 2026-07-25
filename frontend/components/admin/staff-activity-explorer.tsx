@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { STAGE_LABEL } from "@/lib/status";
+import { FILE_TYPE_LABEL } from "@/lib/status";
 import type { StaffActivityEvent, StaffPerformance } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -143,19 +143,6 @@ function formatAppliedRangeLabel(range: { from: Date; to: Date }): string {
   }
 
   return `${formatRangeDate(range.from)} - ${formatRangeDate(range.to)}`;
-}
-
-function stageLabel(stage: StaffActivityEvent["stageFrom"]): string {
-  if (!stage) {
-    return "Belirsiz";
-  }
-  return STAGE_LABEL[stage] ?? stage;
-}
-
-function describeActivity(event: StaffActivityEvent): string {
-  const from = stageLabel(event.stageFrom);
-  const to = stageLabel(event.stageTo);
-  return `${from} -> ${to}`;
 }
 
 function formatTime(value: Date): string {
@@ -521,14 +508,14 @@ function ActivityTimelinePanel({
           <div className="mt-3 max-h-[26rem] space-y-2 overflow-y-auto pr-1">
             {timelineEvents.map((event) => (
               <article
-                key={`${event.applicationId}-${event.happenedAtMs}-${event.actionType}`}
+                key={`${event.applicationId}-${event.happenedAtMs}-${event.receiptType}`}
                 className="rounded-md border border-border/50 bg-muted/20 p-2.5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-medium text-foreground">{event.customerName}</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {event.actionType} · {describeActivity(event)}
+                      {FILE_TYPE_LABEL[event.receiptType]} yüklendi
                     </p>
                   </div>
                   <p className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">

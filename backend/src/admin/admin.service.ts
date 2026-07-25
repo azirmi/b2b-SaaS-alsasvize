@@ -41,6 +41,12 @@ const ACTIVE_PRODUCTIVITY_DEPARTMENTS: Department[] = [
   Department.DOC,
 ];
 
+const RECEIPT_ACTIVITY_FILE_TYPES: FileType[] = [
+  FileType.PAYMENT_RECEIPT,
+  FileType.VISA_FEE_RECEIPT,
+  FileType.FINAL_RECEIPT,
+];
+
 const DEFAULT_DOC_CLAIM_SLA_HOURS = 2;
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -895,6 +901,7 @@ export class AdminService {
    * Business analytics for the owner dashboard:
    *  - split pipeline counts for Sales and DOC,
    *  - split per-staff productivity (claims + stage transitions performed),
+    *  - per-staff receipt upload activity timeline,
    *  - average processing time from creation to completion.
    * SEC data is intentionally excluded from all chart datasets.
    */
@@ -999,14 +1006,14 @@ export class AdminService {
     const staffByUserId = new Map(
       staff.map((member) => [member.user.id, member]),
     );
-    const activityLogs =
+    const receiptDocuments =
       staffByUserId.size > 0
-        ? await this.prisma.auditLog.findMany({
+        ? await this.prisma.document.findMany({
             where: {
-              actionType: {
-                in: ['CLAIMED', 'STAGE_CHANGED'],
+              fileType: {
+                in: RECEIPT_ACTIVITY_FILE_TYPES,
               },
-              performedById: {
+              uploadedById: {
                 in: Array.from(staffByUserId.keys()),
               },
             },
@@ -1014,10 +1021,10 @@ export class AdminService {
               createdAt: 'desc',
             },
             select: {
+              id: true,
               applicationId: true,
-              performedById: true,
-              actionType: true,
-              details: true,
+              uploadedById: true,
+              fileType: true,
               createdAt: true,
               application: {
                 select: {
@@ -1032,9 +1039,9 @@ export class AdminService {
           })
         : [];
 
-    const staffActivityEvents = activityLogs
-      .map((log) => {
-        const member = staffByUserId.get(log.performedById);
+    const staffActivityEvents = receiptDocuments
+      .map((document) => {
+        const member = staffByUserId.get(document.uploadedById);
         if (!member) {
           return null;
         }
@@ -1044,12 +1051,10 @@ export class AdminService {
           userId: member.user.id,
           staffName: member.user.fullName,
           department: member.department,
-          applicationId: log.applicationId,
-          customerName: log.application.customer.fullName,
-          actionType: log.actionType,
-          stageFrom: readDetailStage(log.details, 'previousStage'),
-          stageTo: readDetailStage(log.details, 'newStage'),
-          happenedAt: log.createdAt.toISOString(),
+          applicationId: document.applicationId,
+          customerName: document.application.customer.fullName,
+          receiptType: document.fileType,
+          happenedAt: document.createdAt.toISOString(),
         };
       })
       .filter((event): event is NonNullable<typeof event> => Boolean(event));

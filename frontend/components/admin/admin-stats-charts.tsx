@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { STAGE_LABEL } from "@/lib/status";
+import { FILE_TYPE_LABEL } from "@/lib/status";
 import type {
   StaffActivityEvent,
   StaffPerformance,
@@ -99,19 +99,6 @@ function clampDay(day: number, maxDay: number): number {
     return maxDay;
   }
   return Math.round(day);
-}
-
-function stageLabel(stage: StaffActivityEvent["stageFrom"]): string {
-  if (!stage) {
-    return "Belirsiz";
-  }
-  return STAGE_LABEL[stage] ?? stage;
-}
-
-function describeActivity(event: StaffActivityEvent): string {
-  const from = stageLabel(event.stageFrom);
-  const to = stageLabel(event.stageTo);
-  return `${from} -> ${to}`;
 }
 
 function formatTime(value: Date): string {
@@ -496,7 +483,7 @@ function ActivityTimelinePanel({
             ) : (
               selectedDayEvents.map((event) => (
                 <article
-                  key={`${event.applicationId}-${event.happenedAtMs}-${event.actionType}`}
+                  key={`${event.applicationId}-${event.happenedAtMs}-${event.receiptType}`}
                   className="rounded-md border border-border/50 bg-muted/20 p-2.5"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -505,7 +492,7 @@ function ActivityTimelinePanel({
                         {event.customerName}
                       </p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {event.actionType} · {describeActivity(event)}
+                        {FILE_TYPE_LABEL[event.receiptType]} yüklendi
                       </p>
                     </div>
                     <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
@@ -530,7 +517,7 @@ function ActivityTimelinePanel({
             <div className="mt-2 max-h-44 space-y-2 overflow-y-auto pr-1">
               {timelineEvents.slice(0, 16).map((event) => (
                 <div
-                  key={`recent-${event.applicationId}-${event.happenedAtMs}-${event.actionType}`}
+                  key={`recent-${event.applicationId}-${event.happenedAtMs}-${event.receiptType}`}
                   className="flex items-center justify-between gap-2 rounded-md border border-border/40 bg-background px-2.5 py-1.5"
                 >
                   <p className="truncate text-[11px] text-muted-foreground">
