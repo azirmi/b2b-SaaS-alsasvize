@@ -27,7 +27,7 @@ import type { AdminMasterTableRow, DeliveryStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type SortKey =
-  | "registrationDate"
+  | "salesDate"
   | "firstName"
   | "lastName"
   | "country"
@@ -45,7 +45,7 @@ type TypeFilter = "ALL" | AdminMasterTableRow["applicationType"];
 type CountryFilter = "ALL" | string;
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
-  { value: "registrationDate", label: "Kayit Tarihi" },
+  { value: "salesDate", label: "Satis Tarihi" },
   { value: "applicationType", label: "Basvuru Turu" },
   { value: "firstName", label: "Isim" },
   { value: "lastName", label: "Soyisim" },
@@ -162,7 +162,7 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
   const [appointmentFilter, setAppointmentFilter] = useState<AppointmentFilter>("ALL");
   const [deliveryFilter, setDeliveryFilter] = useState<DeliveryFilter>("ALL");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
-  const [sortKey, setSortKey] = useState<SortKey>("registrationDate");
+  const [sortKey, setSortKey] = useState<SortKey>("salesDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const filteredRows = useMemo(() => {
@@ -226,8 +226,10 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
       let comparison = 0;
 
       switch (sortKey) {
-        case "registrationDate":
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case "salesDate":
+          comparison =
+            new Date(a.salesDate ?? 0).getTime() -
+            new Date(b.salesDate ?? 0).getTime();
           break;
         case "firstName":
           comparison = collator.compare(a.firstName, b.firstName);
@@ -280,14 +282,14 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
     setAppointmentFilter("ALL");
     setDeliveryFilter("ALL");
     setTypeFilter("ALL");
-    setSortKey("registrationDate");
+    setSortKey("salesDate");
     setSortDirection("desc");
   }
 
   function toggleSort(key: SortKey) {
     if (sortKey !== key) {
       setSortKey(key);
-      setSortDirection(key === "registrationDate" ? "desc" : "asc");
+      setSortDirection(key === "salesDate" ? "desc" : "asc");
       return;
     }
 
@@ -410,7 +412,7 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
           onValueChange={(value) => {
             const nextSortKey = value as SortKey;
             setSortKey(nextSortKey);
-            setSortDirection(nextSortKey === "registrationDate" ? "desc" : "asc");
+            setSortDirection(nextSortKey === "salesDate" ? "desc" : "asc");
           }}
         >
           <SelectTrigger className="h-9 text-sm">
@@ -464,9 +466,9 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
-                      Kayit Tarihi
+                      Satis Tarihi
                     </p>
-                    <p className="text-sm font-medium">{formatDate(row.createdAt)}</p>
+                    <p className="text-sm font-medium">{formatDate(row.salesDate ?? "")}</p>
                   </div>
                   <Badge variant="outline" className="rounded-md text-[11px]">
                     {APPLICATION_TYPE_LABEL[row.applicationType]}
@@ -561,11 +563,11 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
               <TableHead>
                 <button
                   type="button"
-                  onClick={() => toggleSort("registrationDate")}
+                  onClick={() => toggleSort("salesDate")}
                   className="inline-flex w-full items-center gap-1 text-left hover:text-[#23345D]"
                 >
-                  <span>Kayit Tarihi</span>
-                  {renderSortIcon("registrationDate")}
+                  <span>Satis Tarihi</span>
+                  {renderSortIcon("salesDate")}
                 </button>
               </TableHead>
               <TableHead>
@@ -664,7 +666,7 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
                 return (
                   <TableRow key={row.applicationId} className="border-border/40">
                     <TableCell className="text-xs text-muted-foreground">
-                      {formatDate(row.createdAt)}
+                      {formatDate(row.salesDate ?? "")}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="rounded-md text-[11px]">

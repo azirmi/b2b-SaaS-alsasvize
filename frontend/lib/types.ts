@@ -431,6 +431,7 @@ export interface AdminComplianceData {
 export interface AdminMasterTableRow {
   applicationId: string;
   createdAt: string;
+  salesDate: string | null;
   applicationType: ApplicationType;
   firstName: string;
   lastName: string;

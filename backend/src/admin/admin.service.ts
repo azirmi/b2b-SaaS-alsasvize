@@ -811,6 +811,7 @@ export class AdminService {
         },
         crmData: {
           select: {
+            salesDate: true,
             totalAmount: true,
             upfrontPaid: true,
             paymentType: true,
@@ -852,9 +853,7 @@ export class AdminService {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ crmData: { salesDate: 'desc' } }, { id: 'desc' }],
     });
 
     return applications.map((application) => {
@@ -875,6 +874,7 @@ export class AdminService {
       return {
         applicationId: application.id,
         createdAt: application.createdAt.toISOString(),
+        salesDate: application.crmData?.salesDate?.toISOString() ?? null,
         applicationType: application.applicationType,
         firstName,
         lastName,
@@ -1243,7 +1243,7 @@ export class AdminService {
           }),
           this.prisma.applicationCrmData.aggregate({
             where: {
-              appointmentDate: {
+              salesDate: {
                 gte: start,
                 lte: now,
               },
@@ -1277,6 +1277,7 @@ export class AdminService {
           },
         },
       },
+      orderBy: [{ crmData: { salesDate: 'desc' } }, { id: 'desc' }],
       select: {
         id: true,
         currentStage: true,
@@ -1328,12 +1329,19 @@ export class AdminService {
         };
       })
       .filter((row) => row.remainingAmount > 0 && !row.hasFinalReceipt)
-      .sort((a, b) => b.remainingAmount - a.remainingAmount);
+      .sort(
+        (a, b) =>
+          new Date(b.salesDate ?? 0).getTime() -
+          new Date(a.salesDate ?? 0).getTime(),
+      );
 
     const allTransactionsRaw = await this.prisma.visaApplication.findMany({
       where: {
         currentStage: {
           notIn: [VisaStage.CANCELLED],
+        },
+        crmData: {
+          isNot: null,
         },
       },
       select: {
@@ -1353,9 +1361,7 @@ export class AdminService {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ crmData: { salesDate: 'desc' } }, { id: 'desc' }],
     });
 
     const allTransactions = allTransactionsRaw.map((row) => {

@@ -16,8 +16,11 @@ const FALLBACK_FILE_NAME = 'SIFIR_YENI_SHEETS_DDMMYYYY_DUZELTILMIS.xlsx';
 const DUMMY_EMAIL_DOMAIN = 'excel-import.local';
 const DUMMY_PASSWORD = 'ImportedCustomer#2026';
 const BCRYPT_SALT_ROUNDS = 12;
+const EUR_TO_TRY = 53.99;
+const USD_TO_TRY = 47.35;
 
 type ImportStatus = 'COMPLETED' | 'IN_PROGRESS';
+type CrmPaymentType = 'NORMAL' | 'PREPAID';
 
 type NormalizedRow = Record<string, unknown>;
 
@@ -30,9 +33,15 @@ type PreparedRow = {
   targetCountry: string | null;
   salesDate: Date;
   totalAmount: number;
+  upfrontPaid: number;
+  remainingPayment: number;
+  paymentType: CrmPaymentType;
   stage: VisaStage;
   status: ImportStatus;
   randevuRaw: string;
+  originalSalesAmountRaw: string;
+  originalDownPaymentRaw: string;
+  originalRemainingPaymentRaw: string;
   email: string;
 };
 
@@ -246,47 +255,79 @@ function parseExcelDate(raw: unknown): Date | null {
 }
 
 function parseAmount(raw: unknown): number | null {
-  if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return raw;
-  }
-
   const text = textValue(raw);
   if (!text) {
     return null;
   }
 
-  let normalized = text.replace(/\s+/g, '');
-
-  if (normalized.includes(',') && normalized.includes('.')) {
-    if (normalized.lastIndexOf(',') > normalized.lastIndexOf('.')) {
-      normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
-    } else {
-      normalized = normalized.replace(/,/g, '');
+  const parseNumericPart = (source: string): number | null => {
+    const compact = source.replace(/\s+/g, '');
+    const numberTokens = compact.match(/-?\d+[\d.,]*/g);
+    const lastToken = numberTokens?.[numberTokens.length - 1] ?? '';
+    if (!lastToken) {
+      return null;
     }
-  } else if (normalized.includes(',')) {
-    const parts = normalized.split(',');
-    const decimalPart = parts[parts.length - 1] ?? '';
 
-    if (decimalPart.length > 0 && decimalPart.length <= 2) {
-      normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
+    let normalized = lastToken;
+
+    if (normalized.includes(',') && normalized.includes('.')) {
+      if (normalized.lastIndexOf(',') > normalized.lastIndexOf('.')) {
+        normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
+      } else {
+        normalized = normalized.replace(/,/g, '');
+      }
+    } else if (normalized.includes(',')) {
+      const parts = normalized.split(',');
+      const decimalPart = parts[parts.length - 1] ?? '';
+
+      if (decimalPart.length > 0 && decimalPart.length <= 2) {
+        normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
+      } else {
+        normalized = normalized.replace(/,/g, '');
+      }
     } else {
-      normalized = normalized.replace(/,/g, '');
+      normalized = normalized.replace(/\.(?=\d{3}(\D|$))/g, '');
     }
-  } else {
-    normalized = normalized.replace(/\.(?=\d{3}(\D|$))/g, '');
-  }
 
-  normalized = normalized.replace(/[^\d.-]/g, '');
-  if (!normalized) {
+    normalized = normalized.replace(/[^\d.-]/g, '');
+    if (!normalized) {
+      return null;
+    }
+
+    const amount = Number(normalized);
+    if (!Number.isFinite(amount)) {
+      return null;
+    }
+
+    return amount;
+  };
+
+  const baseAmount = parseNumericPart(text);
+  if (baseAmount === null) {
     return null;
   }
 
-  const amount = Number(normalized);
-  if (!Number.isFinite(amount)) {
-    return null;
+  const upper = text.toLocaleUpperCase('tr-TR');
+  if (upper.includes('USD') || text.includes('$')) {
+    return baseAmount * USD_TO_TRY;
   }
 
-  return amount;
+  if (upper.includes('TL') || upper.includes('TRY')) {
+    return baseAmount;
+  }
+
+  if (upper.includes('EUR') || upper.includes('EURO') || text.includes('€')) {
+    return baseAmount * EUR_TO_TRY;
+  }
+
+  const hasLetters = /[A-Z\u00C0-\u024F]/i.test(text);
+  const hasCurrencySymbol = /[$€₺]/.test(text);
+
+  if (!hasLetters && !hasCurrencySymbol) {
+    return baseAmount * EUR_TO_TRY;
+  }
+
+  return null;
 }
 
 function startOfToday(): Date {
@@ -334,7 +375,13 @@ function toImportMetadata(
     importRow: row.excelRowNumber,
     importSourceKey: row.sourceKey,
     status: row.status,
-    randevuValue: row.randevuRaw || null,
+    randevuValue: row.randevuRaw || '',
+    originalSalesAmountRaw: row.originalSalesAmountRaw || '',
+    originalDownPaymentRaw: row.originalDownPaymentRaw || '',
+    originalRemainingPaymentRaw: row.originalRemainingPaymentRaw || '',
+    parsedDownPaymentTl: row.upfrontPaid,
+    parsedRemainingPaymentTl: row.remainingPayment,
+    resolvedPaymentType: row.paymentType,
   } satisfies Record<string, Prisma.InputJsonValue>;
 }
 
@@ -372,8 +419,37 @@ function prepareRow(
   const parsedSalesDate = parseExcelDate(getCell(row, 'TARIH'));
   const salesDate = parsedSalesDate ?? startOfToday();
 
-  const parsedAmount = parseAmount(getCell(row, 'SATIS TUTARI'));
+  const rawTotalAmount = getCell(row, 'SATIS TUTARI');
+  const originalSalesAmountRaw = textValue(rawTotalAmount);
+  const parsedAmount = parseAmount(rawTotalAmount);
   const totalAmount = parsedAmount ?? -1;
+
+  const rawDownPayment = getCell(row, 'ALINAN ODEME', 'ALINAN ÖDEME');
+  const originalDownPaymentRaw = textValue(rawDownPayment);
+  const normalizedDownPaymentRaw = normalizeTurkishToAscii(
+    originalDownPaymentRaw.toLocaleUpperCase('tr-TR'),
+  );
+
+  const downPayment = normalizedDownPaymentRaw.includes('PESIN')
+    ? totalAmount
+    : (parseAmount(rawDownPayment) ?? 0);
+
+  const rawRemainingPayment = getCell(row, 'KALAN ODEME', 'KALAN ÖDEME');
+  const originalRemainingPaymentRaw = textValue(rawRemainingPayment);
+  const normalizedRemainingPaymentRaw = normalizeTurkishToAscii(
+    originalRemainingPaymentRaw.toLocaleUpperCase('tr-TR'),
+  );
+
+  const remainingPayment =
+    normalizedRemainingPaymentRaw.includes('YOK') ||
+    normalizedRemainingPaymentRaw.includes('ALINDI')
+      ? 0
+      : (parseAmount(rawRemainingPayment) ?? 0);
+
+  const paymentType: CrmPaymentType =
+    remainingPayment > 0 && !normalizedDownPaymentRaw.includes('PESIN')
+      ? 'PREPAID'
+      : 'NORMAL';
 
   const randevuRaw = textValue(getCell(row, 'RANDEVU'));
   const isCompleted = randevuRaw.toLocaleUpperCase('tr-TR') === 'R';
@@ -393,9 +469,15 @@ function prepareRow(
       targetCountry,
       salesDate,
       totalAmount,
+      upfrontPaid: downPayment,
+      remainingPayment,
+      paymentType,
       stage,
       status,
       randevuRaw,
+      originalSalesAmountRaw,
+      originalDownPaymentRaw,
+      originalRemainingPaymentRaw,
       email: buildDummyEmail(sourceKey),
     },
   };
@@ -482,14 +564,18 @@ async function upsertPreparedRow(
         applicationId: application.id,
         salesDate: row.salesDate,
         appointmentDate: null,
-        paymentType: 'NORMAL',
+        paymentType: row.paymentType,
         totalAmount: row.totalAmount,
+        // Kalan bakiye UI'da totalAmount - upfrontPaid olarak hesaplanir.
+        upfrontPaid: row.paymentType === 'PREPAID' ? row.upfrontPaid : null,
       },
       update: {
         salesDate: row.salesDate,
         appointmentDate: null,
-        paymentType: 'NORMAL',
+        paymentType: row.paymentType,
         totalAmount: row.totalAmount,
+        // Kalan bakiye UI'da totalAmount - upfrontPaid olarak hesaplanir.
+        upfrontPaid: row.paymentType === 'PREPAID' ? row.upfrontPaid : null,
       },
     });
 
@@ -566,10 +652,8 @@ async function main(): Promise<void> {
         );
 
         if ('skipped' in preparedResult) {
-          if (preparedResult.skipped === 'EMPTY_NAME') {
-            stats.skippedEmptyName += 1;
-            continue;
-          }
+          stats.skippedEmptyName += 1;
+          continue;
         }
 
         stats.processed += 1;
