@@ -418,10 +418,10 @@ export class VisaApplicationsService {
       sortBy === 'stage'
         ? [
             { currentStage: sortDirection },
-            { createdAt: 'desc' },
+            { crmData: { salesDate: 'desc' } },
             { id: 'desc' },
           ]
-        : [{ createdAt: sortDirection }, { id: 'desc' }];
+        : [{ crmData: { salesDate: sortDirection } }, { id: 'desc' }];
 
     return this.prisma.visaApplication.findMany({
       where,

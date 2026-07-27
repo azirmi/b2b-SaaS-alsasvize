@@ -307,16 +307,20 @@ function parseAmount(raw: unknown): number | null {
     return null;
   }
 
-  const upper = text.toLocaleUpperCase('tr-TR');
-  if (upper.includes('USD') || text.includes('$')) {
+  const upper = normalizeTurkishToAscii(text.toLocaleUpperCase('tr-TR'));
+  const hasUsd = upper.includes('USD') || text.includes('$');
+  const hasTl = upper.includes('TL') || upper.includes('TRY') || text.includes('₺');
+  const hasEur = upper.includes('EUR') || upper.includes('EURO') || text.includes('€');
+
+  if (hasUsd) {
     return baseAmount * USD_TO_TRY;
   }
 
-  if (upper.includes('TL') || upper.includes('TRY')) {
+  if (hasTl) {
     return baseAmount;
   }
 
-  if (upper.includes('EUR') || upper.includes('EURO') || text.includes('€')) {
+  if (hasEur) {
     return baseAmount * EUR_TO_TRY;
   }
 
@@ -324,7 +328,7 @@ function parseAmount(raw: unknown): number | null {
   const hasCurrencySymbol = /[$€₺]/.test(text);
 
   if (!hasLetters && !hasCurrencySymbol) {
-    return baseAmount * EUR_TO_TRY;
+    return baseAmount <= 1500 ? baseAmount * EUR_TO_TRY : baseAmount;
   }
 
   return null;
@@ -421,35 +425,57 @@ function prepareRow(
 
   const rawTotalAmount = getCell(row, 'SATIS TUTARI');
   const originalSalesAmountRaw = textValue(rawTotalAmount);
-  const parsedAmount = parseAmount(rawTotalAmount);
-  const totalAmount = parsedAmount ?? -1;
+  const parsedTotalAmount = parseAmount(rawTotalAmount);
+  const baseTotal = parsedTotalAmount ?? 0;
 
   const rawDownPayment = getCell(row, 'ALINAN ODEME', 'ALINAN ÖDEME');
   const originalDownPaymentRaw = textValue(rawDownPayment);
   const normalizedDownPaymentRaw = normalizeTurkishToAscii(
     originalDownPaymentRaw.toLocaleUpperCase('tr-TR'),
   );
-
-  const downPayment = normalizedDownPaymentRaw.includes('PESIN')
-    ? totalAmount
-    : (parseAmount(rawDownPayment) ?? 0);
+  let baseDown = parseAmount(rawDownPayment) ?? 0;
 
   const rawRemainingPayment = getCell(row, 'KALAN ODEME', 'KALAN ÖDEME');
   const originalRemainingPaymentRaw = textValue(rawRemainingPayment);
   const normalizedRemainingPaymentRaw = normalizeTurkishToAscii(
     originalRemainingPaymentRaw.toLocaleUpperCase('tr-TR'),
   );
+  let baseRemain = parseAmount(rawRemainingPayment) ?? 0;
 
-  const remainingPayment =
+  if (normalizedDownPaymentRaw.includes('PESIN')) {
+    baseDown = baseTotal;
+    baseRemain = 0;
+  }
+
+  if (
     normalizedRemainingPaymentRaw.includes('YOK') ||
-    normalizedRemainingPaymentRaw.includes('ALINDI')
-      ? 0
-      : (parseAmount(rawRemainingPayment) ?? 0);
+    normalizedRemainingPaymentRaw.includes('TAMAM') ||
+    normalizedRemainingPaymentRaw.includes('BITTI')
+  ) {
+    baseRemain = 0;
+  }
+
+  let totalAmount = baseTotal;
+  let upfrontPaid = baseDown;
+
+  if (baseRemain > 0) {
+    if (baseDown > 0) {
+      totalAmount = baseDown + baseRemain;
+      upfrontPaid = baseDown;
+    } else {
+      totalAmount = Math.max(baseTotal, baseRemain);
+      upfrontPaid = Math.max(totalAmount - baseRemain, 0);
+    }
+  } else {
+    totalAmount = baseTotal;
+    upfrontPaid = baseTotal;
+  }
+
+  totalAmount = Math.max(totalAmount, 0);
+  upfrontPaid = Math.max(upfrontPaid, 0);
 
   const paymentType: CrmPaymentType =
-    remainingPayment > 0 && !normalizedDownPaymentRaw.includes('PESIN')
-      ? 'PREPAID'
-      : 'NORMAL';
+    baseRemain > 0 ? 'PREPAID' : 'NORMAL';
 
   const randevuRaw = textValue(getCell(row, 'RANDEVU'));
   const isCompleted = randevuRaw.toLocaleUpperCase('tr-TR') === 'R';
@@ -469,8 +495,8 @@ function prepareRow(
       targetCountry,
       salesDate,
       totalAmount,
-      upfrontPaid: downPayment,
-      remainingPayment,
+      upfrontPaid,
+      remainingPayment: Math.max(baseRemain, 0),
       paymentType,
       stage,
       status,
@@ -566,16 +592,16 @@ async function upsertPreparedRow(
         appointmentDate: null,
         paymentType: row.paymentType,
         totalAmount: row.totalAmount,
-        // Kalan bakiye UI'da totalAmount - upfrontPaid olarak hesaplanir.
-        upfrontPaid: row.paymentType === 'PREPAID' ? row.upfrontPaid : null,
+        // Remaining UI math is always totalAmount - upfrontPaid.
+        upfrontPaid: row.upfrontPaid,
       },
       update: {
         salesDate: row.salesDate,
         appointmentDate: null,
         paymentType: row.paymentType,
         totalAmount: row.totalAmount,
-        // Kalan bakiye UI'da totalAmount - upfrontPaid olarak hesaplanir.
-        upfrontPaid: row.paymentType === 'PREPAID' ? row.upfrontPaid : null,
+        // Remaining UI math is always totalAmount - upfrontPaid.
+        upfrontPaid: row.upfrontPaid,
       },
     });
 
@@ -672,7 +698,7 @@ async function main(): Promise<void> {
         if (parseAmount(rawAmount) === null) {
           stats.fallbackAmountCount += 1;
           warnings.push(
-            `[${sheetName} #${excelRowNumber}] SATIS TUTARI parse edilemedi, -1 kullanildi.`,
+            `[${sheetName} #${excelRowNumber}] SATIS TUTARI parse edilemedi, 0 kullanildi.`,
           );
         }
 
