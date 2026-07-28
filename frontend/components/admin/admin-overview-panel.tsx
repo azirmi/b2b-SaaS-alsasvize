@@ -355,7 +355,7 @@ export function AdminOverviewPanel({
           </div>
         ) : (
           <>
-            <div className="space-y-3 px-3 py-4 md:hidden">
+            <div className="space-y-3 px-3 py-4 min-[768px]:hidden">
               {sortedApplications.map((application) => {
                 const handler = stageHandler(application);
                 return (
@@ -408,7 +408,7 @@ export function AdminOverviewPanel({
               })}
             </div>
 
-            <div className="hidden md:block">
+            <div className="max-md:hidden">
               <Table className="min-w-[760px]">
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">

@@ -116,7 +116,7 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
               </div>
             ) : (
               <>
-                <div className="space-y-3 px-3 py-4 md:hidden">
+                <div className="space-y-3 px-3 py-4 min-[768px]:hidden">
                   {data.pendingPayments.map((row) => (
                     <article
                       key={row.applicationId}
@@ -178,7 +178,7 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
                   ))}
                 </div>
 
-                <div className="hidden md:block">
+                <div className="max-md:hidden">
                   <Table className="min-w-[920px]">
                     <TableHeader>
                       <TableRow className="border-border/40 hover:bg-transparent">
@@ -247,7 +247,7 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
               </div>
             ) : (
               <>
-                <div className="space-y-3 px-3 py-4 md:hidden">
+                <div className="space-y-3 px-3 py-4 min-[768px]:hidden">
                   {data.allTransactions.map((row) => (
                     <article
                       key={row.applicationId}
@@ -316,7 +316,7 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
                   ))}
                 </div>
 
-                <div className="hidden md:block">
+                <div className="max-md:hidden">
                   <Table className="min-w-[920px]">
                     <TableHeader>
                       <TableRow className="border-border/40 hover:bg-transparent">

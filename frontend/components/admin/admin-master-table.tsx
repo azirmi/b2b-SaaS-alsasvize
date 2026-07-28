@@ -406,7 +406,7 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
         </Select>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 md:hidden">
+      <div className="grid gap-3 sm:grid-cols-2 min-[768px]:hidden">
         <Select
           value={sortKey}
           onValueChange={(value) => {
@@ -441,7 +441,7 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
         </Select>
       </div>
 
-      <div className="space-y-3 md:hidden">
+      <div className="space-y-3 min-[768px]:hidden">
         {sortedRows.length === 0 ? (
           <div className="rounded-lg border border-border/40 bg-card p-6 text-center text-sm text-muted-foreground shadow-sm">
             Filtre sonucuna uygun kayit bulunamadi.
@@ -556,7 +556,7 @@ export function AdminMasterTable({ rows }: { rows: AdminMasterTableRow[] }) {
         )}
       </div>
 
-      <div className="mx-auto hidden w-full max-w-full md:block">
+      <div className="mx-auto w-full max-w-full max-md:hidden">
         <Table className="w-max min-w-[1240px] table-auto border border-border/40 text-xs sm:text-sm [&_td]:whitespace-nowrap [&_td]:px-2 [&_td]:py-1 [&_td]:align-top [&_th]:h-auto [&_th]:whitespace-nowrap [&_th]:px-2 [&_th]:py-1">
           <TableHeader>
             <TableRow className="border-border/40 bg-muted/40 hover:bg-muted/40">

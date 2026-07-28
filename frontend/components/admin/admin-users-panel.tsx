@@ -177,7 +177,7 @@ export function AdminUsersPanel({
 
     return (
       <>
-        <div className="space-y-3 md:hidden">
+        <div className="space-y-3 min-[768px]:hidden">
           {usersToRender.map((user) => {
             const isSelf = user.id === currentUserId;
 
@@ -252,7 +252,7 @@ export function AdminUsersPanel({
           })}
         </div>
 
-        <div className="hidden md:block">
+        <div className="max-md:hidden">
           <Table>
             <TableHeader>
               <TableRow className="border-border/40 hover:bg-transparent">

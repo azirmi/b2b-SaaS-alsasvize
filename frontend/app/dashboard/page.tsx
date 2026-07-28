@@ -134,7 +134,7 @@ export default async function DashboardPage() {
                 </div>
               ) : (
                 <>
-                  <div className="space-y-3 px-3 py-4 md:hidden">
+                  <div className="space-y-3 px-3 py-4 min-[768px]:hidden">
                     {recent.map((application) => (
                       <article
                         key={application.id}
@@ -194,7 +194,7 @@ export default async function DashboardPage() {
                     ))}
                   </div>
 
-                  <div className="hidden md:block">
+                  <div className="max-md:hidden">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-border/40 hover:bg-transparent">
@@ -340,7 +340,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <>
-                <div className="space-y-3 px-3 py-4 md:hidden">
+                <div className="space-y-3 px-3 py-4 min-[768px]:hidden">
                   {recent.map((application) => (
                     <article
                       key={application.id}
@@ -384,7 +384,7 @@ export default async function DashboardPage() {
                   ))}
                 </div>
 
-                <div className="hidden md:block">
+                <div className="max-md:hidden">
                   <Table>
                     <TableHeader>
                       <TableRow className="border-border/40 hover:bg-transparent">

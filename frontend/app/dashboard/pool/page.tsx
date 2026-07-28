@@ -72,7 +72,7 @@ export default async function PoolPage() {
         </div>
       ) : (
         <section className="rounded-lg border border-border/40 bg-card shadow-sm">
-          <div className="space-y-3 px-3 py-4 md:hidden">
+          <div className="space-y-3 px-3 py-4 min-[768px]:hidden">
             {applications.map((application) => {
               const claimable = !isAdmin && POOL_STAGES.has(application.currentStage);
               return (
@@ -123,7 +123,7 @@ export default async function PoolPage() {
             })}
           </div>
 
-          <div className="hidden md:block">
+          <div className="max-md:hidden">
             <Table>
               <TableHeader>
                 <TableRow className="border-border/40 hover:bg-transparent">
