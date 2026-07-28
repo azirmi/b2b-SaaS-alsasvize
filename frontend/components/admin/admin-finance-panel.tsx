@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { StageBadge } from "@/components/stage-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +18,7 @@ import type { AdminFinanceData, FinanceMetric } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type FinancePeriod = "daily" | "weekly" | "monthly" | "yearly";
+type FinanceDatedRow = { salesDate: string | null };
 
 const PERIOD_LABEL: Record<FinancePeriod, string> = {
   daily: "Günlük",
@@ -24,6 +26,64 @@ const PERIOD_LABEL: Record<FinancePeriod, string> = {
   monthly: "Aylık",
   yearly: "Yıllık",
 };
+
+function isFinancePeriod(value: string): value is FinancePeriod {
+  return value in PERIOD_LABEL;
+}
+
+function periodRangeStart(period: FinancePeriod, referenceDate: Date): Date {
+  const start = new Date(referenceDate);
+
+  if (period === "daily") {
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }
+
+  if (period === "weekly") {
+    start.setHours(0, 0, 0, 0);
+    const weekday = start.getDay();
+    const diffToMonday = (weekday + 6) % 7;
+    start.setDate(start.getDate() - diffToMonday);
+    return start;
+  }
+
+  if (period === "monthly") {
+    return new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth(),
+      1,
+      0,
+      0,
+      0,
+      0,
+    );
+  }
+
+  return new Date(referenceDate.getFullYear(), 0, 1, 0, 0, 0, 0);
+}
+
+function filterRowsByPeriod<T extends FinanceDatedRow>(
+  rows: T[],
+  period: FinancePeriod,
+  referenceDate: Date,
+): T[] {
+  const start = periodRangeStart(period, referenceDate).getTime();
+  const end = referenceDate.getTime();
+
+  return rows.filter((row) => {
+    if (!row.salesDate) {
+      return false;
+    }
+
+    const saleDate = new Date(row.salesDate);
+    if (Number.isNaN(saleDate.getTime())) {
+      return false;
+    }
+
+    const saleTime = saleDate.getTime();
+    return saleTime >= start && saleTime <= end;
+  });
+}
 
 function formatDate(iso: string | null): string {
   if (!iso) {
@@ -74,10 +134,34 @@ function FinanceMetricCards({ metric }: { metric: FinanceMetric }) {
 
 export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
   const periods = Object.keys(PERIOD_LABEL) as FinancePeriod[];
+  const [selectedPeriod, setSelectedPeriod] = useState<FinancePeriod>("daily");
+
+  const referenceDate = useMemo(() => {
+    const value = new Date(data.generatedAt);
+    return Number.isNaN(value.getTime()) ? new Date() : value;
+  }, [data.generatedAt]);
+
+  const filteredPendingPayments = useMemo(
+    () => filterRowsByPeriod(data.pendingPayments, selectedPeriod, referenceDate),
+    [data.pendingPayments, referenceDate, selectedPeriod],
+  );
+
+  const filteredAllTransactions = useMemo(
+    () => filterRowsByPeriod(data.allTransactions, selectedPeriod, referenceDate),
+    [data.allTransactions, referenceDate, selectedPeriod],
+  );
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="daily" className="gap-4">
+      <Tabs
+        value={selectedPeriod}
+        onValueChange={(value) => {
+          if (isFinancePeriod(value)) {
+            setSelectedPeriod(value);
+          }
+        }}
+        className="gap-4"
+      >
         <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto whitespace-nowrap rounded-lg border border-border/60 bg-muted/90 p-1 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden md:w-fit md:overflow-visible md:pr-1">
           {periods.map((period) => (
             <TabsTrigger key={period} value={period} className="flex-none">
@@ -105,19 +189,19 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
               </TabsTrigger>
             </TabsList>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {data.pendingPayments.length} bekleyen · {data.allTransactions.length} toplam işlem
+              {filteredPendingPayments.length} bekleyen · {filteredAllTransactions.length} toplam işlem
             </span>
           </div>
 
           <TabsContent value="pending" className="mt-0">
-            {data.pendingPayments.length === 0 ? (
+            {filteredPendingPayments.length === 0 ? (
               <div className="px-3 py-10 text-center text-sm text-muted-foreground sm:px-5">
                 Kalan ödeme bekleyen başvuru bulunmuyor.
               </div>
             ) : (
               <>
                 <div className="space-y-3 px-3 py-4 min-[768px]:hidden">
-                  {data.pendingPayments.map((row) => (
+                  {filteredPendingPayments.map((row) => (
                     <article
                       key={row.applicationId}
                       className="rounded-lg border border-border/40 bg-background p-4 shadow-sm"
@@ -203,7 +287,7 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.pendingPayments.map((row) => (
+                      {filteredPendingPayments.map((row) => (
                         <TableRow key={row.applicationId} className="border-border/40">
                           <TableCell>
                             <Link
@@ -241,14 +325,14 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
           </TabsContent>
 
           <TabsContent value="all" className="mt-0">
-            {data.allTransactions.length === 0 ? (
+            {filteredAllTransactions.length === 0 ? (
               <div className="px-3 py-10 text-center text-sm text-muted-foreground sm:px-5">
                 İşlem kaydı bulunmuyor.
               </div>
             ) : (
               <>
                 <div className="space-y-3 px-3 py-4 min-[768px]:hidden">
-                  {data.allTransactions.map((row) => (
+                  {filteredAllTransactions.map((row) => (
                     <article
                       key={row.applicationId}
                       className="rounded-lg border border-border/40 bg-background p-4 shadow-sm"
@@ -341,7 +425,7 @@ export function AdminFinancePanel({ data }: { data: AdminFinanceData }) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.allTransactions.map((row) => (
+                      {filteredAllTransactions.map((row) => (
                         <TableRow key={row.applicationId} className="border-border/40">
                           <TableCell>
                             <Link
