@@ -85,6 +85,7 @@ const FULL_APPOINTMENT_CITY_OPTIONS = [
 const COUNTRY_MIN_DAYS: Record<string, number> = {
   Danimarka: 45,
   Hırvatistan: 15,
+  Gürcistan: 15,
   Malta: 15,
   Almanya: 15,
   İtalya: 15,
