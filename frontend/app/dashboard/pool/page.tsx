@@ -123,7 +123,7 @@ export default async function PoolPage() {
             })}
           </div>
 
-          <divasdad className="max-md:hidden">
+          <div className="max-md:hidden">
             <Table>
               <TableHeader>
                 <TableRow className="border-border/40 hover:bg-transparent">
