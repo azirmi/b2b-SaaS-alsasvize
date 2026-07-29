@@ -196,7 +196,7 @@ const requiredPassportNumber = () =>
     .trim()
     .regex(PASSPORT_NUMBER_RE, {
       message:
-        "Pasaport numarası U veya H ile başlamalı ve 8 rakam içermelidir.",
+        "Pasaport numarası U, H veya Z ile başlamalı ve 8 rakam içermelidir.",
     });
 
 const requiredIsoDate = (label: string) =>

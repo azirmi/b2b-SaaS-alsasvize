@@ -14,7 +14,7 @@ const TURKISH_CHAR_MAP: Record<string, string> = {
 };
 
 export const TC_KIMLIK_RE = /^\d{11}$/;
-export const PASSPORT_NUMBER_RE = /^[UH]\d{8}$/;
+export const PASSPORT_NUMBER_RE = /^[UHZ]\d{8}$/;
 export const PHONE_INPUT_RE = /^\+?\d+$/;
 export const NAME_INPUT_RE = /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/;
 export const ALPHA_TEXT_RE = /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/;
@@ -90,8 +90,8 @@ export function maskPassportNumberInput(value: string): string {
 
   let prefix = normalized[0];
   let startIndex = 1;
-  if (prefix !== "U" && prefix !== "H") {
-    const index = normalized.search(/[UH]/);
+  if (prefix !== "U" && prefix !== "H" && prefix !== "Z") {
+    const index = normalized.search(/[UHZ]/);
     if (index === -1) {
       return "";
     }
