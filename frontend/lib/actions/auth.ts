@@ -20,6 +20,21 @@ const APPLICATION_TYPES = new Set<ApplicationType>(
   APPLICATION_TYPE_OPTIONS.map((option) => option.value),
 );
 
+export type AuthFormField =
+  | "email"
+  | "password"
+  | "fullName"
+  | "phone"
+  | "targetCountry"
+  | "applicationType"
+  | "appointmentCity"
+  | "residenceCity"
+  | "plannedTravelDate"
+  | "passports"
+  | "groupApplicants"
+  | "acceptKvkk"
+  | "acceptTerms";
+
 interface OnboardingExtraApplicantInput {
   fullName: string;
 }
@@ -40,6 +55,7 @@ function normalizeOnboardPhone(value: string): string {
 
 export interface AuthFormState {
   error?: string;
+  errorField?: AuthFormField;
 }
 
 export interface PasswordResetFormState {
@@ -53,6 +69,62 @@ function messageFrom(body: unknown): string | undefined {
     if (Array.isArray(message)) return message.join(", ");
     if (typeof message === "string" && message) return message;
   }
+  return undefined;
+}
+
+function withFieldError(
+  error: string,
+  errorField?: AuthFormField,
+): AuthFormState {
+  if (errorField) {
+    return { error, errorField };
+  }
+  return { error };
+}
+
+function mapOnboardApiErrorField(message: string): AuthFormField | undefined {
+  const text = message.toLocaleLowerCase("tr-TR");
+
+  if (text.includes("e-posta") || text.includes("email")) {
+    return "email";
+  }
+  if (text.includes("şifre") || text.includes("sifre")) {
+    return "password";
+  }
+  if (text.includes("ad soyad")) {
+    return "fullName";
+  }
+  if (text.includes("telefon")) {
+    return "phone";
+  }
+  if (text.includes("hedef ülke") || text.includes("hedef ulke")) {
+    return "targetCountry";
+  }
+  if (text.includes("başvuru tür") || text.includes("basvuru tur")) {
+    return "applicationType";
+  }
+  if (text.includes("randevu şehir") || text.includes("randevu sehir")) {
+    return "appointmentCity";
+  }
+  if (text.includes("ikamet")) {
+    return "residenceCity";
+  }
+  if (text.includes("seyahat tarih")) {
+    return "plannedTravelDate";
+  }
+  if (text.includes("pasaport")) {
+    return "passports";
+  }
+  if (text.includes("ek kişi") || text.includes("ek kisi")) {
+    return "groupApplicants";
+  }
+  if (text.includes("kvkk")) {
+    return "acceptKvkk";
+  }
+  if (text.includes("sözleş") || text.includes("sozles")) {
+    return "acceptTerms";
+  }
+
   return undefined;
 }
 
@@ -102,7 +174,10 @@ export async function login(
   const next = safeNext(String(formData.get("next") ?? ""));
 
   if (!email || !password) {
-    return { error: "E-posta ve şifre zorunludur." };
+    return withFieldError(
+      "E-posta ve şifre zorunludur.",
+      !email ? "email" : "password",
+    );
   }
 
   try {
@@ -115,7 +190,10 @@ export async function login(
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      return { error: messageFrom(body) ?? "E-posta veya şifre hatalı." };
+      return withFieldError(
+        messageFrom(body) ?? "E-posta veya şifre hatalı.",
+        "password",
+      );
     }
     if (
       !(await persistSession(
@@ -245,7 +323,10 @@ export async function onboard(
   try {
     const parsed = JSON.parse(groupApplicantsRaw) as unknown;
     if (!Array.isArray(parsed)) {
-      return { error: "Başvuru kişi listesi geçersiz formatta." };
+      return withFieldError(
+        "Başvuru kişi listesi geçersiz formatta.",
+        "groupApplicants",
+      );
     }
 
     const parsedNames = parsed.map((item) => {
@@ -262,88 +343,151 @@ export async function onboard(
     });
 
     if (parsedNames.some((name) => name.length === 0)) {
-      return { error: "Ek kişi ad soyad alanı boş bırakılamaz." };
+      return withFieldError(
+        "Ek kişi ad soyad alanı boş bırakılamaz.",
+        "groupApplicants",
+      );
     }
 
     groupApplicants = parsedNames.map((fullName) => ({ fullName }));
   } catch {
-    return { error: "Başvuru kişi listesi çözümlenemedi." };
+    return withFieldError(
+      "Başvuru kişi listesi çözümlenemedi.",
+      "groupApplicants",
+    );
   }
 
-  if (
-    !email ||
-    !password ||
-    !fullName ||
-    !phone ||
-    !targetCountry ||
-    !appointmentCity ||
-    !residenceCity ||
-    !plannedTravelDate ||
-    !applicationType
-  ) {
-    return { error: "Tüm alanların doldurulması zorunludur." };
+  if (!email) {
+    return withFieldError("E-posta zorunludur.", "email");
+  }
+  if (!password) {
+    return withFieldError("Şifre zorunludur.", "password");
+  }
+  if (!fullName) {
+    return withFieldError("Ad soyad zorunludur.", "fullName");
+  }
+  if (!phone) {
+    return withFieldError("Telefon zorunludur.", "phone");
+  }
+  if (!targetCountry) {
+    return withFieldError("Hedef ülke zorunludur.", "targetCountry");
+  }
+  if (!applicationType) {
+    return withFieldError("Başvuru türü zorunludur.", "applicationType");
+  }
+  if (!appointmentCity) {
+    return withFieldError("Randevu şehri zorunludur.", "appointmentCity");
+  }
+  if (!residenceCity) {
+    return withFieldError("İkamet edilen şehir zorunludur.", "residenceCity");
+  }
+  if (!plannedTravelDate) {
+    return withFieldError(
+      "Planlanan seyahat tarihi zorunludur.",
+      "plannedTravelDate",
+    );
   }
 
   const countryRule = COUNTRY_RULES[targetCountry];
   if (!countryRule) {
-    return { error: "Lütfen listeden geçerli bir hedef ülke seçin." };
+    return withFieldError(
+      "Lütfen listeden geçerli bir hedef ülke seçin.",
+      "targetCountry",
+    );
   }
   if (!countryRule.cities.includes(appointmentCity)) {
-    return { error: "Seçilen ülke için randevu şehri geçersiz." };
+    return withFieldError(
+      "Seçilen ülke için randevu şehri geçersiz.",
+      "appointmentCity",
+    );
   }
   if (!APPLICATION_TYPES.has(applicationType)) {
-    return { error: "Lütfen geçerli bir başvuru türü seçin." };
+    return withFieldError(
+      "Lütfen geçerli bir başvuru türü seçin.",
+      "applicationType",
+    );
   }
   if (residenceCity.length > 120) {
-    return { error: "İkamet edilen şehir en fazla 120 karakter olabilir." };
+    return withFieldError(
+      "İkamet edilen şehir en fazla 120 karakter olabilir.",
+      "residenceCity",
+    );
   }
   if (!NAME_INPUT_RE.test(residenceCity)) {
-    return { error: "İkamet edilen şehir yalnızca İngilizce harf içermelidir." };
+    return withFieldError(
+      "İkamet edilen şehir yalnızca İngilizce harf içermelidir.",
+      "residenceCity",
+    );
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(plannedTravelDate)) {
-    return { error: "Planlanan seyahat tarihi geçerli formatta olmalıdır." };
+    return withFieldError(
+      "Planlanan seyahat tarihi geçerli formatta olmalıdır.",
+      "plannedTravelDate",
+    );
   }
   const parsedPlannedTravelDate = new Date(`${plannedTravelDate}T00:00:00.000Z`);
   if (Number.isNaN(parsedPlannedTravelDate.getTime())) {
-    return { error: "Planlanan seyahat tarihi geçersiz." };
+    return withFieldError("Planlanan seyahat tarihi geçersiz.", "plannedTravelDate");
   }
 
   if (password.length < 8 || password.length > 72) {
-    return { error: "Şifre 8 ile 72 karakter arasında olmalıdır." };
+    return withFieldError(
+      "Şifre 8 ile 72 karakter arasında olmalıdır.",
+      "password",
+    );
   }
   if (!NAME_INPUT_RE.test(fullName)) {
-    return { error: "Ad soyad yalnızca İngilizce harf içermelidir." };
+    return withFieldError(
+      "Ad soyad yalnızca İngilizce harf içermelidir.",
+      "fullName",
+    );
   }
   if (!/^\+90\d{10}$/.test(phone)) {
-    return { error: "Telefon numarası +90 ile başlamalı ve 10 haneli olmalıdır." };
+    return withFieldError(
+      "Telefon numarası +90 ile başlamalı ve 10 haneli olmalıdır.",
+      "phone",
+    );
   }
   if (groupApplicants.some((item) => !NAME_INPUT_RE.test(item.fullName))) {
-    return { error: "Ek kişi ad soyad alanı yalnızca İngilizce harf içermelidir." };
+    return withFieldError(
+      "Ek kişi ad soyad alanı yalnızca İngilizce harf içermelidir.",
+      "groupApplicants",
+    );
   }
   if (passports.length === 0) {
-    return { error: "En az bir pasaport dosyası yüklemeniz gerekir." };
+    return withFieldError(
+      "En az bir pasaport dosyası yüklemeniz gerekir.",
+      "passports",
+    );
   }
   if (groupApplicants.some((item) => item.fullName.length > 120)) {
-    return { error: "Ek kişi ad soyad 120 karakteri aşamaz." };
+    return withFieldError(
+      "Ek kişi ad soyad 120 karakteri aşamaz.",
+      "groupApplicants",
+    );
   }
 
   const totalApplicants = groupApplicants.length + 1;
   if (totalApplicants > 10) {
-    return { error: "Toplam başvuru kişi sayısı en fazla 10 olabilir." };
+    return withFieldError(
+      "Toplam başvuru kişi sayısı en fazla 10 olabilir.",
+      "groupApplicants",
+    );
   }
   if (passports.length !== totalApplicants) {
-    return {
-      error:
-        "Yüklenen pasaport sayısı, sizinle birlikte toplam başvuru kişi sayısı ile aynı olmalıdır.",
-    };
+    return withFieldError(
+      "Yüklenen pasaport sayısı, sizinle birlikte toplam başvuru kişi sayısı ile aynı olmalıdır.",
+      "passports",
+    );
   }
   if (!acceptKvkk) {
-    return { error: "KVKK Aydınlatma Metni onayı zorunludur." };
+    return withFieldError("KVKK Aydınlatma Metni onayı zorunludur.", "acceptKvkk");
   }
   if (!acceptTerms) {
-    return {
-      error: "Mesafeli Hizmet Satış Sözleşmesi onayı zorunludur.",
-    };
+    return withFieldError(
+      "Mesafeli Hizmet Satış Sözleşmesi onayı zorunludur.",
+      "acceptTerms",
+    );
   }
 
   let destination: string;
@@ -373,9 +517,11 @@ export async function onboard(
     });
     if (!onboardResponse.ok) {
       const body = await onboardResponse.json().catch(() => null);
+      const message =
+        messageFrom(body) ?? "Kayıt tamamlanamadı. Bilgilerinizi kontrol edin.";
       return {
-        error:
-          messageFrom(body) ?? "Kayıt tamamlanamadı. Bilgilerinizi kontrol edin.",
+        error: message,
+        errorField: mapOnboardApiErrorField(message),
       };
     }
 

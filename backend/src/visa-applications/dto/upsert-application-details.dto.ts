@@ -3,7 +3,6 @@ import {
   IsEmail,
   IsIn,
   IsInt,
-  IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
@@ -17,10 +16,15 @@ import { Type } from 'class-transformer';
 /** ISO calendar date, e.g. 2026-07-06. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+function hasText(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 /**
  * Payload for `PUT /applications/:id/details` — the customer's comprehensive
- * "Başvuru Formu" (application form). Every field is required: a successful save
- * means the form is complete. DOC staff read this back read-only.
+ * "Başvuru Formu" (application form). Draft saves are allowed: empty fields are
+ * accepted so customers can continue later, while provided values are still
+ * validated for format/length consistency.
  */
 export class UpsertApplicationDetailsDto {
   @IsOptional()
@@ -30,82 +34,88 @@ export class UpsertApplicationDetailsDto {
   applicantIndex?: number;
 
   // ── Personal information ──────────────────────────────────────────────
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(80)
-  firstName!: string;
+  firstName?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(80)
-  lastName!: string;
+  lastName?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(80)
   maidenSurname?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(32)
-  nationalId!: string;
+  nationalId?: string;
 
+  @IsOptional()
+  @IsString()
+  @ValidateIf((_, value) => hasText(value))
   @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
-  dateOfBirth!: string;
+  dateOfBirth?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  placeOfBirth!: string;
+  placeOfBirth?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(80)
-  nationality!: string;
+  nationality?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(32)
-  gender!: string;
+  gender?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(32)
-  maritalStatus!: string;
+  maritalStatus?: string;
 
   // ── Contact & address ─────────────────────────────────────────────────
+  @IsOptional()
+  @ValidateIf((_, value) => hasText(value))
   @IsEmail()
   @MaxLength(160)
-  email!: string;
+  email?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(32)
-  phone!: string;
+  phone?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  residenceCity!: string;
+  residenceCity?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  registeredAddress!: string;
+  registeredAddress?: string;
 
   // ── Professional & education ──────────────────────────────────────────
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
-  occupation!: string;
+  occupation?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(32)
-  employmentStatus!: string;
+  employmentStatus?: string;
 
+  @IsOptional()
   @IsBoolean()
-  isEmployer!: boolean;
+  isEmployer?: boolean;
 
   @IsOptional()
   @IsString()
@@ -133,38 +143,46 @@ export class UpsertApplicationDetailsDto {
   educationLevel?: string;
 
   // ── Passport ──────────────────────────────────────────────────────────
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(32)
-  passportType!: string;
+  passportType?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(64)
-  passportNumber!: string;
+  passportNumber?: string;
 
-  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
-  passportIssueDate!: string;
-
-  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
-  passportExpiryDate!: string;
-
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(120)
-  passportIssuePlace!: string;
+  @ValidateIf((_, value) => hasText(value))
+  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
+  passportIssueDate?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
+  @ValidateIf((_, value) => hasText(value))
+  @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
+  passportExpiryDate?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(120)
-  appointmentLocation!: string;
+  passportIssuePlace?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  appointmentLocation?: string;
 
   // ── Visa information ──────────────────────────────────────────────────
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @IsIn(['Evet', 'Hayır'])
-  fingerprintGiven!: string;
+  @IsIn(['', 'Evet', 'Hayır'])
+  fingerprintGiven?: string;
 
+  @IsOptional()
+  @IsString()
   @ValidateIf((_, value) => {
     if (value === null || value === undefined) {
       return false;
@@ -180,9 +198,9 @@ export class UpsertApplicationDetailsDto {
   fingerprintDate?: string;
 
   @IsString()
-  @IsNotEmpty()
-  @IsIn(['Evet', 'Hayır'])
-  schengenAppliedBefore!: string;
+  @IsIn(['', 'Evet', 'Hayır'])
+  @IsOptional()
+  schengenAppliedBefore?: string;
 
   @IsOptional()
   @IsString()
@@ -190,20 +208,27 @@ export class UpsertApplicationDetailsDto {
   previousSchengenCountries?: string;
 
   // ── Travel information ────────────────────────────────────────────────
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(1000)
-  purposeOfTravel!: string;
+  purposeOfTravel?: string;
 
+  @IsOptional()
+  @IsString()
+  @ValidateIf((_, value) => hasText(value))
   @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
-  plannedTravelStartDate!: string;
+  plannedTravelStartDate?: string;
 
+  @IsOptional()
+  @IsString()
+  @ValidateIf((_, value) => hasText(value))
   @Matches(ISO_DATE, { message: 'Geçerli bir tarih giriniz.' })
-  plannedTravelEndDate!: string;
+  plannedTravelEndDate?: string;
 
   // ── Sponsor information ───────────────────────────────────────────────
+  @IsOptional()
   @IsBoolean()
-  hasSponsor!: boolean;
+  hasSponsor?: boolean;
 
   @IsOptional()
   @IsString()

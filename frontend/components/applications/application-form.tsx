@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Controller, type FieldErrors, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert, CircleCheck, X } from "lucide-react";
 
 import { saveApplicationDetails } from "@/lib/actions/applications";
@@ -27,7 +27,6 @@ import {
   maskTcKimlikInput,
 } from "@/lib/input-masks";
 import {
-  createApplicationFormSchema,
   toApplicationFormDefaults,
   type ApplicationFormValues,
 } from "@/lib/validators/application-form";
@@ -207,14 +206,68 @@ interface ValidationIssue {
   message: string;
 }
 
+function mapServerErrorToField(message: string): FormFieldName | null {
+  const text = message.toLocaleLowerCase("tr-TR");
+
+  if (text.includes("doğum tarih") || text.includes("dogum tarih")) {
+    return "dateOfBirth";
+  }
+  if (text.includes("pasaport veriliş") || text.includes("pasaport verilis")) {
+    return "passportIssueDate";
+  }
+  if (
+    text.includes("pasaport son kullanma") ||
+    text.includes("pasaport son kullanim")
+  ) {
+    return "passportExpiryDate";
+  }
+  if (text.includes("parmak izi tarih")) {
+    return "fingerprintDate";
+  }
+  if (text.includes("seyahat bitiş") || text.includes("seyahat bitis")) {
+    return "plannedTravelEndDate";
+  }
+  if (text.includes("seyahat başlang") || text.includes("seyahat baslang")) {
+    return "plannedTravelStartDate";
+  }
+  if (text.includes("sponsor")) {
+    return "sponsorFullName";
+  }
+  if (text.includes("işveren") || text.includes("isveren")) {
+    return "employerName";
+  }
+  if (text.includes("parmak izi") || text.includes("fingerprint")) {
+    return "fingerprintDate";
+  }
+  if (text.includes("schengen")) {
+    return "previousSchengenCountries";
+  }
+  if (text.includes("kimlik")) {
+    return "nationalId";
+  }
+  if (text.includes("pasaport")) {
+    return "passportNumber";
+  }
+  if (text.includes("e-posta") || text.includes("email")) {
+    return "email";
+  }
+  if (text.includes("telefon")) {
+    return "phone";
+  }
+
+  return null;
+}
+
 function Field({
   field,
   control,
   errors,
+  clearFieldError,
 }: {
   field: FormField;
   control: ReturnType<typeof useForm<ApplicationFormValues>>["control"];
   errors: FieldErrors<ApplicationFormValues>;
+  clearFieldError: (fieldName: FormFieldName) => void;
 }) {
   const id = `af-${field.name}`;
   const required = field.required !== false;
@@ -245,7 +298,10 @@ function Field({
               <Select
                 name={formField.name}
                 value={value}
-                onValueChange={formField.onChange}
+                onValueChange={(nextValue) => {
+                  clearFieldError(field.name);
+                  formField.onChange(nextValue);
+                }}
                 required={required}
               >
                 <SelectTrigger
@@ -272,9 +328,10 @@ function Field({
                 id={id}
                 name={formField.name}
                 value={value}
-                onChange={(event) =>
-                  formField.onChange(maskFieldInput(field, event.target.value))
-                }
+                onChange={(event) => {
+                  clearFieldError(field.name);
+                  formField.onChange(maskFieldInput(field, event.target.value));
+                }}
                 onBlur={formField.onBlur}
                 ref={formField.ref}
                 required={required}
@@ -292,7 +349,10 @@ function Field({
               <LocalizedDatePickerInput
                 id={id}
                 value={value}
-                onChange={formField.onChange}
+                onChange={(nextValue) => {
+                  clearFieldError(field.name);
+                  formField.onChange(nextValue);
+                }}
                 required={required}
                 placeholder="DD.MM.YYYY"
                 className={
@@ -312,7 +372,10 @@ function Field({
                 type="number"
                 inputMode="numeric"
                 value={value}
-                onChange={formField.onChange}
+                onChange={(event) => {
+                  clearFieldError(field.name);
+                  formField.onChange(event);
+                }}
                 onBlur={formField.onBlur}
                 ref={formField.ref}
                 required={required}
@@ -332,6 +395,7 @@ function Field({
               type={field.kind}
               value={value}
               onChange={(event) => {
+                clearFieldError(field.name);
                 const nextValue =
                   field.kind === "text" || field.kind === "tel"
                     ? maskFieldInput(field, event.target.value)
@@ -388,6 +452,7 @@ export function ApplicationForm({
   customerPrefill?: ApplicationFormPrefill;
   countrySpecificInitialValues?: Record<string, string> | null;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<CrmActionState>({});
   const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(
@@ -395,10 +460,6 @@ export function ApplicationForm({
   );
   const [validationCardDismissed, setValidationCardDismissed] = useState(false);
   const [successCardDismissed, setSuccessCardDismissed] = useState(false);
-  const schema = useMemo(
-    () => createApplicationFormSchema(targetCountry),
-    [targetCountry],
-  );
   const formDefaults = useMemo(
     () =>
       withCustomerPrefill(
@@ -417,9 +478,7 @@ export function ApplicationForm({
   );
 
   const form = useForm<ApplicationFormValues>({
-    resolver: zodResolver(schema),
     defaultValues: formDefaults,
-    mode: "onBlur",
   });
 
   useEffect(() => {
@@ -480,31 +539,15 @@ export function ApplicationForm({
     }
   }
 
-  function collectValidationIssues(
-    errors: FieldErrors<ApplicationFormValues>,
-  ): ValidationIssue[] {
-    const issues: ValidationIssue[] = [];
-
-    for (const [key, error] of Object.entries(errors)) {
-      const fieldName = key as FormFieldName;
-      const meta = visibleFieldMap.get(fieldName);
-      if (!meta) {
-        continue;
-      }
-
-      const message =
-        error && typeof error.message === "string"
-          ? error.message
-          : "Bu alanı kontrol edin.";
-      issues.push({
-        fieldName,
-        fieldLabel: meta.label,
-        sectionTitle: meta.sectionTitle,
-        message,
+  function clearFieldValue(fieldName: FormFieldName) {
+    const currentValue = form.getValues(fieldName as keyof ApplicationFormValues);
+    if (typeof currentValue === "string") {
+      form.setValue(fieldName as keyof ApplicationFormValues, "", {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: false,
       });
     }
-
-    return issues;
   }
 
   function onSubmit(values: ApplicationFormValues) {
@@ -530,25 +573,42 @@ export function ApplicationForm({
 
       if (result.ok) {
         setValidationIssues([]);
+        router.refresh();
+        return;
+      }
+
+      if (result.error) {
+        const fieldName = mapServerErrorToField(result.error);
+        if (!fieldName) {
+          return;
+        }
+
+        const meta = visibleFieldMap.get(fieldName);
+        if (meta) {
+          setValidationIssues([
+            {
+              fieldName,
+              fieldLabel: meta.label,
+              sectionTitle: meta.sectionTitle,
+              message: result.error,
+            },
+          ]);
+          setValidationCardDismissed(false);
+        }
+
+        form.setError(fieldName as keyof ApplicationFormValues, {
+          type: "server",
+          message: result.error,
+        });
+        clearFieldValue(fieldName);
+        focusField(fieldName);
       }
     });
   }
 
-  function onInvalid(errors: FieldErrors<ApplicationFormValues>) {
-    setState({});
-
-    const issues = collectValidationIssues(errors);
-    setValidationIssues(issues);
-    setValidationCardDismissed(false);
-
-    if (issues[0]) {
-      focusField(issues[0].fieldName);
-    }
-  }
-
   return (
     <form
-      onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+      onSubmit={form.handleSubmit(onSubmit)}
       className="space-y-6"
       noValidate
     >
@@ -619,6 +679,9 @@ export function ApplicationForm({
                   field={field}
                   control={form.control}
                   errors={form.formState.errors}
+                  clearFieldError={(fieldName) =>
+                    form.clearErrors(fieldName as keyof ApplicationFormValues)
+                  }
                 />
               );
             })}
@@ -639,6 +702,9 @@ export function ApplicationForm({
                 field={field}
                 control={form.control}
                 errors={form.formState.errors}
+                clearFieldError={(fieldName) =>
+                  form.clearErrors(fieldName as keyof ApplicationFormValues)
+                }
               />
             ))}
           </div>

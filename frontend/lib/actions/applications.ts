@@ -24,7 +24,6 @@ import type {
   CrmActionState,
   DijizinFormsSnapshot,
 } from "@/lib/types";
-import { applicationFormSchema } from "@/lib/validators/application-form";
 
 /** Guards the path param before it is interpolated into the API URL. */
 const UUID_RE =
@@ -565,8 +564,9 @@ export async function saveAppointmentOps(
 
 /**
  * Saves the customer's comprehensive application form ("Başvuru Formu") via
- * `PUT /applications/:id/details`. Every field is required; the backend
- * re-validates. Bound to the application id for `useActionState`.
+ * `PUT /applications/:id/details`. Draft saves are supported so customers can
+ * fill missing sections later; completion is computed server-side. Bound to
+ * the application id for `useActionState`.
  */
 export async function saveApplicationDetails(
   id: string,
@@ -599,22 +599,13 @@ export async function saveApplicationDetails(
     candidatePayload[field.name] = String(formData.get(field.name) ?? "").trim();
   }
 
-  const parsedPayload = applicationFormSchema.safeParse(candidatePayload);
-  if (!parsedPayload.success) {
-    return {
-      error:
-        parsedPayload.error.issues[0]?.message ??
-        "Lütfen form alanlarını kontrol ederek tekrar deneyin.",
-    };
-  }
-
   const payload: Record<string, unknown> = {
-    ...parsedPayload.data,
+    ...candidatePayload,
     applicantIndex,
   };
 
   if (payload.fingerprintGiven === "") {
-    payload.fingerprintGiven = "Hayır";
+    payload.fingerprintGiven = "";
   }
   if (payload.fingerprintGiven !== "Evet") {
     payload.fingerprintDate = "";

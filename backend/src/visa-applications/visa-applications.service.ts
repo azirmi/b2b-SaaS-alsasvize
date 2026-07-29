@@ -603,7 +603,6 @@ export class VisaApplicationsService {
     const detailsByApplicantIndex = new Map(
       application.details.map((details) => [details.applicantIndex, details]),
     );
-    const submittedFormsCount = application.details.length;
     const primaryDetails = this.pickPrimaryApplicantDetails(application.details);
     const applicationForms = Array.from(
       { length: requiredApplicantCount },
@@ -622,17 +621,21 @@ export class VisaApplicationsService {
             : applicantIndex === 1
               ? application.customer.fullName
               : null;
+        const isSubmitted = this.isApplicationDetailsComplete(details);
 
         return {
           applicantIndex,
           applicantLabel: `${applicantIndex}. Kişi Başvuru Formu`,
           applicantFullName,
-          submitted: Boolean(details),
-          submittedAt: details?.submittedAt ?? null,
+          submitted: isSubmitted,
+          submittedAt: isSubmitted ? (details?.submittedAt ?? null) : null,
           details: actor.role === Role.SALES ? null : details,
         };
       },
     );
+    const submittedFormsCount = applicationForms.filter(
+      (formEntry) => formEntry.submitted,
+    ).length;
     const scopedDocuments =
       actor.role === Role.SALES
         ? application.documents.filter(
@@ -2464,8 +2467,10 @@ export class VisaApplicationsService {
   /**
    * Upserts the customer's comprehensive application form ("Başvuru Formu").
    * Only the owning customer (or an admin) may write it; the form is surfaced
-   * read-only to staff through the application detail response. The write and
-   * its audit-log entry run in a single transaction.
+    * read-only to staff through the application detail response. Draft saves are
+    * allowed (partial fields) so customers can continue later; completion is
+    * computed separately for progress status. The write and its audit-log entry
+    * run in a single transaction.
    */
   async updateDetails(
     id: string,
@@ -2541,86 +2546,128 @@ export class VisaApplicationsService {
         }
       }
 
-      if (dto.plannedTravelEndDate < dto.plannedTravelStartDate) {
+      const isEmployer = Boolean(dto.isEmployer);
+      const hasSponsor = Boolean(dto.hasSponsor);
+      const plannedTravelStartDate = this.normalizeDetailsIsoDate(
+        dto.plannedTravelStartDate,
+        'Seyahat başlangıç tarihi',
+      );
+      const plannedTravelEndDate = this.normalizeDetailsIsoDate(
+        dto.plannedTravelEndDate,
+        'Seyahat bitiş tarihi',
+      );
+
+      if (
+        plannedTravelStartDate &&
+        plannedTravelEndDate &&
+        plannedTravelEndDate < plannedTravelStartDate
+      ) {
         throw new BadRequestException(
           'Seyahat bitiş tarihi başlangıç tarihinden önce olamaz',
         );
       }
 
       const targetCountry = before.customer.targetCountry?.trim() ?? null;
-      if (targetCountry === 'Danimarka') {
+      if (targetCountry === 'Danimarka' && plannedTravelStartDate) {
         const minTravelStartDate = this.addDaysIso(
           new Date().toISOString().slice(0, 10),
           COUNTRY_RULES.Danimarka.minDays,
         );
-        if (dto.plannedTravelStartDate < minTravelStartDate) {
+        if (plannedTravelStartDate < minTravelStartDate) {
           throw new BadRequestException(
             `Danimarka başvurularında seyahat başlangıcı en erken ${minTravelStartDate} olabilir`,
           );
         }
       }
 
-      const sponsorFields = [
-        dto.sponsorFullName,
-        dto.sponsorIdentity,
-        dto.sponsorContact,
-        dto.sponsorRelation,
-      ].map((value) => value?.trim() ?? '');
-      if (dto.hasSponsor && sponsorFields.some((value) => value.length === 0)) {
-        throw new BadRequestException(
-          'Sponsor bilgileri girilecekse tüm sponsor alanları doldurulmalıdır',
-        );
+      const fingerprintGiven = this.normalizeDetailsYesNo(dto.fingerprintGiven);
+      let fingerprintDate = this.normalizeDetailsIsoDate(
+        dto.fingerprintDate,
+        'Parmak izi tarihi',
+      );
+      if (fingerprintGiven !== 'Evet') {
+        fingerprintDate = '';
       }
 
+      const schengenAppliedBefore = this.normalizeDetailsYesNo(
+        dto.schengenAppliedBefore,
+      );
+      const previousSchengenCountries =
+        schengenAppliedBefore === 'Evet'
+          ? this.normalizeDetailsNullableText(dto.previousSchengenCountries)
+          : null;
+
       const data = {
-        firstName: dto.firstName.trim(),
-        lastName: dto.lastName.trim(),
-        maidenSurname: dto.maidenSurname?.trim() || null,
-        nationalId: dto.nationalId.trim(),
-        dateOfBirth: dto.dateOfBirth,
-        placeOfBirth: dto.placeOfBirth.trim(),
-        gender: dto.gender.trim(),
-        maritalStatus: dto.maritalStatus.trim(),
-        nationality: dto.nationality.trim(),
+        firstName: this.normalizeDetailsText(dto.firstName),
+        lastName: this.normalizeDetailsText(dto.lastName),
+        maidenSurname: this.normalizeDetailsNullableText(dto.maidenSurname),
+        nationalId: this.normalizeDetailsText(dto.nationalId),
+        dateOfBirth: this.normalizeDetailsIsoDate(
+          dto.dateOfBirth,
+          'Doğum tarihi',
+        ),
+        placeOfBirth: this.normalizeDetailsText(dto.placeOfBirth),
+        gender: this.normalizeDetailsText(dto.gender),
+        maritalStatus: this.normalizeDetailsText(dto.maritalStatus),
+        nationality: this.normalizeDetailsText(dto.nationality),
 
-        email: dto.email.trim(),
-        phone: dto.phone.trim(),
-        residenceCity: dto.residenceCity.trim(),
-        registeredAddress: dto.registeredAddress.trim(),
+        email: this.normalizeDetailsText(dto.email),
+        phone: this.normalizeDetailsText(dto.phone),
+        residenceCity: this.normalizeDetailsText(dto.residenceCity),
+        registeredAddress: this.normalizeDetailsText(dto.registeredAddress),
 
-        occupation: dto.occupation.trim(),
-        employmentStatus: dto.employmentStatus.trim(),
-        isEmployer: dto.isEmployer,
-        employerName: dto.isEmployer ? dto.employerName?.trim() || null : null,
-        employerAddress: dto.isEmployer
-          ? dto.employerAddress?.trim() || null
+        occupation: this.normalizeDetailsText(dto.occupation),
+        employmentStatus: this.normalizeDetailsText(dto.employmentStatus),
+        isEmployer,
+        employerName: isEmployer
+          ? this.normalizeDetailsNullableText(dto.employerName)
           : null,
-        employerPhone: dto.isEmployer ? dto.employerPhone?.trim() || null : null,
-        educationInstitution: dto.educationInstitution?.trim() || null,
-        educationLevel: dto.educationLevel?.trim() || null,
+        employerAddress: isEmployer
+          ? this.normalizeDetailsNullableText(dto.employerAddress)
+          : null,
+        employerPhone: isEmployer
+          ? this.normalizeDetailsNullableText(dto.employerPhone)
+          : null,
+        educationInstitution: this.normalizeDetailsNullableText(
+          dto.educationInstitution,
+        ),
+        educationLevel: this.normalizeDetailsNullableText(dto.educationLevel),
 
-        passportType: dto.passportType.trim(),
-        passportNumber: dto.passportNumber.trim(),
-        passportIssueDate: dto.passportIssueDate,
-        passportExpiryDate: dto.passportExpiryDate,
-        passportIssuePlace: dto.passportIssuePlace.trim(),
-        appointmentLocation: dto.appointmentLocation.trim(),
+        passportType: this.normalizeDetailsText(dto.passportType),
+        passportNumber: this.normalizeDetailsText(dto.passportNumber),
+        passportIssueDate: this.normalizeDetailsIsoDate(
+          dto.passportIssueDate,
+          'Pasaport veriliş tarihi',
+        ),
+        passportExpiryDate: this.normalizeDetailsIsoDate(
+          dto.passportExpiryDate,
+          'Pasaport son kullanma tarihi',
+        ),
+        passportIssuePlace: this.normalizeDetailsText(dto.passportIssuePlace),
+        appointmentLocation: this.normalizeDetailsText(dto.appointmentLocation),
 
-        fingerprintGiven: dto.fingerprintGiven.trim(),
-        fingerprintDate: dto.fingerprintDate ?? null,
-        schengenAppliedBefore: dto.schengenAppliedBefore.trim(),
-        previousSchengenCountries:
-          dto.previousSchengenCountries?.trim() || null,
+        fingerprintGiven,
+        fingerprintDate: fingerprintDate || null,
+        schengenAppliedBefore,
+        previousSchengenCountries,
 
-        purposeOfTravel: dto.purposeOfTravel.trim(),
-        plannedTravelStartDate: dto.plannedTravelStartDate,
-        plannedTravelEndDate: dto.plannedTravelEndDate,
+        purposeOfTravel: this.normalizeDetailsText(dto.purposeOfTravel),
+        plannedTravelStartDate,
+        plannedTravelEndDate,
 
-        hasSponsor: dto.hasSponsor,
-        sponsorFullName: dto.hasSponsor ? dto.sponsorFullName?.trim() || null : null,
-        sponsorIdentity: dto.hasSponsor ? dto.sponsorIdentity?.trim() || null : null,
-        sponsorContact: dto.hasSponsor ? dto.sponsorContact?.trim() || null : null,
-        sponsorRelation: dto.hasSponsor ? dto.sponsorRelation?.trim() || null : null,
+        hasSponsor,
+        sponsorFullName: hasSponsor
+          ? this.normalizeDetailsNullableText(dto.sponsorFullName)
+          : null,
+        sponsorIdentity: hasSponsor
+          ? this.normalizeDetailsNullableText(dto.sponsorIdentity)
+          : null,
+        sponsorContact: hasSponsor
+          ? this.normalizeDetailsNullableText(dto.sponsorContact)
+          : null,
+        sponsorRelation: hasSponsor
+          ? this.normalizeDetailsNullableText(dto.sponsorRelation)
+          : null,
       };
 
       await tx.visaApplicationDetails.upsert({
@@ -3030,6 +3077,180 @@ export class VisaApplicationsService {
         ? item
         : currentLowest;
     }, null as T | null);
+  }
+
+  private normalizeDetailsText(value: string | null | undefined): string {
+    return (value ?? '').trim();
+  }
+
+  private normalizeDetailsNullableText(
+    value: string | null | undefined,
+  ): string | null {
+    const normalized = this.normalizeDetailsText(value);
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  private normalizeDetailsIsoDate(
+    value: string | null | undefined,
+    fieldLabel = 'Tarih',
+  ): string {
+    const normalized = this.normalizeDetailsText(value);
+    if (!normalized) {
+      return '';
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      throw new BadRequestException(`${fieldLabel} için geçerli bir tarih giriniz.`);
+    }
+    return normalized;
+  }
+
+  private normalizeDetailsYesNo(
+    value: string | null | undefined,
+  ): 'Evet' | 'Hayır' | '' {
+    const normalized = this.normalizeDetailsText(value);
+    if (normalized === 'Evet' || normalized === 'Hayır') {
+      return normalized;
+    }
+    return '';
+  }
+
+  private isDetailsIsoDate(value: string | null | undefined): boolean {
+    const normalized = this.normalizeDetailsText(value);
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalized);
+  }
+
+  private hasDetailsText(value: string | null | undefined): boolean {
+    return this.normalizeDetailsText(value).length > 0;
+  }
+
+  private isApplicationDetailsComplete(
+    details:
+      | {
+          firstName: string;
+          lastName: string;
+          nationalId: string;
+          dateOfBirth: string;
+          placeOfBirth: string;
+          nationality: string;
+          gender: string;
+          maritalStatus: string;
+          email: string;
+          phone: string;
+          residenceCity: string;
+          registeredAddress: string;
+          occupation: string;
+          employmentStatus: string;
+          isEmployer: boolean;
+          employerName: string | null;
+          employerAddress: string | null;
+          passportType: string;
+          passportNumber: string;
+          passportIssueDate: string;
+          passportExpiryDate: string;
+          passportIssuePlace: string;
+          appointmentLocation: string;
+          fingerprintGiven: string;
+          fingerprintDate: string | null;
+          schengenAppliedBefore: string;
+          previousSchengenCountries: string | null;
+          purposeOfTravel: string;
+          plannedTravelStartDate: string;
+          plannedTravelEndDate: string;
+          hasSponsor: boolean;
+          sponsorFullName: string | null;
+          sponsorIdentity: string | null;
+          sponsorContact: string | null;
+          sponsorRelation: string | null;
+        }
+      | null,
+  ): boolean {
+    if (!details) {
+      return false;
+    }
+
+    const requiredTextValues = [
+      details.firstName,
+      details.lastName,
+      details.nationalId,
+      details.placeOfBirth,
+      details.nationality,
+      details.gender,
+      details.maritalStatus,
+      details.email,
+      details.phone,
+      details.residenceCity,
+      details.registeredAddress,
+      details.occupation,
+      details.employmentStatus,
+      details.passportType,
+      details.passportNumber,
+      details.passportIssuePlace,
+      details.appointmentLocation,
+      details.purposeOfTravel,
+    ];
+    if (requiredTextValues.some((value) => !this.hasDetailsText(value))) {
+      return false;
+    }
+
+    if (
+      !this.isDetailsIsoDate(details.dateOfBirth) ||
+      !this.isDetailsIsoDate(details.passportIssueDate) ||
+      !this.isDetailsIsoDate(details.passportExpiryDate) ||
+      !this.isDetailsIsoDate(details.plannedTravelStartDate) ||
+      !this.isDetailsIsoDate(details.plannedTravelEndDate)
+    ) {
+      return false;
+    }
+
+    if (details.plannedTravelEndDate < details.plannedTravelStartDate) {
+      return false;
+    }
+
+    const schengenAppliedBefore = this.normalizeDetailsYesNo(
+      details.schengenAppliedBefore,
+    );
+    if (!schengenAppliedBefore) {
+      return false;
+    }
+    if (
+      schengenAppliedBefore === 'Evet' &&
+      !this.hasDetailsText(details.previousSchengenCountries)
+    ) {
+      return false;
+    }
+
+    const fingerprintGiven = this.normalizeDetailsYesNo(details.fingerprintGiven);
+    if (fingerprintGiven === 'Evet' && !this.isDetailsIsoDate(details.fingerprintDate)) {
+      return false;
+    }
+    if (
+      this.hasDetailsText(details.fingerprintDate) &&
+      !this.isDetailsIsoDate(details.fingerprintDate)
+    ) {
+      return false;
+    }
+
+    if (details.isEmployer) {
+      if (
+        !this.hasDetailsText(details.employerName) ||
+        !this.hasDetailsText(details.employerAddress)
+      ) {
+        return false;
+      }
+    }
+
+    if (details.hasSponsor) {
+      if (
+        !this.hasDetailsText(details.sponsorFullName) ||
+        !this.hasDetailsText(details.sponsorIdentity) ||
+        !this.hasDetailsText(details.sponsorContact) ||
+        !this.hasDetailsText(details.sponsorRelation)
+      ) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /** Returns YYYY-MM-DD after adding the country lead-time days. */

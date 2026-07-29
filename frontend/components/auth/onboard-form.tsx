@@ -1,9 +1,13 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useRef, useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import { onboard, type AuthFormState } from "@/lib/actions/auth";
+import {
+  onboard,
+  type AuthFormField,
+  type AuthFormState,
+} from "@/lib/actions/auth";
 import { APPLICATION_TYPE_OPTIONS } from "@/lib/application-type";
 import { COUNTRY_RULES, SUPPORTED_COUNTRIES } from "@/lib/countries";
 import { maskNameInput, normalizeEnglishChars } from "@/lib/input-masks";
@@ -22,6 +26,7 @@ import {
 import { KvkkDialog, TermsDialog } from "@/components/auth/legal-dialogs";
 
 const INITIAL_STATE: AuthFormState = {};
+type OnboardFieldErrors = Partial<Record<AuthFormField, string>>;
 
 interface OnboardApplicantDraft {
   id: string;
@@ -54,7 +59,10 @@ function toUppercaseAscii(value: string): string {
 }
 
 export function OnboardForm() {
-  const [state, formAction, pending] = useActionState(onboard, INITIAL_STATE);
+  const [state, setState] = useState<AuthFormState>(INITIAL_STATE);
+  const [pending, startTransition] = useTransition();
+  const [fieldErrors, setFieldErrors] = useState<OnboardFieldErrors>({});
+  const passportsRef = useRef<HTMLInputElement | null>(null);
   const [acceptKvkk, setAcceptKvkk] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [targetCountry, setTargetCountry] = useState("");
@@ -63,6 +71,8 @@ export function OnboardForm() {
   const [residenceCity, setResidenceCity] = useState("");
   const [plannedTravelDate, setPlannedTravelDate] = useState("");
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [applicants, setApplicants] = useState<OnboardApplicantDraft[]>([]);
 
@@ -107,8 +117,88 @@ export function OnboardForm() {
     setApplicants((current) => current.filter((item) => item.id !== id));
   }
 
+  function clearFieldError(fieldName: AuthFormField) {
+    setFieldErrors((current) => {
+      if (!current[fieldName]) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[fieldName];
+      return next;
+    });
+  }
+
+  function clearInvalidField(fieldName: AuthFormField) {
+    switch (fieldName) {
+      case "fullName":
+        setFullName("");
+        return;
+      case "email":
+        setEmail("");
+        return;
+      case "password":
+        setPassword("");
+        return;
+      case "phone":
+        setPhoneLocal("");
+        return;
+      case "targetCountry":
+        setTargetCountry("");
+        setAppointmentCity("");
+        return;
+      case "applicationType":
+        setApplicationType("");
+        return;
+      case "appointmentCity":
+        setAppointmentCity("");
+        return;
+      case "residenceCity":
+        setResidenceCity("");
+        return;
+      case "plannedTravelDate":
+        setPlannedTravelDate("");
+        return;
+      case "groupApplicants":
+        setApplicants((current) =>
+          current.map((item) =>
+            item.fullName.trim().length > 0 ? item : { ...item, fullName: "" },
+          ),
+        );
+        return;
+      case "passports":
+        if (passportsRef.current) {
+          passportsRef.current.value = "";
+        }
+        return;
+      case "acceptKvkk":
+        setAcceptKvkk(false);
+        return;
+      case "acceptTerms":
+        setAcceptTerms(false);
+        return;
+    }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setState(INITIAL_STATE);
+    setFieldErrors({});
+
+    const formData = new FormData(event.currentTarget);
+
+    startTransition(async () => {
+      const result = await onboard({}, formData);
+      setState(result);
+
+      if (result.error && result.errorField) {
+        setFieldErrors({ [result.errorField]: result.error });
+        clearInvalidField(result.errorField);
+      }
+    });
+  }
+
   return (
-    <form action={formAction} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <input type="hidden" name="groupApplicants" value={groupApplicantsPayload} />
 
       <div className="space-y-2">
@@ -120,6 +210,7 @@ export function OnboardForm() {
           onChange={(event) => {
             const masked = maskNameInput(event.target.value, 120);
             setFullName(toUppercaseAscii(masked));
+            clearFieldError("fullName");
           }}
           autoComplete="name"
           autoCapitalize="characters"
@@ -127,9 +218,19 @@ export function OnboardForm() {
           spellCheck={false}
           placeholder="Ayşe Yılmaz"
           maxLength={120}
-          className="uppercase"
+          className={
+            fieldErrors.fullName
+              ? "uppercase border-red-500 focus-visible:ring-red-500/30"
+              : "uppercase"
+          }
+          aria-invalid={Boolean(fieldErrors.fullName)}
           required
         />
+        {fieldErrors.fullName ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.fullName}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -138,30 +239,54 @@ export function OnboardForm() {
           id="email"
           name="email"
           type="email"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            clearFieldError("email");
+          }}
           autoComplete="email"
           placeholder="siz@ornek.com"
+          className={
+            fieldErrors.email
+              ? "border-red-500 focus-visible:ring-red-500/30"
+              : undefined
+          }
+          aria-invalid={Boolean(fieldErrors.email)}
           required
         />
+        {fieldErrors.email ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.email}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="phone">Telefon</Label>
-        <div className="flex items-center rounded-md border border-input bg-transparent focus-within:ring-2 focus-within:ring-ring/40">
+        <div
+          className={
+            fieldErrors.phone
+              ? "flex items-center rounded-md border border-red-500 bg-transparent focus-within:ring-2 focus-within:ring-red-500/30"
+              : "flex items-center rounded-md border border-input bg-transparent focus-within:ring-2 focus-within:ring-ring/40"
+          }
+        >
           <span className="border-r border-border/60 px-3 text-sm text-muted-foreground">
             +90
           </span>
           <Input
             id="phone"
             value={phoneLocal}
-            onChange={(event) =>
-              setPhoneLocal(normalizeTurkishPhoneLocal(event.target.value))
-            }
+            onChange={(event) => {
+              setPhoneLocal(normalizeTurkishPhoneLocal(event.target.value));
+              clearFieldError("phone");
+            }}
             type="tel"
             autoComplete="tel-national"
             inputMode="numeric"
             placeholder="5xxxxxxxxx"
             maxLength={10}
             className="border-0 focus-visible:ring-0"
+            aria-invalid={Boolean(fieldErrors.phone)}
             required
           />
         </div>
@@ -173,6 +298,11 @@ export function OnboardForm() {
         <p className="text-xs text-muted-foreground">
           Telefon numarasını başında 0 olmadan 10 hane girin.
         </p>
+        {fieldErrors.phone ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.phone}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -183,10 +313,20 @@ export function OnboardForm() {
           onValueChange={(value) => {
             setTargetCountry(value);
             setAppointmentCity("");
+            clearFieldError("targetCountry");
+            clearFieldError("appointmentCity");
           }}
           required
         >
-          <SelectTrigger id="targetCountry" className="w-full">
+          <SelectTrigger
+            id="targetCountry"
+            className={
+              fieldErrors.targetCountry
+                ? "w-full border-red-500 focus-visible:ring-red-500/30"
+                : "w-full"
+            }
+            aria-invalid={Boolean(fieldErrors.targetCountry)}
+          >
             <SelectValue placeholder="Ülke seçin" />
           </SelectTrigger>
           <SelectContent>
@@ -197,6 +337,11 @@ export function OnboardForm() {
             ))}
           </SelectContent>
         </Select>
+        {fieldErrors.targetCountry ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.targetCountry}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -204,10 +349,21 @@ export function OnboardForm() {
         <Select
           name="applicationType"
           value={applicationType}
-          onValueChange={setApplicationType}
+          onValueChange={(value) => {
+            setApplicationType(value);
+            clearFieldError("applicationType");
+          }}
           required
         >
-          <SelectTrigger id="applicationType" className="w-full">
+          <SelectTrigger
+            id="applicationType"
+            className={
+              fieldErrors.applicationType
+                ? "w-full border-red-500 focus-visible:ring-red-500/30"
+                : "w-full"
+            }
+            aria-invalid={Boolean(fieldErrors.applicationType)}
+          >
             <SelectValue placeholder="Başvuru türü seçin" />
           </SelectTrigger>
           <SelectContent>
@@ -222,6 +378,11 @@ export function OnboardForm() {
           {selectedApplicationType?.description ??
             "Başvuru türü, dosyanın operasyon akışını doğru sınıfta takip etmemizi sağlar."}
         </p>
+        {fieldErrors.applicationType ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.applicationType}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -229,11 +390,22 @@ export function OnboardForm() {
         <Select
           name="appointmentCity"
           value={appointmentCity}
-          onValueChange={setAppointmentCity}
+          onValueChange={(value) => {
+            setAppointmentCity(value);
+            clearFieldError("appointmentCity");
+          }}
           disabled={!targetCountry}
           required
         >
-          <SelectTrigger id="appointmentCity" className="w-full">
+          <SelectTrigger
+            id="appointmentCity"
+            className={
+              fieldErrors.appointmentCity
+                ? "w-full border-red-500 focus-visible:ring-red-500/30"
+                : "w-full"
+            }
+            aria-invalid={Boolean(fieldErrors.appointmentCity)}
+          >
             <SelectValue
               placeholder={
                 targetCountry
@@ -250,6 +422,11 @@ export function OnboardForm() {
             ))}
           </SelectContent>
         </Select>
+        {fieldErrors.appointmentCity ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.appointmentCity}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -261,15 +438,26 @@ export function OnboardForm() {
           onChange={(event) => {
             const masked = maskNameInput(event.target.value, 120);
             setResidenceCity(toUppercaseAscii(masked));
+            clearFieldError("residenceCity");
           }}
           autoCapitalize="characters"
           autoCorrect="off"
           spellCheck={false}
           placeholder="Uygun bir şehir giriniz"
           maxLength={120}
-          className="uppercase"
+          className={
+            fieldErrors.residenceCity
+              ? "uppercase border-red-500 focus-visible:ring-red-500/30"
+              : "uppercase"
+          }
+          aria-invalid={Boolean(fieldErrors.residenceCity)}
           required
         />
+        {fieldErrors.residenceCity ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.residenceCity}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -278,9 +466,22 @@ export function OnboardForm() {
           id="plannedTravelDate"
           name="plannedTravelDate"
           value={plannedTravelDate}
-          onChange={setPlannedTravelDate}
+          onChange={(value) => {
+            setPlannedTravelDate(value);
+            clearFieldError("plannedTravelDate");
+          }}
+          className={
+            fieldErrors.plannedTravelDate
+              ? "border-red-500 focus-visible:ring-red-500/30"
+              : undefined
+          }
           required
         />
+        {fieldErrors.plannedTravelDate ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.plannedTravelDate}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -289,12 +490,28 @@ export function OnboardForm() {
           id="password"
           name="password"
           type="password"
+          value={password}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            clearFieldError("password");
+          }}
           autoComplete="new-password"
           minLength={8}
           maxLength={72}
+          className={
+            fieldErrors.password
+              ? "border-red-500 focus-visible:ring-red-500/30"
+              : undefined
+          }
+          aria-invalid={Boolean(fieldErrors.password)}
           required
         />
         <p className="text-xs text-muted-foreground">En az 8 karakter.</p>
+        {fieldErrors.password ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.password}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -303,8 +520,16 @@ export function OnboardForm() {
           id="passports"
           name="passports"
           type="file"
+          ref={passportsRef}
+          onChange={() => clearFieldError("passports")}
           accept="image/jpeg,image/png,image/webp,application/pdf"
           multiple
+          className={
+            fieldErrors.passports
+              ? "border-red-500 focus-visible:ring-red-500/30"
+              : undefined
+          }
+          aria-invalid={Boolean(fieldErrors.passports)}
           required
         />
         <p className="text-xs text-muted-foreground">
@@ -312,9 +537,20 @@ export function OnboardForm() {
           yükleyebilirsiniz · JPG, PNG, WebP veya PDF · her biri en fazla 10 MB.
           Yüklenen pasaport sayısı: 1 (siz) + ek kişi sayısı ile aynı olmalıdır.
         </p>
+        {fieldErrors.passports ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.passports}
+          </p>
+        ) : null}
       </div>
 
-      <div className="space-y-3 rounded-lg border border-border/40 bg-muted/20 p-4">
+      <div
+        className={
+          fieldErrors.groupApplicants
+            ? "space-y-3 rounded-lg border border-red-500/60 bg-muted/20 p-4"
+            : "space-y-3 rounded-lg border border-border/40 bg-muted/20 p-4"
+        }
+      >
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium">Ek Başvuru Kişileri</p>
@@ -343,14 +579,21 @@ export function OnboardForm() {
                   id={`applicant-name-${applicant.id}`}
                   value={applicant.fullName}
                   onChange={(event) =>
-                    updateApplicant(applicant.id, event.target.value)
+                    {
+                      updateApplicant(applicant.id, event.target.value);
+                      clearFieldError("groupApplicants");
+                    }
                   }
                   autoCapitalize="characters"
                   autoCorrect="off"
                   spellCheck={false}
                   placeholder="Ek Kişi Ad Soyad"
                   maxLength={120}
-                  className="uppercase"
+                  className={
+                    fieldErrors.groupApplicants
+                      ? "uppercase border-red-500 focus-visible:ring-red-500/30"
+                      : "uppercase"
+                  }
                   required
                 />
               </div>
@@ -375,6 +618,12 @@ export function OnboardForm() {
             </p>
           ) : null}
         </div>
+
+        {fieldErrors.groupApplicants ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.groupApplicants}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-3 pt-1">
@@ -384,7 +633,10 @@ export function OnboardForm() {
             name="acceptKvkk"
             value="true"
             checked={acceptKvkk}
-            onCheckedChange={(value) => setAcceptKvkk(value === true)}
+            onCheckedChange={(value) => {
+              setAcceptKvkk(value === true);
+              clearFieldError("acceptKvkk");
+            }}
             className="mt-0.5"
           />
           <Label
@@ -395,6 +647,11 @@ export function OnboardForm() {
             ediyorum.
           </Label>
         </div>
+        {fieldErrors.acceptKvkk ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.acceptKvkk}
+          </p>
+        ) : null}
 
         <div className="flex items-start gap-2.5">
           <Checkbox
@@ -402,7 +659,10 @@ export function OnboardForm() {
             name="acceptTerms"
             value="true"
             checked={acceptTerms}
-            onCheckedChange={(value) => setAcceptTerms(value === true)}
+            onCheckedChange={(value) => {
+              setAcceptTerms(value === true);
+              clearFieldError("acceptTerms");
+            }}
             className="mt-0.5"
           />
           <Label
@@ -413,9 +673,14 @@ export function OnboardForm() {
             okudum ve kabul ediyorum.
           </Label>
         </div>
+        {fieldErrors.acceptTerms ? (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {fieldErrors.acceptTerms}
+          </p>
+        ) : null}
       </div>
 
-      {state.error ? (
+      {state.error && !state.errorField ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {state.error}
         </p>
