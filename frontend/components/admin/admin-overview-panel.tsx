@@ -6,21 +6,12 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
-  Loader2,
   Search,
 } from "lucide-react";
 
 import { AdminStatsCharts } from "@/components/admin/admin-stats-charts";
 import { StageBadge } from "@/components/stage-badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -30,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApiError, api } from "@/lib/api";
+import { api } from "@/lib/api";
 import { VisaStage } from "@/lib/enums";
 import { formatDuration, timeAgo } from "@/lib/format";
 import type { AdminApplicationRow, AdminStats } from "@/lib/types";
@@ -41,13 +32,6 @@ type HeaderSortDirection = "asc" | "desc";
 type HeaderSortState =
   | { key: HeaderSortKey; direction: HeaderSortDirection }
   | null;
-
-type DeleteTarget = {
-  userId: string;
-  fullName: string;
-  email: string;
-  applicationId: string;
-};
 
 const STAGE_ORDER: Record<VisaStage, number> = {
   [VisaStage.SALES_POOL]: 1,
@@ -60,25 +44,6 @@ const STAGE_ORDER: Record<VisaStage, number> = {
   [VisaStage.PAUSED]: 8,
   [VisaStage.CANCELLED]: 9,
 };
-
-function actionErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  return "Kullanıcı silinirken beklenmeyen bir hata oluştu.";
-}
-
-function toDeleteTarget(application: AdminApplicationRow): DeleteTarget {
-  return {
-    userId: application.customer.id,
-    fullName: application.customer.fullName,
-    email: application.customer.email,
-    applicationId: application.id,
-  };
-}
 
 function stageHandler(app: AdminApplicationRow): string | null {
   switch (app.currentStage) {
@@ -146,9 +111,6 @@ export function AdminOverviewPanel({
     useState<AdminApplicationRow[]>(initialApplications);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
-  const [deletePending, setDeletePending] = useState(false);
   const hasMountedRef = useRef(false);
 
   const staffNameMap = useMemo(
@@ -250,33 +212,6 @@ export function AdminOverviewPanel({
 
     return rows;
   }, [applications, collator, headerSort]);
-
-  function openDeleteDialog(application: AdminApplicationRow) {
-    setActionError(null);
-    setDeleteTarget(toDeleteTarget(application));
-  }
-
-  async function confirmDelete() {
-    if (!deleteTarget) {
-      return;
-    }
-
-    setDeletePending(true);
-    setActionError(null);
-
-    try {
-      await api.del(`/admin/users/${deleteTarget.userId}`);
-      setDeleteTarget(null);
-
-      const path = buildAllApplicationsPath(search, selectedStaffId);
-      const next = await api.get<AdminApplicationRow[]>(path);
-      setApplications(next);
-    } catch (error) {
-      setActionError(actionErrorMessage(error));
-    } finally {
-      setDeletePending(false);
-    }
-  }
 
   function toggleHeaderSort(key: HeaderSortKey) {
     setHeaderSort((current) => {
@@ -417,10 +352,6 @@ export function AdminOverviewPanel({
           {loadError ? (
             <p className="mt-2 text-xs text-muted-foreground">{loadError}</p>
           ) : null}
-
-          {actionError ? (
-            <p className="mt-2 text-xs text-red-600 dark:text-red-400">{actionError}</p>
-          ) : null}
         </div>
 
         {applications.length === 0 ? (
@@ -441,13 +372,9 @@ export function AdminOverviewPanel({
                       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                         Başvuran
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => openDeleteDialog(application)}
-                        className="text-left text-sm font-medium text-foreground underline-offset-4 hover:underline"
-                      >
+                      <p className="text-left text-sm font-medium text-foreground">
                         {application.customer.fullName}
-                      </button>
+                      </p>
                       <p className="font-mono text-xs text-muted-foreground break-all">
                         {application.customer.email}
                       </p>
@@ -517,13 +444,9 @@ export function AdminOverviewPanel({
                     return (
                       <TableRow key={application.id} className="border-border/40">
                         <TableCell>
-                          <button
-                            type="button"
-                            onClick={() => openDeleteDialog(application)}
-                            className="text-left font-medium underline-offset-4 hover:underline"
-                          >
+                          <p className="text-left font-medium">
                             {application.customer.fullName}
-                          </button>
+                          </p>
                           <div className="font-mono text-xs text-muted-foreground">
                             {application.customer.email}
                           </div>
@@ -552,59 +475,6 @@ export function AdminOverviewPanel({
           </>
         )}
       </section>
-
-      <Dialog
-        open={Boolean(deleteTarget)}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen && !deletePending) {
-            setDeleteTarget(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-[calc(100%-1.5rem)] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Müşteri Yönetici İşlemleri</DialogTitle>
-            <DialogDescription>
-              Bu kullanıcıyı ve ilişkili kayıtlarını kalıcı olarak silmek üzeresiniz. Bu işlem geri alınamaz.
-            </DialogDescription>
-          </DialogHeader>
-
-          {deleteTarget ? (
-            <div className="space-y-2 rounded-md border border-border/40 bg-muted/40 px-3 py-2.5 text-sm">
-              <p className="font-medium">{deleteTarget.fullName}</p>
-              <p className="font-mono text-xs break-all text-muted-foreground">
-                {deleteTarget.email}
-              </p>
-              <Link
-                href={`/dashboard/applications/${deleteTarget.applicationId}`}
-                className="inline-flex text-xs text-muted-foreground underline-offset-4 hover:underline"
-              >
-                İlgili başvuruyu aç
-              </Link>
-            </div>
-          ) : null}
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={deletePending}
-              onClick={() => setDeleteTarget(null)}
-            >
-              Vazgeç
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deletePending}
-              onClick={confirmDelete}
-            >
-              {deletePending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
-              Bu Kullanıcıyı Sil
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ShieldAlert } from "lucide-react";
 
@@ -18,6 +19,7 @@ import {
   forceStage,
   reassignApplication,
 } from "@/lib/actions/applications";
+import { ApiError, api } from "@/lib/api";
 import { VisaStage } from "@/lib/enums";
 import { STAGE_LABEL } from "@/lib/status";
 import type { ActionResult, StaffOption } from "@/lib/types";
@@ -33,17 +35,36 @@ export function AdminActions({
   applicationId,
   currentStage,
   staff,
+  customer,
 }: {
   applicationId: string;
   currentStage: VisaStage;
   staff: StaffOption[];
+  customer: {
+    id: string;
+    fullName: string;
+    email: string;
+  };
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [deletePending, setDeletePending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [staffId, setStaffId] = useState("");
   const [stage, setStage] = useState<VisaStage>(currentStage);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function actionErrorMessage(error: unknown): string {
+    if (error instanceof ApiError) {
+      return error.message;
+    }
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+    return "Kullanıcı silinirken beklenmeyen bir hata oluştu.";
+  }
 
   function run(action: () => Promise<ActionResult>, success: string) {
     setError(null);
@@ -68,6 +89,23 @@ export function AdminActions({
       () => reassignApplication(applicationId, option.department, option.staffId),
       `${option.fullName} kişisine yeniden atandı.`,
     );
+  }
+
+  async function onDeleteCustomer() {
+    setDeletePending(true);
+    setError(null);
+    setNote(null);
+
+    try {
+      await api.del(`/admin/users/${customer.id}`);
+      router.push("/dashboard/admin");
+      router.refresh();
+    } catch (error) {
+      setError(actionErrorMessage(error));
+    } finally {
+      setDeletePending(false);
+      setConfirmingDelete(false);
+    }
   }
 
   return (
@@ -185,6 +223,46 @@ export function AdminActions({
               disabled={pending || currentStage === VisaStage.CANCELLED}
             >
               Zorla İptal
+            </Button>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Müşteriyi kalıcı sil</Label>
+          <p className="text-xs text-muted-foreground">
+            Bu işlem kullanıcıyı ve ilişkili başvuru kayıtlarını kalıcı olarak siler.
+          </p>
+          {confirmingDelete ? (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setConfirmingDelete(false)}
+                disabled={pending || deletePending}
+              >
+                Vazgeç
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={onDeleteCustomer}
+                disabled={pending || deletePending}
+              >
+                {deletePending ? "Siliniyor…" : "Kullanıcıyı Sil"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => {
+                setConfirmingDelete(true);
+                setError(null);
+                setNote(null);
+              }}
+              disabled={pending || deletePending}
+            >
+              Kullanıcıyı Sil
             </Button>
           )}
         </div>

@@ -1171,6 +1171,11 @@ export default async function ApplicationDetailPage({
               applicationId={detail.id}
               currentStage={stage}
               staff={staffOptions}
+              customer={{
+                id: detail.customer.id,
+                fullName: detail.customer.fullName,
+                email: detail.customer.email,
+              }}
             />
           ) : null}
         </div>
