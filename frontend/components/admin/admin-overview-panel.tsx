@@ -8,7 +8,6 @@ import {
   ChevronsUpDown,
   Loader2,
   Search,
-  Trash2,
 } from "lucide-react";
 
 import { AdminStatsCharts } from "@/components/admin/admin-stats-charts";
@@ -510,9 +509,6 @@ export function AdminOverviewPanel({
                         align: "right",
                       })}
                     </TableHead>
-                    <TableHead className="text-right text-xs font-medium text-muted-foreground">
-                      Yönetici İşlemi
-                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -546,17 +542,6 @@ export function AdminOverviewPanel({
                         </TableCell>
                         <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
                           {timeAgo(application.createdAt)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => openDeleteDialog(application)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                            Kullanıcıyı Sil
-                          </Button>
                         </TableCell>
                       </TableRow>
                     );
