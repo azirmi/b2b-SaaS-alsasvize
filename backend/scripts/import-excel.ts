@@ -450,7 +450,11 @@ function prepareRow(
   if (
     normalizedRemainingPaymentRaw.includes('YOK') ||
     normalizedRemainingPaymentRaw.includes('TAMAM') ||
-    normalizedRemainingPaymentRaw.includes('BITTI')
+    normalizedRemainingPaymentRaw.includes('BITTI') ||
+    normalizedRemainingPaymentRaw.includes('ALINDI') ||
+    normalizedRemainingPaymentRaw.includes('ODENDI') ||
+    /\bALIN(MIS|MISTIR)\b/.test(normalizedRemainingPaymentRaw) ||
+    /\bODEN(MIS|MISTIR)\b/.test(normalizedRemainingPaymentRaw)
   ) {
     baseRemain = 0;
   }
@@ -467,8 +471,8 @@ function prepareRow(
       upfrontPaid = Math.max(totalAmount - baseRemain, 0);
     }
   } else {
-    totalAmount = baseTotal;
-    upfrontPaid = baseTotal;
+    totalAmount = Math.max(baseTotal, baseDown);
+    upfrontPaid = totalAmount;
   }
 
   totalAmount = Math.max(totalAmount, 0);

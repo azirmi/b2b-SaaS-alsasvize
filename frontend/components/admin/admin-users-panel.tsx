@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useMemo, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Search, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -151,8 +151,12 @@ export function AdminUsersPanel({
     role: defaultRoleForScope(scope),
   });
 
+  const [query, setQuery] = useState("");
+
   const [deleteTarget, setDeleteTarget] = useState<AdminUserRecord | null>(null);
   const [deletePending, setDeletePending] = useState(false);
+  const [customerDetailTarget, setCustomerDetailTarget] =
+    useState<AdminUserRecord | null>(null);
 
   const sortedUsers = useMemo(() => {
     return [...users].sort(
@@ -165,6 +169,30 @@ export function AdminUsersPanel({
     () => sortedUsers.filter((user) => isScopeRole(user.role, scope)),
     [scope, sortedUsers],
   );
+
+  const visibleUsers = useMemo(() => {
+    if (scope !== "customers") {
+      return scopedUsers;
+    }
+
+    const normalizedQuery = query.trim().toLocaleLowerCase("tr-TR");
+    if (!normalizedQuery) {
+      return scopedUsers;
+    }
+
+    return scopedUsers.filter((user) => {
+      const haystack = [user.fullName, user.email].join(" ").toLocaleLowerCase("tr-TR");
+      return haystack.includes(normalizedQuery);
+    });
+  }, [query, scope, scopedUsers]);
+
+  const hasSearchQuery = scope === "customers" && query.trim().length > 0;
+  const scopeCountText = hasSearchQuery
+    ? `${visibleUsers.length}/${scopedUsers.length} ${scopeCountLabel}`
+    : `${visibleUsers.length} ${scopeCountLabel}`;
+  const emptyText = hasSearchQuery
+    ? "Arama kriterine uygun müşteri bulunamadı."
+    : scopeEmptyText;
 
   function renderUsers(usersToRender: AdminUserRecord[], emptyText: string) {
     if (usersToRender.length === 0) {
@@ -191,9 +219,19 @@ export function AdminUsersPanel({
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                       Kullanıcı
                     </p>
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {user.fullName}
-                    </p>
+                    {scope === "customers" ? (
+                      <button
+                        type="button"
+                        onClick={() => setCustomerDetailTarget(user)}
+                        className="truncate text-left text-sm font-medium text-foreground underline-offset-4 hover:underline"
+                      >
+                        {user.fullName}
+                      </button>
+                    ) : (
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {user.fullName}
+                      </p>
+                    )}
                     <p className="mt-1 text-xs text-muted-foreground break-all">
                       {user.email}
                     </p>
@@ -282,7 +320,19 @@ export function AdminUsersPanel({
 
                 return (
                   <TableRow key={user.id} className="border-border/40">
-                    <TableCell className="font-medium">{user.fullName}</TableCell>
+                    <TableCell className="font-medium">
+                      {scope === "customers" ? (
+                        <button
+                          type="button"
+                          onClick={() => setCustomerDetailTarget(user)}
+                          className="underline-offset-4 hover:underline"
+                        >
+                          {user.fullName}
+                        </button>
+                      ) : (
+                        user.fullName
+                      )}
+                    </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {user.email}
                     </TableCell>
@@ -410,7 +460,7 @@ export function AdminUsersPanel({
           <span className="text-xs text-muted-foreground tabular-nums">
             {isRefreshing
               ? "Güncelleniyor..."
-              : `${scopedUsers.length} ${scopeCountLabel}`}
+              : scopeCountText}
           </span>
           <Button
             type="button"
@@ -430,13 +480,30 @@ export function AdminUsersPanel({
         </div>
       </div>
 
+      {scope === "customers" ? (
+        <div className="border-b border-border/40 px-3 py-3 sm:px-5">
+          <div className="relative w-full md:max-w-md">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Müşteri adı veya e-posta ile ara"
+              className="h-9 pl-8 text-sm"
+            />
+          </div>
+        </div>
+      ) : null}
+
       {panelError ? (
         <p className="px-3 pt-3 text-xs text-red-600 dark:text-red-400 sm:px-5">
           {panelError}
         </p>
       ) : null}
 
-      <div className="px-3 py-4 sm:px-5">{renderUsers(scopedUsers, scopeEmptyText)}</div>
+      <div className="px-3 py-4 sm:px-5">{renderUsers(visibleUsers, emptyText)}</div>
 
       <Dialog
         open={createOpen}
@@ -560,6 +627,86 @@ export function AdminUsersPanel({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(customerDetailTarget)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setCustomerDetailTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-[calc(100%-1.5rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Müşteri Detayı</DialogTitle>
+            <DialogDescription>
+              Danışan hesabını inceleyin ve yönetici işlemlerini doğrudan buradan uygulayın.
+            </DialogDescription>
+          </DialogHeader>
+
+          {customerDetailTarget ? (
+            <>
+              <div className="space-y-2 rounded-md border border-border/40 bg-muted/40 p-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-foreground">{customerDetailTarget.fullName}</p>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "rounded-md text-[11px]",
+                      statusBadgeClass(customerDetailTarget.isActive),
+                    )}
+                  >
+                    {customerDetailTarget.isActive ? "Aktif" : "Pasif"}
+                  </Badge>
+                </div>
+                <p className="font-mono text-xs text-muted-foreground break-all">
+                  {customerDetailTarget.email}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Oluşturulma: {formatCreatedAt(customerDetailTarget.createdAt)}
+                </p>
+              </div>
+
+              <div className="space-y-2 rounded-md border border-border/40 bg-card p-3">
+                <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                  Yönetici İşlemleri
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Geri alınamaz işlemleri dikkatli uygulayın.
+                </p>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="w-full justify-center sm:w-auto"
+                  disabled={customerDetailTarget.id === currentUserId}
+                  onClick={() => {
+                    setDeleteTarget(customerDetailTarget);
+                    setCustomerDetailTarget(null);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  Bu Kullanıcıyı Sil
+                </Button>
+                {customerDetailTarget.id === currentUserId ? (
+                  <p className="text-xs text-muted-foreground">
+                    Oturumdaki yönetici hesabı bu ekrandan silinemez.
+                  </p>
+                ) : null}
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCustomerDetailTarget(null)}
+                >
+                  Kapat
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
         </DialogContent>
       </Dialog>
 
