@@ -62,7 +62,18 @@ const DIJIZIN_ETK_TYPES = ['ARAMA', 'MESAJ', 'EPOSTA'] as const;
 export class DijizinService {
   private tokenCache: { token: string; expiresAt: number } | null = null;
 
-  constructor(private readonly config: ConfigService) {}
+  /**
+   * ETK (İYS / ticari ileti) consent requires the İYS module on the Dijizin
+   * package. Off by default → we collect KVKK consent only and never touch İYS.
+   * Flip DIJIZIN_ETK_ENABLED=true once the package has İYS/ETK enabled.
+   */
+  private readonly etkEnabled: boolean;
+
+  constructor(private readonly config: ConfigService) {
+    this.etkEnabled =
+      this.config.get<string>('DIJIZIN_ETK_ENABLED')?.trim().toLowerCase() ===
+      'true';
+  }
 
   async sendConsentRequest(
     customerInput: DijizinConsentCustomerInput,
@@ -120,9 +131,11 @@ export class DijizinService {
     const form = new URLSearchParams();
     form.set('status', DIJIZIN_CONSENT_STATUS);
     form.set('kvkk', kvkkTextId);
-    form.set('etk', etkTextId);
     form.set(`codes[${kvkkTextId}]`, code);
-    form.set(`codes[${etkTextId}]`, code);
+    if (etkTextId) {
+      form.set('etk', etkTextId);
+      form.set(`codes[${etkTextId}]`, code);
+    }
 
     const payload = await this.requestWithAuth(
       'POST',
@@ -275,7 +288,7 @@ export class DijizinService {
   private buildConsentSmsForm(
     customer: DijizinNormalizedCustomer,
     kvkkTextId: string,
-    etkTextId: string,
+    etkTextId: string | null,
   ): URLSearchParams {
     const form = new URLSearchParams();
 
@@ -286,9 +299,13 @@ export class DijizinService {
     form.set('locale', DIJIZIN_LOCALE);
     form.set('kvkk', kvkkTextId);
     form.set('status', DIJIZIN_CONSENT_STATUS);
-    form.set('etk', etkTextId);
-    for (const type of DIJIZIN_ETK_TYPES) {
-      form.append('types[]', type);
+    // ETK + İYS channels (types[]) only when the package supports it; otherwise
+    // this stays a KVKK-only consent and İYS is never invoked.
+    if (etkTextId) {
+      form.set('etk', etkTextId);
+      for (const type of DIJIZIN_ETK_TYPES) {
+        form.append('types[]', type);
+      }
     }
     form.set('recipient_type', DIJIZIN_RECIPIENT_TYPE);
     form.set('send_method', DIJIZIN_SEND_METHOD);
@@ -300,7 +317,7 @@ export class DijizinService {
 
   private async getValidTextIds(): Promise<{
     kvkkTextId: string;
-    etkTextId: string;
+    etkTextId: string | null;
   }> {
     const payload = await this.requestWithAuth('GET', '/api/texts');
     const rows = this.firstArray(payload, ['data', 'texts', 'items']);
@@ -339,13 +356,18 @@ export class DijizinService {
       }
     }
 
-    if (!kvkkTextId || !etkTextId) {
+    if (!kvkkTextId) {
       throw new BadGatewayException(
-        'Dijizin aktif KVKK/ETK metin ID degerleri bulunamadi.',
+        'Dijizin aktif KVKK metin ID degeri bulunamadi.',
+      );
+    }
+    if (this.etkEnabled && !etkTextId) {
+      throw new BadGatewayException(
+        'Dijizin aktif ETK metin ID degeri bulunamadi.',
       );
     }
 
-    return { kvkkTextId, etkTextId };
+    return { kvkkTextId, etkTextId: this.etkEnabled ? etkTextId : null };
   }
 
   private async requestWithAuth(
