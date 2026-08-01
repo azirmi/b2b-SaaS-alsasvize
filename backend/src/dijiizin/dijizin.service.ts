@@ -80,11 +80,21 @@ export class DijizinService {
   ): Promise<{ status: DijizinConsentOutcome; message: string }> {
     const customer = this.normalizeCustomerInput(customerInput);
     const { kvkkTextId, etkTextId } = await this.getValidTextIds();
+    const consentForm = this.buildConsentSmsForm(customer, kvkkTextId, etkTextId);
+
+    // Diagnostic (safe: field names only, no PII/secret values) — confirms which
+    // build is live and whether İYS/ETK fields are still being shipped.
+    console.log(
+      '[Dijizin] /consents send — etkEnabled=%s hasEtk=%s keys=%s',
+      this.etkEnabled,
+      consentForm.has('etk'),
+      [...consentForm.keys()].join(','),
+    );
 
     const payload = await this.requestWithAuth(
       'POST',
       '/api/consents',
-      this.buildConsentSmsForm(customer, kvkkTextId, etkTextId),
+      consentForm,
     );
 
     // Per Dijizin V2: when the customer already exists, POST /consents neither
