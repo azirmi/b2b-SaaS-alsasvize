@@ -28,6 +28,12 @@ export interface DijizinCustomerForm {
   answeredAt: string | null;
 }
 
+/** Result of a KVKK/ETK consent dispatch — mirrors Dijizin's exists/is_verified branches. */
+export type DijizinConsentOutcome =
+  | 'SMS_SENT'
+  | 'ALREADY_VERIFIED'
+  | 'NEEDS_RESEND';
+
 export interface DijizinConsentCustomerInput {
   mobilePhone: string;
   firstName: string;
@@ -60,7 +66,7 @@ export class DijizinService {
 
   async sendConsentRequest(
     customerInput: DijizinConsentCustomerInput,
-  ): Promise<{ message: string }> {
+  ): Promise<{ status: DijizinConsentOutcome; message: string }> {
     const customer = this.normalizeCustomerInput(customerInput);
     const { kvkkTextId, etkTextId } = await this.getValidTextIds();
 
@@ -70,9 +76,38 @@ export class DijizinService {
       this.buildConsentSmsForm(customer, kvkkTextId, etkTextId),
     );
 
+    // Per Dijizin V2: when the customer already exists, POST /consents neither
+    // creates a consent nor dispatches an OTP. If already verified we are done;
+    // otherwise the code must be (re)sent via the resend endpoint.
+    const existing = this.readExistingCustomerState(payload);
+    if (existing?.exists) {
+      return existing.isVerified
+        ? { status: 'ALREADY_VERIFIED', message: 'Müşteri zaten onaylı.' }
+        : {
+            status: 'NEEDS_RESEND',
+            message:
+              'Müşteri kaydı mevcut ancak doğrulanmamış. Doğrulama kodu yeniden gönderilmeli.',
+          };
+    }
+
     return {
-      message: this.readMessage(payload) ??
+      status: 'SMS_SENT',
+      message:
+        this.readMessage(payload) ??
         'Dijizin KVKK onay kodu SMS olarak gonderildi.',
+    };
+  }
+
+  async resendConsentSms(mobilePhone: string): Promise<{ message: string }> {
+    const recipientPhone = this.normalizeRecipientPhone(mobilePhone);
+    const payload = await this.requestWithAuth(
+      'POST',
+      `/api/consents/${encodeURIComponent(recipientPhone)}/resend`,
+    );
+
+    return {
+      message:
+        this.readMessage(payload) ?? 'Dijizin doğrulama kodu yeniden gönderildi.',
     };
   }
 
@@ -80,16 +115,18 @@ export class DijizinService {
     mobilePhone: string,
     code: string,
   ): Promise<{ message: string }> {
-    const { kvkkTextId } = await this.getValidTextIds();
-    const normalizedPhone = this.normalizeMobilePhone(mobilePhone);
+    const { kvkkTextId, etkTextId } = await this.getValidTextIds();
+    const recipientPhone = this.normalizeRecipientPhone(mobilePhone);
     const form = new URLSearchParams();
     form.set('status', DIJIZIN_CONSENT_STATUS);
     form.set('kvkk', kvkkTextId);
+    form.set('etk', etkTextId);
     form.set(`codes[${kvkkTextId}]`, code);
+    form.set(`codes[${etkTextId}]`, code);
 
     const payload = await this.requestWithAuth(
       'POST',
-      `/api/consents/${encodeURIComponent(normalizedPhone)}`,
+      `/api/consents/${encodeURIComponent(recipientPhone)}`,
       form,
     );
 
@@ -109,14 +146,20 @@ export class DijizinService {
     mobilePhone: string,
     formId: string,
   ): Promise<{ message: string }> {
-    const normalizedPhone = this.normalizeMobilePhone(mobilePhone);
+    const customerId = await this.getCustomerByPhone(mobilePhone);
+    if (!customerId) {
+      throw new BadGatewayException(
+        'Dijizin musterisi bulunamadi. Once izin olusturulmasi gerekebilir.',
+      );
+    }
+
     const form = new URLSearchParams();
     form.set('form_id', formId);
-    form.set('form_ids[]', formId);
+    form.set('send_method', DIJIZIN_SEND_METHOD);
 
     const payload = await this.requestWithAuth(
       'POST',
-      `/api/customers/${encodeURIComponent(normalizedPhone)}/forms`,
+      `/api/customers/${customerId}/forms`,
       form,
     );
 
@@ -127,12 +170,47 @@ export class DijizinService {
   }
 
   async getCustomerForms(mobilePhone: string): Promise<DijizinCustomerForm[]> {
-    const normalizedPhone = this.normalizeMobilePhone(mobilePhone);
+    const customerId = await this.getCustomerByPhone(mobilePhone);
+    if (!customerId) {
+      return [];
+    }
+
     const payload = await this.requestWithAuth(
       'GET',
-      `/api/customers/${encodeURIComponent(normalizedPhone)}/forms`,
+      `/api/customers/${customerId}/forms`,
     );
     return this.mapCustomerForms(payload);
+  }
+
+  private async getCustomerByPhone(mobilePhone: string): Promise<number | null> {
+    const normalizedPhone = this.normalizeSubscriberPhone(mobilePhone);
+    const payload = await this.requestWithAuth(
+      'GET',
+      `/api/customers?mobile_phone=${encodeURIComponent(normalizedPhone)}`,
+    );
+
+    const rows = this.firstArray(payload, ['data', 'customers', 'items']);
+    const customer = this.asRecord(rows[0]);
+    if (!customer) {
+      return null;
+    }
+
+    const numericId = this.readNumber(customer, ['id', 'customer_id', 'customerId']);
+    if (numericId) {
+      return numericId;
+    }
+
+    const stringId = this.readIdentifier(customer, ['id', 'customer_id', 'customerId']);
+    if (!stringId) {
+      return null;
+    }
+
+    const parsed = Number(stringId);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+
+    return parsed;
   }
 
   private normalizeCustomerInput(
@@ -164,6 +242,11 @@ export class DijizinService {
       return `90${digits.slice(1)}`;
     }
     return digits;
+  }
+
+  private normalizeRecipientPhone(value: string): string {
+    const digits = this.normalizeMobilePhone(value);
+    return digits.startsWith('+') ? digits : `+${digits}`;
   }
 
   private normalizeSubscriberPhone(value: string): string {
@@ -321,8 +404,6 @@ export class DijizinService {
     const form = new URLSearchParams();
     form.set('client_id', clientId);
     form.set('client_secret', clientSecret);
-    form.set('username', clientId);
-    form.set('password', clientSecret);
 
     const login = await this.request('POST', '/api/auth/login', null, form);
     if (!login.ok) {
@@ -362,7 +443,7 @@ export class DijizinService {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs());
 
     try {
-      const response = await fetch(`${this.baseUrl()}${path}`, {
+      const response = await fetch(this.buildRequestUrl(path), {
         method,
         headers: this.headers(token, Boolean(form)),
         body: form ? form.toString() : undefined,
@@ -442,6 +523,26 @@ export class DijizinService {
     return headers;
   }
 
+  private buildRequestUrl(path: string): string {
+    const base = this.baseUrl();
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+    const [rawPathname, rawSearch = ''] = normalizedPath.split('?');
+    const baseUrl = new URL(base);
+    const basePath = baseUrl.pathname.replace(/\/+$/, '');
+
+    let requestPath = rawPathname;
+    if (basePath.toLowerCase().endsWith('/api') && /^\/api(?:\/|$)/i.test(requestPath)) {
+      requestPath = requestPath.replace(/^\/api(?=\/|$)/i, '') || '/';
+    }
+
+    const joinedPath = `${basePath}${requestPath}`.replace(/\/{2,}/g, '/');
+    baseUrl.pathname = joinedPath;
+    baseUrl.search = rawSearch;
+
+    return baseUrl.toString();
+  }
+
   private baseUrl(): string {
     const value = this.config.get<string>('DIJIZIN_BASE_URL')?.trim();
     if (!value) {
@@ -502,21 +603,30 @@ export class DijizinService {
 
   private extractExpiresIn(payload: unknown): number {
     const root = this.asRecord(payload);
-    if (!root) {
-      return 900;
+    const data = this.asRecord(root?.data);
+
+    // Prefer explicit seconds if the provider ever returns them...
+    const directSeconds =
+      (root ? this.readNumber(root, ['expires_in', 'expiresIn']) : null) ??
+      (data ? this.readNumber(data, ['expires_in', 'expiresIn']) : null);
+    if (directSeconds) {
+      return directSeconds;
     }
 
-    const direct = this.readNumber(root, ['expires_in', 'expiresIn']);
-    if (direct) {
-      return direct;
+    // ...but V2 login actually returns `expires_at` as an ISO-8601 timestamp.
+    const expiresAt =
+      (root ? this.readString(root, ['expires_at', 'expiresAt']) : null) ??
+      (data ? this.readString(data, ['expires_at', 'expiresAt']) : null);
+    if (expiresAt) {
+      const remainingSeconds = Math.floor(
+        (new Date(expiresAt).getTime() - Date.now()) / 1000,
+      );
+      if (Number.isFinite(remainingSeconds) && remainingSeconds > 0) {
+        return remainingSeconds;
+      }
     }
 
-    const data = this.asRecord(root.data);
-    if (!data) {
-      return 900;
-    }
-
-    return this.readNumber(data, ['expires_in', 'expiresIn']) ?? 900;
+    return 900;
   }
 
   private mapSystemForms(payload: unknown): DijizinSystemForm[] {
@@ -599,6 +709,24 @@ export class DijizinService {
     );
   }
 
+  private readExistingCustomerState(
+    payload: unknown,
+  ): { exists: boolean; isVerified: boolean } | null {
+    const root = this.asRecord(payload);
+    const data = this.asRecord(root?.data);
+    if (!data) {
+      return null;
+    }
+
+    const exists = this.toBooleanFlag(data.exists);
+    const customer = this.asRecord(data.customer);
+    const isVerified = customer
+      ? this.toBooleanFlag(customer.is_verified ?? customer.isVerified)
+      : false;
+
+    return { exists, isVerified };
+  }
+
   private readValidationMessage(record: JsonRecord | null): string | null {
     if (!record) {
       return null;
@@ -677,6 +805,20 @@ export class DijizinService {
     if (typeof value === 'string') {
       const normalized = value.trim().toLowerCase();
       return ['1', 'true', 'active', 'aktif', 'onay'].includes(normalized);
+    }
+    return false;
+  }
+
+  private toBooleanFlag(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return ['1', 'true', 'yes', 'evet'].includes(normalized);
     }
     return false;
   }

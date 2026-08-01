@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { EmailService } from '../email/email.service';
 import { EventsGateway } from '../events/events.gateway';
+import { DijizinService } from '../dijiizin/dijizin.service';
 import { Prisma } from '../generated/prisma/client';
 import {
   ApplicationType,
@@ -222,6 +223,7 @@ export class VisaApplicationsService {
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
     private readonly email: EmailService,
+    private readonly dijizin: DijizinService,
     config: ConfigService,
   ) {
     this.crmAutoAdvanceToOperation = this.resolveBoolean(
@@ -1645,6 +1647,225 @@ export class VisaApplicationsService {
         'CRM kaydı sırasında başvurunun aşaması eşzamanlı olarak değişti, lütfen tekrar deneyin',
       );
     }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Dijizin (KVKK/ETK consent + forms) — Sales-stage orchestration.
+  // The customer MSISDN is sourced strictly from the primary applicant's
+  // VisaApplicationDetails.phone. Provider I/O is delegated to DijizinService;
+  // local state (dijizinKvkkVerified) and audit rows are written here.
+  // ──────────────────────────────────────────────────────────────────────
+
+  /** Dispatch the KVKK/ETK OTP SMS to the application's primary applicant. */
+  async sendDijizinConsent(id: string, actor: AuthenticatedUser) {
+    const ctx = await this.loadDijizinConsentContext(id, actor);
+
+    const outcome = await this.dijizin.sendConsentRequest({
+      mobilePhone: ctx.phone,
+      firstName: ctx.firstName,
+      lastName: ctx.lastName,
+    });
+
+    // Already fully verified upstream: reflect it locally (if a CRM row exists to
+    // hold the flag) and skip the SMS.
+    if (outcome.status === 'ALREADY_VERIFIED') {
+      if (ctx.hasCrm) {
+        await this.persistKvkkVerified(id, actor);
+      }
+      return outcome;
+    }
+
+    // Customer exists but was never verified: POST /consents is a no-op upstream,
+    // so the code must be (re)sent through the resend endpoint.
+    if (outcome.status === 'NEEDS_RESEND') {
+      const resend = await this.dijizin.resendConsentSms(ctx.phone);
+      await this.recordDijizinAction(id, actor, 'DIJIZIN_KVKK_SMS_SENT', {
+        recipient: ctx.phone,
+        mode: 'resend',
+      });
+      return { status: 'SMS_SENT' as const, message: resend.message };
+    }
+
+    await this.recordDijizinAction(id, actor, 'DIJIZIN_KVKK_SMS_SENT', {
+      recipient: ctx.phone,
+      mode: 'initial',
+    });
+    return outcome;
+  }
+
+  /** Verify the KVKK/ETK OTP and persist the verified flag + audit atomically. */
+  async verifyDijizinConsent(
+    id: string,
+    code: string,
+    actor: AuthenticatedUser,
+  ) {
+    const ctx = await this.loadDijizinConsentContext(id, actor);
+
+    // The verified flag lives on ApplicationCrmData, which carries required
+    // finance columns and cannot be created from here. Require CRM first so we
+    // never consume an OTP we then fail to persist.
+    if (!ctx.hasCrm) {
+      throw new ConflictException(
+        'KVKK doğrulaması kaydedilemez: önce Satış/Finans (CRM) verisi kaydedilmelidir',
+      );
+    }
+
+    const result = await this.dijizin.verifyConsentCode(ctx.phone, code);
+    await this.persistKvkkVerified(id, actor);
+    return result;
+  }
+
+  /** Sales-side snapshot: local KVKK state + Dijizin form catalog and history. */
+  async getDijizinSnapshot(id: string, actor: AuthenticatedUser) {
+    const ctx = await this.loadDijizinConsentContext(id, actor);
+
+    try {
+      const availableForms = await this.dijizin.getSystemForms();
+      const customerForms = await this.dijizin.getCustomerForms(ctx.phone);
+      return {
+        kvkkVerified: ctx.kvkkVerified,
+        availableForms,
+        customerForms,
+      };
+    } catch (error) {
+      // Degrade gracefully: the panel still needs the local KVKK state even when
+      // the provider is unreachable.
+      return {
+        kvkkVerified: ctx.kvkkVerified,
+        availableForms: [],
+        customerForms: [],
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Dijizin form bilgileri alınamadı.',
+      };
+    }
+  }
+
+  /** Send one Dijizin form to the customer (gated on KVKK verification). */
+  async sendDijizinForm(id: string, formId: string, actor: AuthenticatedUser) {
+    const ctx = await this.loadDijizinConsentContext(id, actor);
+
+    if (!ctx.kvkkVerified) {
+      throw new ConflictException(
+        'Form göndermeden önce KVKK doğrulaması tamamlanmalıdır',
+      );
+    }
+
+    const result = await this.dijizin.sendFormToCustomer(ctx.phone, formId);
+    await this.recordDijizinAction(id, actor, 'DIJIZIN_FORM_SENT', {
+      recipient: ctx.phone,
+      formId,
+    });
+    return result;
+  }
+
+  /**
+   * Loads + authorizes a Dijizin action: admin any time, otherwise the assigned
+   * sales owner while the file is in SALES_PROCESS. Resolves the MSISDN strictly
+   * from the primary applicant's VisaApplicationDetails.phone.
+   */
+  private async loadDijizinConsentContext(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<{
+    phone: string;
+    firstName: string;
+    lastName: string;
+    hasCrm: boolean;
+    kvkkVerified: boolean;
+  }> {
+    const application = await this.prisma.visaApplication.findUnique({
+      where: { id },
+      select: {
+        currentStage: true,
+        assignedSalesId: true,
+        crmData: { select: { dijizinKvkkVerified: true } },
+        details: {
+          where: { applicantIndex: 1 },
+          select: { firstName: true, lastName: true, phone: true },
+          take: 1,
+        },
+      },
+    });
+    if (!application) {
+      throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
+    }
+
+    if (actor.role !== Role.ADMIN) {
+      const staff = await this.prisma.staff.findUnique({
+        where: { userId: actor.userId },
+        select: { id: true, department: true },
+      });
+      if (
+        !staff ||
+        staff.department !== Department.SALES ||
+        application.assignedSalesId !== staff.id
+      ) {
+        throw new ForbiddenException(
+          'Bu Dijizin işlemini yalnızca atanan satış personeli yapabilir',
+        );
+      }
+      if (application.currentStage !== VisaStage.SALES_PROCESS) {
+        throw new ConflictException(
+          'Dijizin işlemleri yalnızca Satış İşlem aşamasında yapılabilir',
+        );
+      }
+    }
+
+    const detail = application.details[0];
+    const phone = detail?.phone?.trim();
+    if (!detail || !phone) {
+      throw new BadRequestException(
+        'Başvuru formunda telefon bulunamadı; KVKK için önce başvuru formu doldurulmalıdır',
+      );
+    }
+
+    return {
+      phone,
+      firstName: detail.firstName,
+      lastName: detail.lastName,
+      hasCrm: application.crmData !== null,
+      kvkkVerified: application.crmData?.dijizinKvkkVerified ?? false,
+    };
+  }
+
+  /** Flips dijizinKvkkVerified with a DIJIZIN_KVKK_VERIFIED audit row (one tx). */
+  private async persistKvkkVerified(id: string, actor: AuthenticatedUser) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.applicationCrmData.update({
+        where: { applicationId: id },
+        data: { dijizinKvkkVerified: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          application: { connect: { id } },
+          performedBy: { connect: { id: actor.userId } },
+          actionType: 'DIJIZIN_KVKK_VERIFIED',
+          details: {
+            verifiedAt: new Date().toISOString(),
+            performedByUserId: actor.userId,
+          },
+        },
+      });
+    });
+  }
+
+  /** Writes a single Dijizin side-effect audit row (SMS/form dispatch). */
+  private async recordDijizinAction(
+    id: string,
+    actor: AuthenticatedUser,
+    actionType: 'DIJIZIN_KVKK_SMS_SENT' | 'DIJIZIN_FORM_SENT',
+    details: Prisma.InputJsonObject,
+  ) {
+    await this.prisma.auditLog.create({
+      data: {
+        application: { connect: { id } },
+        performedBy: { connect: { id: actor.userId } },
+        actionType,
+        details,
+      },
+    });
   }
 
   /**

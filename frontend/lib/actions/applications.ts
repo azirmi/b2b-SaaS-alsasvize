@@ -22,6 +22,7 @@ import type {
 import type {
   ActionResult,
   CrmActionState,
+  DijizinConsentOutcome,
   DijizinFormsSnapshot,
 } from "@/lib/types";
 
@@ -33,6 +34,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 interface DijizinActionResult extends ActionResult {
   message?: string;
+  status?: DijizinConsentOutcome;
 }
 
 interface DijizinSnapshotResult extends ActionResult {
@@ -288,10 +290,20 @@ export async function getDijizinFormsSnapshot(
     return { ok: false, error: "Geçersiz başvuru referansı." };
   }
 
-  return {
-    ok: false,
-    error: "Dijizin entegrasyonu devre dışı bırakıldı.",
-  };
+  try {
+    const data = await serverApi.get<DijizinFormsSnapshot>(
+      `/applications/${id}/dijizin/snapshot`,
+    );
+    return { ok: true, data };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, error: error.message };
+    }
+    return {
+      ok: false,
+      error: "Dijizin form bilgileri yüklenemedi. Lütfen tekrar deneyin.",
+    };
+  }
 }
 
 /** Sends the Dijizin KVKK OTP SMS to the customer tied to this application. */
@@ -302,10 +314,22 @@ export async function sendDijizinConsentSms(
     return { ok: false, error: "Geçersiz başvuru referansı." };
   }
 
-  return {
-    ok: false,
-    error: "Dijizin entegrasyonu devre dışı bırakıldı.",
-  };
+  try {
+    const res = await serverApi.post<{
+      status: DijizinConsentOutcome;
+      message: string;
+    }>(`/applications/${id}/dijizin/consent`);
+    revalidatePath("/dashboard", "layout");
+    return { ok: true, status: res.status, message: res.message };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, error: error.message };
+    }
+    return {
+      ok: false,
+      error: "KVKK onay SMS'i gönderilemedi. Lütfen tekrar deneyin.",
+    };
+  }
 }
 
 /** Verifies the Dijizin KVKK OTP and opens the Sales -> DOC gate. */
@@ -322,10 +346,22 @@ export async function verifyDijizinConsentCode(
     return { ok: false, error: "Doğrulama kodu yalnızca rakamlardan oluşmalıdır." };
   }
 
-  return {
-    ok: false,
-    error: "Dijizin entegrasyonu devre dışı bırakıldı.",
-  };
+  try {
+    const res = await serverApi.post<{ message: string }>(
+      `/applications/${id}/dijizin/verify`,
+      { code: normalizedCode },
+    );
+    revalidatePath("/dashboard", "layout");
+    return { ok: true, message: res.message };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, error: error.message };
+    }
+    return {
+      ok: false,
+      error: "KVKK doğrulaması tamamlanamadı. Lütfen tekrar deneyin.",
+    };
+  }
 }
 
 /** Sends one selected Dijizin form to the customer. */
@@ -342,10 +378,22 @@ export async function sendDijizinFormToCustomer(
     return { ok: false, error: "Gönderilecek formu seçin." };
   }
 
-  return {
-    ok: false,
-    error: "Dijizin entegrasyonu devre dışı bırakıldı.",
-  };
+  try {
+    const res = await serverApi.post<{ message: string }>(
+      `/applications/${id}/dijizin/forms`,
+      { formId: normalizedFormId },
+    );
+    revalidatePath("/dashboard", "layout");
+    return { ok: true, message: res.message };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return { ok: false, error: error.message };
+    }
+    return {
+      ok: false,
+      error: "Form danışana gönderilemedi. Lütfen tekrar deneyin.",
+    };
+  }
 }
 
 /**

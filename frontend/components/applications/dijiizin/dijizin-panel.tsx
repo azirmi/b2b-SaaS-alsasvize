@@ -178,9 +178,23 @@ export function DijizinPanel({
         return;
       }
 
+      if (result.status === "ALREADY_VERIFIED") {
+        setKvkkVerified(true);
+        await refreshSnapshot();
+        setNotice({
+          tone: "success",
+          text: result.message ?? "Müşteri zaten onaylı.",
+        });
+        return;
+      }
+
       setNotice({
-        tone: "success",
-        text: result.message ?? "KVKK onay SMS'i gönderildi.",
+        tone: result.status === "NEEDS_RESEND" ? "muted" : "success",
+        text:
+          result.message ??
+          (result.status === "NEEDS_RESEND"
+            ? "Müşteri kaydı mevcut ancak doğrulanmamış. Kodu tekrar gönderin."
+            : "KVKK onay SMS'i gönderildi."),
       });
     });
   }

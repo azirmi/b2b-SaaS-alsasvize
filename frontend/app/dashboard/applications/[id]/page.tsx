@@ -7,6 +7,7 @@ import { ApplicationDetailsView } from "@/components/applications/application-de
 import { AppointmentOpsForm } from "@/components/applications/appointment-ops-form";
 import { CoreDataOverrideDialog } from "@/components/applications/core-data-override-dialog";
 import { CrmForm } from "@/components/applications/crm-form";
+import { DijizinPanel } from "@/components/applications/dijiizin/dijizin-panel";
 import { DocPersonUploadPanel } from "@/components/applications/doc-person-upload-panel";
 import { CustomerApplicationDetail } from "@/components/applications/customer-application-detail";
 import { DocumentReviewActions } from "@/components/applications/document-review-actions";
@@ -44,6 +45,7 @@ import {
 } from "@/lib/status";
 import type {
   ApplicationFormEntry,
+  DijizinFormsSnapshot,
   DownloadUrlResponse,
   LinkedActiveApplication,
   StaffOption,
@@ -536,6 +538,23 @@ export default async function ApplicationDetailPage({
     }
   }
 
+  const canManageDijizin =
+    stage === VisaStage.SALES_PROCESS && canEditCrm;
+  let dijizinSnapshot: DijizinFormsSnapshot | null = null;
+  let dijizinError: string | null = null;
+  if (canManageDijizin) {
+    try {
+      dijizinSnapshot = await serverApi.get<DijizinFormsSnapshot>(
+        `/applications/${detail.id}/dijizin/snapshot`,
+      );
+    } catch (error) {
+      dijizinError =
+        error instanceof ApiError
+          ? error.message
+          : "Dijizin bilgileri yüklenemedi.";
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Link
@@ -620,6 +639,17 @@ export default async function ApplicationDetailPage({
                     travelDate={crmTravelDate}
                     residenceCity={customerResidenceCity}
                   />
+                  {canManageDijizin ? (
+                    <>
+                      <Separator className="my-4" />
+                      <DijizinPanel
+                        applicationId={detail.id}
+                        phone={crmPhone}
+                        initialSnapshot={dijizinSnapshot}
+                        initialError={dijizinError}
+                      />
+                    </>
+                  ) : null}
                 </>
               ) : crm ? (
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
