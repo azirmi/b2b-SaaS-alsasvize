@@ -1781,6 +1781,7 @@ export class VisaApplicationsService {
         currentStage: true,
         assignedSalesId: true,
         crmData: { select: { dijizinKvkkVerified: true } },
+        customer: { select: { fullName: true, phone: true } },
         details: {
           where: { applicantIndex: 1 },
           select: { firstName: true, lastName: true, phone: true },
@@ -1813,18 +1814,29 @@ export class VisaApplicationsService {
       }
     }
 
-    const detail = application.details[0];
-    const phone = detail?.phone?.trim();
-    if (!detail || !phone) {
+    // Phone precedence mirrors the Sales UI (`crmPhone`): the application form is
+    // the most accurate source, but it is often unfilled at SALES_PROCESS, so we
+    // fall back to the registration phone captured on the customer profile.
+    const detail = application.details[0] ?? null;
+    const phone =
+      detail?.phone?.trim() || application.customer.phone?.trim() || '';
+    if (!phone) {
       throw new BadRequestException(
-        'Başvuru formunda telefon bulunamadı; KVKK için önce başvuru formu doldurulmalıdır',
+        'Telefon bulunamadı: KVKK için başvuru formunda veya müşteri kaydında geçerli bir telefon numarası olmalıdır',
       );
     }
 
+    const [profileFirstName, ...profileRest] = application.customer.fullName
+      .trim()
+      .split(/\s+/);
+    const firstName = detail?.firstName?.trim() || profileFirstName || 'Müşteri';
+    const lastName =
+      detail?.lastName?.trim() || profileRest.join(' ') || 'Danışan';
+
     return {
       phone,
-      firstName: detail.firstName,
-      lastName: detail.lastName,
+      firstName,
+      lastName,
       hasCrm: application.crmData !== null,
       kvkkVerified: application.crmData?.dijizinKvkkVerified ?? false,
     };
