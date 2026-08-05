@@ -1650,69 +1650,34 @@ export class VisaApplicationsService {
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  // Dijizin (KVKK/ETK consent + forms) — Sales-stage orchestration.
+  // Dijizin (KVKK consent + forms) — Sales-stage orchestration.
   // The customer MSISDN is sourced strictly from the primary applicant's
   // VisaApplicationDetails.phone. Provider I/O is delegated to DijizinService;
   // local state (dijizinKvkkVerified) and audit rows are written here.
   // ──────────────────────────────────────────────────────────────────────
 
-  /** Dispatch the KVKK/ETK OTP SMS to the application's primary applicant. */
-  async sendDijizinConsent(id: string, actor: AuthenticatedUser) {
+  /**
+   * KVKK-only, single-step: create the consent record and (since KVKK needs no
+   * OTP) confirm it with empty codes, then persist the verified flag + audit.
+   */
+  async completeDijizinKvkk(id: string, actor: AuthenticatedUser) {
     const ctx = await this.loadDijizinConsentContext(id, actor);
 
-    const outcome = await this.dijizin.sendConsentRequest({
+    // The verified flag lives on ApplicationCrmData (required finance columns),
+    // so it cannot be created here — require CRM first.
+    if (!ctx.hasCrm) {
+      throw new ConflictException(
+        'KVKK onayı kaydedilemez: önce Satış/Finans (CRM) verisi kaydedilmelidir',
+      );
+    }
+
+    const result = await this.dijizin.registerKvkkConsent({
       mobilePhone: ctx.phone,
       firstName: ctx.firstName,
       lastName: ctx.lastName,
     });
-
-    // Already fully verified upstream: reflect it locally (if a CRM row exists to
-    // hold the flag) and skip the SMS.
-    if (outcome.status === 'ALREADY_VERIFIED') {
-      if (ctx.hasCrm) {
-        await this.persistKvkkVerified(id, actor);
-      }
-      return outcome;
-    }
-
-    // Customer exists but was never verified: POST /consents is a no-op upstream,
-    // so the code must be (re)sent through the resend endpoint.
-    if (outcome.status === 'NEEDS_RESEND') {
-      const resend = await this.dijizin.resendConsentSms(ctx.phone);
-      await this.recordDijizinAction(id, actor, 'DIJIZIN_KVKK_SMS_SENT', {
-        recipient: ctx.phone,
-        mode: 'resend',
-      });
-      return { status: 'SMS_SENT' as const, message: resend.message };
-    }
-
-    await this.recordDijizinAction(id, actor, 'DIJIZIN_KVKK_SMS_SENT', {
-      recipient: ctx.phone,
-      mode: 'initial',
-    });
-    return outcome;
-  }
-
-  /** Verify the KVKK/ETK OTP and persist the verified flag + audit atomically. */
-  async verifyDijizinConsent(
-    id: string,
-    code: string,
-    actor: AuthenticatedUser,
-  ) {
-    const ctx = await this.loadDijizinConsentContext(id, actor);
-
-    // The verified flag lives on ApplicationCrmData, which carries required
-    // finance columns and cannot be created from here. Require CRM first so we
-    // never consume an OTP we then fail to persist.
-    if (!ctx.hasCrm) {
-      throw new ConflictException(
-        'KVKK doğrulaması kaydedilemez: önce Satış/Finans (CRM) verisi kaydedilmelidir',
-      );
-    }
-
-    const result = await this.dijizin.verifyConsentCode(ctx.phone, code);
     await this.persistKvkkVerified(id, actor);
-    return result;
+    return { message: result.message };
   }
 
   /** Sales-side snapshot: local KVKK state + Dijizin form catalog and history. */
@@ -1863,11 +1828,11 @@ export class VisaApplicationsService {
     });
   }
 
-  /** Writes a single Dijizin side-effect audit row (SMS/form dispatch). */
+  /** Writes a single Dijizin form-dispatch audit row. */
   private async recordDijizinAction(
     id: string,
     actor: AuthenticatedUser,
-    actionType: 'DIJIZIN_KVKK_SMS_SENT' | 'DIJIZIN_FORM_SENT',
+    actionType: 'DIJIZIN_FORM_SENT',
     details: Prisma.InputJsonObject,
   ) {
     await this.prisma.auditLog.create({

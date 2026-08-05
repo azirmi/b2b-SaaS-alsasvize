@@ -22,7 +22,6 @@ import type {
 import type {
   ActionResult,
   CrmActionState,
-  DijizinConsentOutcome,
   DijizinFormsSnapshot,
 } from "@/lib/types";
 
@@ -34,7 +33,6 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 interface DijizinActionResult extends ActionResult {
   message?: string;
-  status?: DijizinConsentOutcome;
 }
 
 interface DijizinSnapshotResult extends ActionResult {
@@ -306,50 +304,17 @@ export async function getDijizinFormsSnapshot(
   }
 }
 
-/** Sends the Dijizin KVKK OTP SMS to the customer tied to this application. */
-export async function sendDijizinConsentSms(
+/** Creates + confirms the KVKK consent (no OTP) and unlocks form sending. */
+export async function completeDijizinKvkk(
   id: string,
 ): Promise<DijizinActionResult> {
   if (!UUID_RE.test(id)) {
     return { ok: false, error: "Geçersiz başvuru referansı." };
-  }
-
-  try {
-    const res = await serverApi.post<{
-      status: DijizinConsentOutcome;
-      message: string;
-    }>(`/applications/${id}/dijizin/consent`);
-    revalidatePath("/dashboard", "layout");
-    return { ok: true, status: res.status, message: res.message };
-  } catch (error) {
-    if (error instanceof ApiError) {
-      return { ok: false, error: error.message };
-    }
-    return {
-      ok: false,
-      error: "KVKK onay SMS'i gönderilemedi. Lütfen tekrar deneyin.",
-    };
-  }
-}
-
-/** Verifies the Dijizin KVKK OTP and opens the Sales -> DOC gate. */
-export async function verifyDijizinConsentCode(
-  id: string,
-  code: string,
-): Promise<DijizinActionResult> {
-  if (!UUID_RE.test(id)) {
-    return { ok: false, error: "Geçersiz başvuru referansı." };
-  }
-
-  const normalizedCode = code.trim();
-  if (!/^\d{1,16}$/.test(normalizedCode)) {
-    return { ok: false, error: "Doğrulama kodu yalnızca rakamlardan oluşmalıdır." };
   }
 
   try {
     const res = await serverApi.post<{ message: string }>(
-      `/applications/${id}/dijizin/verify`,
-      { code: normalizedCode },
+      `/applications/${id}/dijizin/consent`,
     );
     revalidatePath("/dashboard", "layout");
     return { ok: true, message: res.message };
@@ -359,7 +324,7 @@ export async function verifyDijizinConsentCode(
     }
     return {
       ok: false,
-      error: "KVKK doğrulaması tamamlanamadı. Lütfen tekrar deneyin.",
+      error: "KVKK onayı tamamlanamadı. Lütfen tekrar deneyin.",
     };
   }
 }

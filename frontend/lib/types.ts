@@ -234,12 +234,6 @@ export interface DijizinCustomerForm {
   answeredAt: string | null;
 }
 
-/** Outcome of a KVKK/ETK consent dispatch — mirrors Dijizin's exists/is_verified branches. */
-export type DijizinConsentOutcome =
-  | "SMS_SENT"
-  | "ALREADY_VERIFIED"
-  | "NEEDS_RESEND";
-
 /** Snapshot payload for the Sales-side Dijizin panel. */
 export interface DijizinFormsSnapshot {
   kvkkVerified: boolean;

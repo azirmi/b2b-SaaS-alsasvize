@@ -28,12 +28,6 @@ export interface DijizinCustomerForm {
   answeredAt: string | null;
 }
 
-/** Result of a KVKK/ETK consent dispatch — mirrors Dijizin's exists/is_verified branches. */
-export type DijizinConsentOutcome =
-  | 'SMS_SENT'
-  | 'ALREADY_VERIFIED'
-  | 'NEEDS_RESEND';
-
 export interface DijizinConsentCustomerInput {
   mobilePhone: string;
   firstName: string;
@@ -55,109 +49,64 @@ const DIJIZIN_SEND_METHOD = 'sms';
 const DIJIZIN_SOURCE = 'HS_EORTAM';
 const DIJIZIN_ORIGIN = 'https://alsasvize.com';
 const DIJIZIN_KVKK_TEXT_TYPE = 1;
-const DIJIZIN_ETK_TEXT_TYPE = 3;
-const DIJIZIN_ETK_TYPES = ['ARAMA', 'MESAJ', 'EPOSTA'] as const;
 
 @Injectable()
 export class DijizinService {
   private tokenCache: { token: string; expiresAt: number } | null = null;
 
+  constructor(private readonly config: ConfigService) {}
+
   /**
-   * ETK (İYS / ticari ileti) consent requires the İYS module on the Dijizin
-   * package. Off by default → we collect KVKK consent only and never touch İYS.
-   * Flip DIJIZIN_ETK_ENABLED=true once the package has İYS/ETK enabled.
+   * KVKK-only consent: the package has no Açık Rıza/ETK and KVKK carries no OTP,
+   * so we create the record and immediately confirm it with empty codes.
    */
-  private readonly etkEnabled: boolean;
-
-  constructor(private readonly config: ConfigService) {
-    this.etkEnabled =
-      this.config.get<string>('DIJIZIN_ETK_ENABLED')?.trim().toLowerCase() ===
-      'true';
-  }
-
-  async sendConsentRequest(
+  async registerKvkkConsent(
     customerInput: DijizinConsentCustomerInput,
-  ): Promise<{ status: DijizinConsentOutcome; message: string }> {
+  ): Promise<{ message: string; alreadyVerified: boolean }> {
     const customer = this.normalizeCustomerInput(customerInput);
-    const { kvkkTextId, etkTextId } = await this.getValidTextIds();
-    const consentForm = this.buildConsentSmsForm(customer, kvkkTextId, etkTextId);
+    const kvkkTextId = await this.getKvkkTextId();
 
-    // Diagnostic (safe: field names only, no PII/secret values) — confirms which
-    // build is live and whether İYS/ETK fields are still being shipped.
-    console.log(
-      '[Dijizin] /consents send — etkEnabled=%s hasEtk=%s keys=%s',
-      this.etkEnabled,
-      consentForm.has('etk'),
-      [...consentForm.keys()].join(','),
-    );
-
-    const payload = await this.requestWithAuth(
+    const createPayload = await this.requestWithAuth(
       'POST',
       '/api/consents',
-      consentForm,
+      this.buildKvkkConsentForm(customer, kvkkTextId),
     );
 
-    // Per Dijizin V2: when the customer already exists, POST /consents neither
-    // creates a consent nor dispatches an OTP. If already verified we are done;
-    // otherwise the code must be (re)sent via the resend endpoint.
-    const existing = this.readExistingCustomerState(payload);
-    if (existing?.exists) {
-      return existing.isVerified
-        ? { status: 'ALREADY_VERIFIED', message: 'Müşteri zaten onaylı.' }
-        : {
-            status: 'NEEDS_RESEND',
-            message:
-              'Müşteri kaydı mevcut ancak doğrulanmamış. Doğrulama kodu yeniden gönderilmeli.',
-          };
+    const existing = this.readExistingCustomerState(createPayload);
+    if (existing?.exists && existing.isVerified) {
+      return { message: 'Müşteri zaten onaylı.', alreadyVerified: true };
     }
 
-    return {
-      status: 'SMS_SENT',
-      message:
-        this.readMessage(payload) ??
-        'Dijizin KVKK onay kodu SMS olarak gonderildi.',
-    };
-  }
-
-  async resendConsentSms(mobilePhone: string): Promise<{ message: string }> {
-    const recipientPhone = this.normalizeRecipientPhone(mobilePhone);
-    const payload = await this.requestWithAuth(
-      'POST',
-      `/api/consents/${encodeURIComponent(recipientPhone)}/resend`,
+    const verifyPayload = await this.confirmKvkkRecord(
+      customer.mobilePhone,
+      kvkkTextId,
     );
 
     return {
       message:
-        this.readMessage(payload) ?? 'Dijizin doğrulama kodu yeniden gönderildi.',
+        this.readMessage(verifyPayload) ??
+        this.readMessage(createPayload) ??
+        'KVKK onayı kaydedildi.',
+      alreadyVerified: false,
     };
   }
 
-  async verifyConsentCode(
+  /** Confirms the KVKK record with an empty code (KVKK requires no OTP). */
+  private async confirmKvkkRecord(
     mobilePhone: string,
-    code: string,
-  ): Promise<{ message: string }> {
-    const { kvkkTextId, etkTextId } = await this.getValidTextIds();
+    kvkkTextId: string,
+  ): Promise<unknown> {
     const recipientPhone = this.normalizeRecipientPhone(mobilePhone);
     const form = new URLSearchParams();
     form.set('status', DIJIZIN_CONSENT_STATUS);
     form.set('kvkk', kvkkTextId);
-    form.set(`codes[${kvkkTextId}]`, code);
-    if (etkTextId) {
-      form.set('etk', etkTextId);
-      form.set(`codes[${etkTextId}]`, code);
-    }
+    form.set(`codes[${kvkkTextId}]`, '');
 
-    const payload = await this.requestWithAuth(
+    return this.requestWithAuth(
       'POST',
       `/api/consents/${encodeURIComponent(recipientPhone)}`,
       form,
     );
-
-    return {
-      message:
-        this.readMessage(payload) ??
-        'Dijizin KVKK dogrulama islemi basariyla tamamlandi.',
-    };
   }
 
   async getSystemForms(): Promise<DijizinSystemForm[]> {
@@ -295,10 +244,9 @@ export class DijizinService {
     );
   }
 
-  private buildConsentSmsForm(
+  private buildKvkkConsentForm(
     customer: DijizinNormalizedCustomer,
     kvkkTextId: string,
-    etkTextId: string | null,
   ): URLSearchParams {
     const form = new URLSearchParams();
 
@@ -309,14 +257,6 @@ export class DijizinService {
     form.set('locale', DIJIZIN_LOCALE);
     form.set('kvkk', kvkkTextId);
     form.set('status', DIJIZIN_CONSENT_STATUS);
-    // ETK + İYS channels (types[]) only when the package supports it; otherwise
-    // this stays a KVKK-only consent and İYS is never invoked.
-    if (etkTextId) {
-      form.set('etk', etkTextId);
-      for (const type of DIJIZIN_ETK_TYPES) {
-        form.append('types[]', type);
-      }
-    }
     form.set('recipient_type', DIJIZIN_RECIPIENT_TYPE);
     form.set('send_method', DIJIZIN_SEND_METHOD);
     form.set('source', DIJIZIN_SOURCE);
@@ -325,15 +265,9 @@ export class DijizinService {
     return form;
   }
 
-  private async getValidTextIds(): Promise<{
-    kvkkTextId: string;
-    etkTextId: string | null;
-  }> {
+  private async getKvkkTextId(): Promise<string> {
     const payload = await this.requestWithAuth('GET', '/api/texts');
     const rows = this.firstArray(payload, ['data', 'texts', 'items']);
-
-    let kvkkTextId: string | null = null;
-    let etkTextId: string | null = null;
 
     for (const rowValue of rows) {
       const row = this.asRecord(rowValue);
@@ -350,34 +284,14 @@ export class DijizinService {
 
       const type = this.readNumber(row, ['type', 'text_type', 'textType']);
       const textId = this.readIdentifier(row, ['id', 'text_id', 'textId', 'uuid']);
-      if (!type || !textId) {
-        continue;
-      }
-
-      if (type === DIJIZIN_KVKK_TEXT_TYPE && !kvkkTextId) {
-        kvkkTextId = textId;
-      }
-      if (type === DIJIZIN_ETK_TEXT_TYPE && !etkTextId) {
-        etkTextId = textId;
-      }
-
-      if (kvkkTextId && etkTextId) {
-        break;
+      if (type === DIJIZIN_KVKK_TEXT_TYPE && textId) {
+        return textId;
       }
     }
 
-    if (!kvkkTextId) {
-      throw new BadGatewayException(
-        'Dijizin aktif KVKK metin ID degeri bulunamadi.',
-      );
-    }
-    if (this.etkEnabled && !etkTextId) {
-      throw new BadGatewayException(
-        'Dijizin aktif ETK metin ID degeri bulunamadi.',
-      );
-    }
-
-    return { kvkkTextId, etkTextId: this.etkEnabled ? etkTextId : null };
+    throw new BadGatewayException(
+      'Dijizin aktif KVKK metin ID degeri bulunamadi.',
+    );
   }
 
   private async requestWithAuth(

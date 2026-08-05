@@ -28,7 +28,6 @@ import { UpdateAppointmentOpsDto } from './dto/update-appointment-ops.dto';
 import { UpdateDocAssistantStatusDto } from './dto/update-doc-assistant-status.dto';
 import { UpsertApplicationDetailsDto } from './dto/upsert-application-details.dto';
 import { SendDijizinFormDto } from './dto/send-dijizin-form.dto';
-import { VerifyDijizinConsentDto } from './dto/verify-dijizin-consent.dto';
 import { VisaApplicationsService } from './visa-applications.service';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 
@@ -192,27 +191,15 @@ export class VisaApplicationsController {
     return this.service.getDijizinSnapshot(id, user);
   }
 
-  /** Sales/admin: dispatch the KVKK/ETK OTP SMS to the primary applicant. */
+  /** Sales/admin: create + confirm the KVKK consent (no OTP) and unlock forms. */
   @Post(':id/dijizin/consent')
   @Roles(Role.SALES, Role.ADMIN)
   @HttpCode(HttpStatus.OK)
-  sendDijizinConsent(
+  completeDijizinKvkk(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.sendDijizinConsent(id, user);
-  }
-
-  /** Sales/admin: verify the KVKK/ETK OTP code and unlock forms. */
-  @Post(':id/dijizin/verify')
-  @Roles(Role.SALES, Role.ADMIN)
-  @HttpCode(HttpStatus.OK)
-  verifyDijizinConsent(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: VerifyDijizinConsentDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.service.verifyDijizinConsent(id, dto.code, user);
+    return this.service.completeDijizinKvkk(id, user);
   }
 
   /** Sales/admin: send one Dijizin form to the customer (KVKK-gated). */

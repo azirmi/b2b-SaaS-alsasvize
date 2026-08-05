@@ -5,7 +5,6 @@ import { CheckCircle2, RefreshCw, SendHorizontal, ShieldCheck } from "lucide-rea
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -16,10 +15,9 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
+  completeDijizinKvkk,
   getDijizinFormsSnapshot,
-  sendDijizinConsentSms,
   sendDijizinFormToCustomer,
-  verifyDijizinConsentCode,
 } from "@/lib/actions/applications";
 import type {
   DijizinCustomerForm,
@@ -113,7 +111,6 @@ export function DijizinPanel({
   const [selectedFormId, setSelectedFormId] = useState<string>(
     firstActiveFormId(initialSnapshot?.availableForms ?? []),
   );
-  const [otpCode, setOtpCode] = useState("");
   const [notice, setNotice] = useState<NoticeState | null>(() => {
     if (initialError) {
       return {
@@ -166,67 +163,24 @@ export function DijizinPanel({
     };
   }
 
-  function handleSendSms() {
+  function handleCompleteKvkk() {
     setNotice(null);
     startTransition(async () => {
-      const result = await sendDijizinConsentSms(applicationId);
+      const result = await completeDijizinKvkk(applicationId);
       if (!result.ok) {
         setNotice({
           tone: "error",
-          text: result.error ?? "KVKK onay SMS'i gönderilemedi.",
+          text: result.error ?? "KVKK onayı tamamlanamadı.",
         });
         return;
       }
 
-      if (result.status === "ALREADY_VERIFIED") {
-        setKvkkVerified(true);
-        await refreshSnapshot();
-        setNotice({
-          tone: "success",
-          text: result.message ?? "Müşteri zaten onaylı.",
-        });
-        return;
-      }
-
-      setNotice({
-        tone: result.status === "NEEDS_RESEND" ? "muted" : "success",
-        text:
-          result.message ??
-          (result.status === "NEEDS_RESEND"
-            ? "Müşteri kaydı mevcut ancak doğrulanmamış. Kodu tekrar gönderin."
-            : "KVKK onay SMS'i gönderildi."),
-      });
-    });
-  }
-
-  function handleVerify() {
-    const code = otpCode.trim();
-    if (!/^\d{1,16}$/.test(code)) {
-      setNotice({
-        tone: "error",
-        text: "Doğrulama kodu yalnızca rakamlardan oluşmalıdır.",
-      });
-      return;
-    }
-
-    setNotice(null);
-    startTransition(async () => {
-      const result = await verifyDijizinConsentCode(applicationId, code);
-      if (!result.ok) {
-        setNotice({
-          tone: "error",
-          text: result.error ?? "KVKK doğrulaması tamamlanamadı.",
-        });
-        return;
-      }
-
-      setOtpCode("");
-      setNotice({
-        tone: "success",
-        text: result.message ?? "KVKK doğrulaması başarıyla tamamlandı.",
-      });
       setKvkkVerified(true);
       await refreshSnapshot();
+      setNotice({
+        tone: "success",
+        text: result.message ?? "KVKK onayı tamamlandı.",
+      });
     });
   }
 
@@ -285,7 +239,7 @@ export function DijizinPanel({
         <div>
           <h3 className="text-sm font-medium">Dijizin İşlemleri</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            KVKK doğrulamasını tamamlayın, ardından aktif Dijizin formlarını danışana gönderin.
+            KVKK onayını tamamlayın, ardından aktif Dijizin formlarını danışana gönderin.
           </p>
         </div>
         <Button
@@ -326,40 +280,22 @@ export function DijizinPanel({
         {kvkkVerified ? (
           <div className="mt-3 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400">
             <CheckCircle2 className="h-4 w-4" aria-hidden />
-            KVKK doğrulaması tamamlandı. Satış aşaması bir sonraki adıma geçebilir.
+            KVKK onayı tamamlandı. Satış aşaması bir sonraki adıma geçebilir.
           </div>
         ) : (
-          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
-            <div className="space-y-1.5">
-              <Label htmlFor="dijizin-otp">Doğrulama Kodu</Label>
-              <Input
-                id="dijizin-otp"
-                value={otpCode}
-                onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, ""))}
-                placeholder="SMS kodunu girin"
-                inputMode="numeric"
-                maxLength={16}
-              />
-            </div>
-            <div className="flex flex-col gap-2 self-end sm:w-40">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleSendSms}
-                disabled={pending}
-              >
-                SMS Gönder
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleVerify}
-                disabled={pending || otpCode.trim().length === 0}
-              >
-                Kodu Doğrula
-              </Button>
-            </div>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              KVKK metni müşteri adına onaylanır (SMS kodu gerekmez).
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleCompleteKvkk}
+              disabled={pending}
+              className="sm:w-48"
+            >
+              KVKK Onayını Tamamla
+            </Button>
           </div>
         )}
       </div>
