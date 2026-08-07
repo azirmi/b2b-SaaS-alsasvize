@@ -13,11 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Alsasvize Müşteri İşlem Paneli",
+  title: "Alsas Loren Müşteri İşlem Paneli",
   description:
     "Danışmanınız tarafından başlatılan vize sürecinizi takip etmek, belgelerinizi güvenli şekilde yüklemek ve gerekli adımları tamamlamak için panelinize giriş yapın.",
   openGraph: {
-    title: "Alsasvize Müşteri İşlem Paneli",
+    title: "Alsas Loren Müşteri İşlem Paneli",
     description:
       "Danışmanınız tarafından başlatılan vize sürecinizi takip etmek, belgelerinizi güvenli şekilde yüklemek ve gerekli adımları tamamlamak için panelinize giriş yapın.",
     type: "website",

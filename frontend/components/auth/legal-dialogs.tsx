@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 
 /** Fixed legal identity of the data controller / service provider. */
-const COMPANY = "ALSAS Vize Danışmanlık (Merve Akın - Şahıs Şirketi)";
+const COMPANY = "ALSAS Loren Danışmanlık (Merve Akın - Şahıs Şirketi)";
 
 function TriggerLink({ children }: { children: ReactNode }) {
   return (
@@ -224,7 +224,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
                 Hizmet Sağlayıcı:
               </span>{" "}
               {COMPANY}. Bundan sonra sözleşmede “Şirket”, “Hizmet Sağlayıcı”
-              veya “Alsas Vize” olarak anılacaktır.
+              veya “Alsas Loren” olarak anılacaktır.
             </P>
             <P>
               <span className="font-medium text-foreground">
@@ -240,7 +240,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
           <Section title="Madde 2 — Sözleşmenin Konusu">
             <P>
               2.1. İşbu sözleşmenin konusu; Müşteri’nin talebi doğrultusunda
-              Alsas Vize tarafından sağlanacak vize danışmanlık, evrak kontrol,
+              Alsas Loren tarafından sağlanacak vize danışmanlık, evrak kontrol,
               başvuru formu yönlendirme, randevu süreci bilgilendirme, başvuru
               dosyası hazırlık desteği, ret sonrası değerlendirme, seyahat
               amacına uygun evrak listesi oluşturma ve süreç takibi hizmetlerine
@@ -248,14 +248,14 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             </P>
             <P>
               2.2. İşbu sözleşme, vize başvurusunun sonucunu garanti eden bir
-              sözleşme değildir. Alsas Vize; konsolosluk, büyükelçilik, vize
+              sözleşme değildir. Alsas Loren; konsolosluk, büyükelçilik, vize
               başvuru merkezi, aracı kurum, resmi kurum veya yabancı ülke makamı
               değildir.
             </P>
             <P>
               2.3. Vize başvurusu hakkında nihai karar; ilgili ülkenin
               konsolosluğu, büyükelçiliği, göç idaresi, sınır güvenliği birimi
-              veya yetkili resmi makamları tarafından verilir. Alsas Vize’nin bu
+              veya yetkili resmi makamları tarafından verilir. Alsas Loren’in bu
               karar üzerinde doğrudan veya dolaylı belirleyici yetkisi
               bulunmamaktadır.
             </P>
@@ -263,7 +263,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
 
           <Section title="Madde 3 — Hizmetin Kapsamı">
             <P>
-              3.1. Alsas Vize, Müşteri’nin satın aldığı hizmet paketine göre
+              3.1. Alsas Loren, Müşteri’nin satın aldığı hizmet paketine göre
               aşağıdaki hizmetlerden birini veya birkaçını sunabilir:
             </P>
             <List
@@ -280,7 +280,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               ]}
             />
             <P>
-              3.2. Alsas Vize’nin hizmeti, danışmanlık ve süreç yönlendirme
+              3.2. Alsas Loren’in hizmeti, danışmanlık ve süreç yönlendirme
               hizmeti ile sınırlıdır. Konsolosluk harcı, başvuru merkezi hizmet
               bedeli, biyometri işlemi, seyahat sağlık sigortası, uçak
               rezervasyonu, otel rezervasyonu, noter, tercüme, kargo, kurye,
@@ -295,7 +295,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
           </Section>
 
           <Section title="Madde 4 — Vize Sonucuna İlişkin Garanti Verilmediği">
-            <P>4.1. Alsas Vize hiçbir şekilde;</P>
+            <P>4.1. Alsas Loren hiçbir şekilde;</P>
             <List
               items={[
                 "Vizenin kesin olarak çıkacağını,",
@@ -308,7 +308,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             />
             <P>
               4.2. Müşteri, vize başvurularının ilgili ülke makamlarının
-              takdirinde olduğunu; Alsas Vize’nin yalnızca profesyonel
+              takdirinde olduğunu; Alsas Loren’in yalnızca profesyonel
               danışmanlık, evrak kontrol ve süreç yönlendirme hizmeti sunduğunu
               kabul eder.
             </P>
@@ -321,7 +321,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
 
           <Section title="Madde 5 — Müşterinin Beyan ve Yükümlülükleri">
             <P>
-              5.1. Müşteri, Alsas Vize’ye ilettiği tüm bilgi, belge, beyan ve
+              5.1. Müşteri, Alsas Loren’e ilettiği tüm bilgi, belge, beyan ve
               evrakların doğru, güncel, eksiksiz ve gerçeğe uygun olduğunu kabul
               eder.
             </P>
@@ -329,7 +329,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               5.2. Eksik, hatalı, gerçeğe aykırı, yanıltıcı veya sahte belge
               sunulması nedeniyle doğabilecek ret, randevu iptali, başvuru reddi,
               işlem gecikmesi, idari yaptırım, seyahat kaybı, maddi zarar veya
-              üçüncü kişi taleplerinden Alsas Vize sorumlu tutulamaz.
+              üçüncü kişi taleplerinden Alsas Loren sorumlu tutulamaz.
             </P>
             <P>
               5.3. Müşteri; pasaport geçerliliği, önceki vize retleri, giriş-çıkış
@@ -347,34 +347,34 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             </P>
             <P>
               5.5. Müşteri, vize başvurusuna konu tüm belgelerin kendisi
-              tarafından temin edildiğini; Alsas Vize’nin resmi belge
+              tarafından temin edildiğini; Alsas Loren’in resmi belge
               üretmediğini, sahte belge temin etmediğini, resmi makamlar adına
               karar vermediğini kabul eder.
             </P>
           </Section>
 
-          <Section title="Madde 6 — Alsas Vize’nin Yükümlülükleri">
+          <Section title="Madde 6 — Alsas Loren’in Yükümlülükleri">
             <P>
-              6.1. Alsas Vize, Müşteri tarafından bildirilen bilgiler ve iletilen
+              6.1. Alsas Loren, Müşteri tarafından bildirilen bilgiler ve iletilen
               belgeler doğrultusunda makul mesleki özen çerçevesinde danışmanlık
               hizmeti sunar.
             </P>
             <P>
-              6.2. Alsas Vize, başvuru yapılacak ülke ve vize türüne göre
+              6.2. Alsas Loren, başvuru yapılacak ülke ve vize türüne göre
               Müşteri’ye genel evrak listesi ve süreç bilgilendirmesi
               sağlayabilir. Ancak ilgili ülke makamlarının başvuru şartlarını,
               belge taleplerini, randevu sistemini, değerlendirme kriterlerini ve
-              işlem sürelerini değiştirmesi halinde Alsas Vize bu değişikliklerden
+              işlem sürelerini değiştirmesi halinde Alsas Loren bu değişikliklerden
               sorumlu değildir.
             </P>
             <P>
-              6.3. Alsas Vize, Müşteri’nin sunduğu belgelerin resmi doğruluğunu,
+              6.3. Alsas Loren, Müşteri’nin sunduğu belgelerin resmi doğruluğunu,
               belge içeriğinin gerçekliğini, banka kayıtlarının fiili
               geçerliliğini veya üçüncü kurumlar nezdindeki hukuki durumunu
               garanti etmez.
             </P>
             <P>
-              6.4. Alsas Vize, hizmeti kendi operasyonel planı dahilinde telefon,
+              6.4. Alsas Loren, hizmeti kendi operasyonel planı dahilinde telefon,
               WhatsApp, e-posta, online panel, görüntülü görüşme veya yüz yüze
               görüşme ile sunabilir.
             </P>
@@ -384,7 +384,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             <P>
               7.1. Vize randevularının açılması, randevu takvimi, sistem
               yoğunluğu, başvuru merkezi kapasitesi, konsolosluk çalışma düzeni ve
-              resmi tatiller Alsas Vize’nin kontrolü dışındadır.
+              resmi tatiller Alsas Loren’in kontrolü dışındadır.
             </P>
             <P>
               7.2. Müşteri, belirli bir tarihe randevu alınacağının veya
@@ -396,10 +396,10 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               kabul etmemesi, ülke politikalarının değişmesi, konsolosluk ek belge
               talebi, pasaport iadesinin gecikmesi veya sonuç süresinin uzaması
               nedeniyle uçak bileti, otel, tur, organizasyon, iş, okul veya
-              benzeri kayıplardan Alsas Vize sorumlu tutulamaz.
+              benzeri kayıplardan Alsas Loren sorumlu tutulamaz.
             </P>
             <P>
-              7.4. Alsas Vize, Müşteri’nin talebi üzerine randevu takibi
+              7.4. Alsas Loren, Müşteri’nin talebi üzerine randevu takibi
               yapabilir; ancak randevu alınması başvuru merkezi / konsolosluk
               sistemindeki uygunluk durumuna bağlıdır.
             </P>
@@ -412,19 +412,19 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             </P>
             <P>
               8.2. Hizmet bedeli, aksi yazılı olarak belirtilmedikçe yalnızca
-              Alsas Vize danışmanlık hizmetini kapsar. Konsolosluk harcı, başvuru
+              Alsas Loren danışmanlık hizmetini kapsar. Konsolosluk harcı, başvuru
               merkezi bedeli, sigorta, tercüme, noter, kargo, fotoğraf, rezervasyon
               ve benzeri giderler ayrıca tahsil edilir veya Müşteri tarafından
               doğrudan ilgili kuruma ödenir.
             </P>
             <P>
-              8.3. Ödeme tamamlanmadan Alsas Vize’nin hizmete başlama yükümlülüğü
+              8.3. Ödeme tamamlanmadan Alsas Loren’in hizmete başlama yükümlülüğü
               doğmaz.
             </P>
             <P>
               8.4. Müşteri’nin hizmet bedelini eksik veya geç ödemesi nedeniyle
               hizmetin geç başlamasından, randevu veya başvuru fırsatlarının
-              kaçırılmasından Alsas Vize sorumlu değildir.
+              kaçırılmasından Alsas Loren sorumlu değildir.
             </P>
             <P>
               8.5. Kredi kartı, sanal POS, banka, ödeme kuruluşu veya aracı ödeme
@@ -456,7 +456,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               9.3. Müşteri aşağıdaki onayı verdiği takdirde, hizmetin derhal
               başlatılmasını talep etmiş sayılır: “Mesafeli hizmet sözleşmesi
               kapsamında satın aldığım vize danışmanlık hizmetinin, 14 günlük
-              cayma süresi dolmadan Alsas Vize tarafından başlatılmasını açıkça
+              cayma süresi dolmadan Alsas Loren tarafından başlatılmasını açıkça
               talep ediyorum. Hizmetin ifasına başlanması halinde, mevzuatın
               öngördüğü ölçüde cayma hakkımı kaybedebileceğim konusunda
               bilgilendirildim ve bunu kabul ediyorum.”
@@ -478,27 +478,27 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               9.6. Müşteri’nin başvurudan vazgeçmesi, seyahat planını
               değiştirmesi, evrak temin edememesi, randevuya gitmemesi, vize
               başvurusunu kendi isteğiyle durdurması, başka danışmanla çalışmaya
-              karar vermesi veya başvuru ülkesini değiştirmesi halinde, Alsas Vize
+              karar vermesi veya başvuru ülkesini değiştirmesi halinde, Alsas Loren
               tarafından başlanmış veya sunulmuş hizmetlere ilişkin ücret iadesi
               talep edilemez.
             </P>
             <P>
               9.7. Vize reddi, başvurunun geç sonuçlanması, konsolosluğun ek belge
               istemesi, randevu sisteminde uygun tarih bulunmaması veya resmi makam
-              kaynaklı olumsuzluklar, Alsas Vize’nin hizmet bedelini otomatik olarak
+              kaynaklı olumsuzluklar, Alsas Loren’in hizmet bedelini otomatik olarak
               iade etmesini gerektirmez.
             </P>
             <P>
               9.8. Vize başvurusunun ilgili makamlar tarafından reddedilmesi
               halinde, Müşteri’nin talebi üzerine ikinci başvuruya ilişkin
-              danışmanlık hizmeti Alsas Vize tarafından ek danışmanlık hizmet
+              danışmanlık hizmeti Alsas Loren tarafından ek danışmanlık hizmet
               bedeli alınmadan ücretsiz olarak sağlanır. Bu ücretsiz hizmet yalnızca
               danışmanlık hizmet bedelini kapsar; konsolosluk harcı, başvuru merkezi
               hizmet bedeli, sigorta, tercüme, noter, kargo, fotoğraf, rezervasyon
               ve benzeri üçüncü kişi / kurum ödemeleri Müşteri’ye aittir.
             </P>
             <P>
-              9.9. Alsas Vize’nin kusurundan kaynaklanan ve hizmetin hiç
+              9.9. Alsas Loren’in kusurundan kaynaklanan ve hizmetin hiç
               sunulmadığının açıkça tespit edildiği hallerde, Müşteri’nin yasal
               hakları saklıdır.
             </P>
@@ -508,7 +508,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             <P>
               10.1. Başvuru yapılacak ülkenin vize politikası, randevu sistemi,
               belge listesi, işlem süresi veya başvuru usulünde değişiklik olması
-              halinde Alsas Vize, hizmet yöntemini güncel koşullara göre
+              halinde Alsas Loren, hizmet yöntemini güncel koşullara göre
               değiştirebilir.
             </P>
             <P>
@@ -516,15 +516,15 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               iletişime cevap vermemesi, yanıltıcı bilgi vermesi, sahte belge
               sunması, şirket çalışanlarına hakaret / tehdit / baskı içeren
               davranışlarda bulunması veya işbu sözleşmeye aykırı hareket etmesi
-              halinde Alsas Vize hizmeti askıya alabilir veya sözleşmeyi
+              halinde Alsas Loren hizmeti askıya alabilir veya sözleşmeyi
               feshedebilir.
             </P>
             <P>
-              10.3. Bu durumda, Alsas Vize’nin o ana kadar sunduğu hizmetlere
+              10.3. Bu durumda, Alsas Loren’in o ana kadar sunduğu hizmetlere
               ilişkin ücret talep hakkı saklıdır.
             </P>
             <P>
-              10.4. Alsas Vize, hukuka aykırı belge, sahte evrak, yanıltıcı beyan
+              10.4. Alsas Loren, hukuka aykırı belge, sahte evrak, yanıltıcı beyan
               veya resmi makamları yanıltmaya yönelik herhangi bir işlem talebini
               reddetme hakkına sahiptir.
             </P>
@@ -532,19 +532,19 @@ export function TermsDialog({ children }: { children: ReactNode }) {
 
           <Section title="Madde 11 — Sorumluluğun Sınırlandırılması">
             <P>
-              11.1. Alsas Vize’nin sorumluluğu, yalnızca sunduğu danışmanlık
+              11.1. Alsas Loren’in sorumluluğu, yalnızca sunduğu danışmanlık
               hizmetinin sözleşmeye uygun şekilde ifa edilip edilmediği ile
               sınırlıdır.
             </P>
             <P>
-              11.2. Alsas Vize; konsolosluk kararı, başvuru merkezi uygulaması,
+              11.2. Alsas Loren; konsolosluk kararı, başvuru merkezi uygulaması,
               randevu sistemi, resmi kurum gecikmesi, ülke politikası değişikliği,
               ek belge talebi, pasaport teslim süresi, sınır kapısı kararı, seyahat
               iptali, uçak / otel / tur kaybı veya üçüncü kişi hizmetlerinden
               sorumlu değildir.
             </P>
             <P>
-              11.3. Mevzuatın izin verdiği ölçüde, Alsas Vize’nin herhangi bir
+              11.3. Mevzuatın izin verdiği ölçüde, Alsas Loren’in herhangi bir
               uyuşmazlıkta mali sorumluluğu, Müşteri tarafından ödenen danışmanlık
               hizmet bedeli ile sınırlıdır. Ağır kusur, kasıt ve emredici kanun
               hükümlerinden doğan sorumluluklar saklıdır.
@@ -563,13 +563,13 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               yapılabilir.
             </P>
             <P>
-              12.2. Müşteri, Alsas Vize’ye bildirdiği telefon numarası, e-posta
+              12.2. Müşteri, Alsas Loren’e bildirdiği telefon numarası, e-posta
               adresi ve WhatsApp hattının güncel ve kendisine ait olduğunu kabul
               eder. Bu bilgilerin hatalı veya güncel olmaması nedeniyle doğacak
               sonuçlardan Müşteri sorumludur.
             </P>
             <P>
-              12.3. Alsas Vize, kalite kontrol, hizmet takibi, işlem güvenliği ve
+              12.3. Alsas Loren, kalite kontrol, hizmet takibi, işlem güvenliği ve
               uyuşmazlık halinde ispat amacıyla, ilgili mevzuata ve KVKK aydınlatma
               yükümlülüğüne uygun olmak kaydıyla çağrı merkezi kayıtlarını,
               yazışmaları, ödeme kayıtlarını, panel onaylarını, e-posta
@@ -585,7 +585,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
 
           <Section title="Madde 13 — Kişisel Verilerin Korunması ve Gizlilik">
             <P>
-              13.1. Alsas Vize, Müşteri’ye ait kimlik, iletişim, pasaport, seyahat,
+              13.1. Alsas Loren, Müşteri’ye ait kimlik, iletişim, pasaport, seyahat,
               finansal durum, çalışma durumu, aile bilgileri, eğitim bilgileri,
               vize geçmişi ve başvuru sürecine ilişkin kişisel verileri yalnızca
               hizmetin sunulması, sözleşmenin ifası, yasal yükümlülüklerin yerine
@@ -600,7 +600,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               sürecinin gerektirdiği ölçüde işlenir.
             </P>
             <P>
-              13.3. Alsas Vize, kişisel verileri Müşteri’nin açık rızası veya
+              13.3. Alsas Loren, kişisel verileri Müşteri’nin açık rızası veya
               ilgili mevzuatta öngörülen hukuki sebepler kapsamında; konsolosluklar,
               vize başvuru merkezleri, sigorta şirketleri, tercüme / noter / kargo
               hizmet sağlayıcıları, ödeme kuruluşları, yazılım altyapı sağlayıcıları
@@ -612,7 +612,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               ilgili üçüncü taraflarla paylaşılabileceğini kabul eder.
             </P>
             <P>
-              13.5. Alsas Vize, Müşteri’ye ait bilgi ve belgeleri, yasal
+              13.5. Alsas Loren, Müşteri’ye ait bilgi ve belgeleri, yasal
               zorunluluklar ve hizmetin gereği dışında üçüncü kişilerle
               paylaşmamayı taahhüt eder.
             </P>
@@ -620,7 +620,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
 
           <Section title="Madde 14 — Ticari Elektronik İleti Onayı">
             <P>
-              14.1. Alsas Vize, Müşteri’ye kampanya, bilgilendirme, hatırlatma,
+              14.1. Alsas Loren, Müşteri’ye kampanya, bilgilendirme, hatırlatma,
               hizmet duyurusu, başvuru takibi, randevu hatırlatması veya pazarlama
               içerikli ticari elektronik ileti göndermek için Müşteri’den ayrıca
               onay alır.
@@ -648,7 +648,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             </P>
             <P>
               15.2. Mücbir sebep nedeniyle hizmetin geç, eksik veya farklı yöntemle
-              sunulması halinde Alsas Vize sorumlu tutulamaz. Taraflar, mümkün olan
+              sunulması halinde Alsas Loren sorumlu tutulamaz. Taraflar, mümkün olan
               en kısa sürede yeni süreç planlaması yapmak için iş birliği yapar.
             </P>
           </Section>
@@ -660,7 +660,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
               veya uyuşmazlık hakkında Şikayetvar, Google / Yandex / harita
               yorumları, sosyal medya, forumlar, bloglar, haber / yorum alanları,
               arama motoru yorumları ve benzeri internet ortamları ile kamuya açık
-              mecralarda Alsas Vize, marka adı, ticari unvanı, yetkilileri,
+              mecralarda Alsas Loren, marka adı, ticari unvanı, yetkilileri,
               çalışanları, iş ortakları ve hizmet süreçleri hakkında gerçeğe aykırı,
               eksik bilgiye dayalı, yanıltıcı, ispatlanamayan, haksız, ölçüsüz,
               hakaret, iftira, tehdit, suç isnadı, kişisel veri veya ticari sır
@@ -669,7 +669,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             </P>
             <P>
               16.2. Müşteri, şirket aleyhine kamuya açık bir paylaşım yapmadan önce
-              iddiasını ve dayandığı bilgi / belgeleri Alsas Vize’ye yazılı olarak
+              iddiasını ve dayandığı bilgi / belgeleri Alsas Loren’e yazılı olarak
               iletmeyi; şirkete iddiaya cevap verme, kayıtları inceleme, düzeltme
               yapma ve çözüm sunma imkanı tanımayı kabul eder.
             </P>
@@ -680,7 +680,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             </P>
             <P>
               16.4. Şirket itibarını zedeleyici nitelikte paylaşım, yorum, şikayet
-              veya içerik tespit edilmesi halinde Alsas Vize; ekran görüntüsü, URL,
+              veya içerik tespit edilmesi halinde Alsas Loren; ekran görüntüsü, URL,
               tarih / saat, kullanıcı bilgisi, yazışma, ödeme kaydı, başvuru kaydı,
               sistem kaydı ve noter / mahkeme tespiti dahil tüm hukuka uygun delil
               yollarına başvurabilir.
@@ -688,13 +688,13 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             <P>
               16.5. Müşteri, paylaşımın hukuka aykırı olduğunun veya işbu sözleşmeye
               aykırılık teşkil ettiğinin yetkili merci tarafından ortaya konulması
-              halinde; Alsas Vize’nin marka değeri, ticari itibarı, müşteri kaybı,
+              halinde; Alsas Loren’in marka değeri, ticari itibarı, müşteri kaybı,
               itibar yönetimi giderleri, noter, avukatlık, yargılama, bilirkişi,
               arabuluculuk ve takip masrafları dahil tüm maddi ve manevi zararlarını
               talep etme hakkı bulunduğunu kabul eder.
             </P>
             <P>
-              16.6. Alsas Vize, bu kapsamda Türk Borçlar Kanunu, Türk Ticaret
+              16.6. Alsas Loren, bu kapsamda Türk Borçlar Kanunu, Türk Ticaret
               Kanunu, Türk Ceza Kanunu, 5651 sayılı Kanun ve ilgili sair mevzuat
               uyarınca maddi ve manevi tazminat, haksız rekabetin tespiti / men’i /
               ref’i, içeriğin çıkarılması, erişimin engellenmesi, cevap ve
@@ -730,7 +730,7 @@ export function TermsDialog({ children }: { children: ReactNode }) {
             <P>
               17.4. Müşteri’nin tacir / şirket / ticari işletme adına hizmet alması
               halinde, tüketici mevzuatı değil genel hükümler uygulanır ve
-              uyuşmazlıklarda Alsas Vize’nin merkez adresinin bulunduğu yer
+              uyuşmazlıklarda Alsas Loren’in merkez adresinin bulunduğu yer
               mahkemeleri ve icra daireleri yetkili olabilir.
             </P>
           </Section>

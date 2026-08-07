@@ -42,7 +42,7 @@ export default async function DashboardLayout({
             >
               <Image
                 src="/logo.jpg"
-                alt="Alsasvize"
+                alt="Alsas Loren"
                 width={190}
                 height={64}
                 priority

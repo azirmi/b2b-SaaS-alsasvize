@@ -13,7 +13,7 @@ export default function AuthLayout({
           <Link href="/" className="inline-flex items-center justify-center">
             <Image
               src="/logo.jpg"
-              alt="Alsasvize"
+              alt="Alsas Loren"
               width={260}
               height={88}
               priority

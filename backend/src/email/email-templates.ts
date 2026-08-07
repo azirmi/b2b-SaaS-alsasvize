@@ -215,7 +215,7 @@ function buildStageAdvancedCopy(
       return {
         subject: 'Başvuru Süreciniz Tamamlandı',
         paragraphs: [
-          'Başvuru süreciniz tamamlanmıştır. Bu süreç boyunca bize duyduğunuz güven için teşekkür ederiz. Alsasvize olarak amacımız, başvurunuzun her aşamasını planlı, şeffaf ve titizlikle yöneterek size güvenilir bir danışmanlık hizmeti sunmaktır. İlerleyen dönemlerde gerçekleştireceğiniz yeni vize başvurularınızda da size destek vermekten memnuniyet duyarız.',
+          'Başvuru süreciniz tamamlanmıştır. Bu süreç boyunca bize duyduğunuz güven için teşekkür ederiz. Alsas Loren olarak amacımız, başvurunuzun her aşamasını planlı, şeffaf ve titizlikle yöneterek size güvenilir bir danışmanlık hizmeti sunmaktır. İlerleyen dönemlerde gerçekleştireceğiniz yeni vize başvurularınızda da size destek vermekten memnuniyet duyarız.',
         ],
       };
     case CustomerProcessStage.STAGE_2_APPLICATION_TAKEN_IN:
@@ -254,7 +254,7 @@ function standardClosingHtml(loginUrl: string): string {
     paragraph(
       `Destek: <a href="tel:+905471010301" style="color:${INK};text-decoration:none;">+90 547 101 0301</a> | <a href="mailto:info@alsasvize.com" style="color:${INK};text-decoration:none;">info@alsasvize.com</a>`,
     ),
-    paragraph('Alsasvize Online Vize Danışmanlığı'),
+    paragraph('Alsas Loren Online Vize Danışmanlığı'),
   ].join('');
 }
 
@@ -262,7 +262,7 @@ function standardClosingText(loginUrl: string): string[] {
   return [
     `Müşteri Paneli: ${loginUrl}`,
     'Destek: +90 547 101 0301 | info@alsasvize.com',
-    'Alsasvize Online Vize Danışmanlığı',
+    'Alsas Loren Online Vize Danışmanlığı',
   ];
 }
 
@@ -467,7 +467,7 @@ function renderShell(params: {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-<title>Alsasvize Bildirim</title>
+<title>Alsas Loren Bildirim</title>
 </head>
 <body style="margin:0;padding:0;background:${CANVAS};-webkit-text-size-adjust:100%;">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${CANVAS};opacity:0;">${escapeHtml(
@@ -476,7 +476,7 @@ function renderShell(params: {
 <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background:${CANVAS};"><tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="600" border="0" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:${SURFACE};border:1px solid ${LINE};border-radius:12px;overflow:hidden;">
 <tr><td style="height:4px;background:${INK};font-size:0;line-height:0;">&nbsp;</td></tr>
-<tr><td align="center" style="padding:28px 40px 6px 40px;font-family:${FONT};"><img src="${logoUrl}" width="150" alt="Alsas Vize" style="display:block;margin:0 auto;width:150px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" /></td></tr>
+<tr><td align="center" style="padding:28px 40px 6px 40px;font-family:${FONT};"><img src="${logoUrl}" width="150" alt="Alsas Loren" style="display:block;margin:0 auto;width:150px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" /></td></tr>
 <tr><td style="padding:4px 40px 8px 40px;font-family:${FONT};">${params.contentHtml}</td></tr>
 </table>
 </td></tr></table>
@@ -678,7 +678,7 @@ export function renderPasswordResetEmail(
   const instagramUrl = companyInstagramUrl();
 
   const subject = 'Şifre yenileme bağlantınız hazır';
-  const preheader = 'Alsasvize hesabınız için şifre yenileme bağlantısı gönderildi.';
+  const preheader = 'Alsas Loren hesabınız için şifre yenileme bağlantısı gönderildi.';
 
   const contentHtml = [
     paragraph(`Merhaba ${customerName},`),

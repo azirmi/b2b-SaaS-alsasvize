@@ -1663,14 +1663,6 @@ export class VisaApplicationsService {
   async completeDijizinKvkk(id: string, actor: AuthenticatedUser) {
     const ctx = await this.loadDijizinConsentContext(id, actor);
 
-    // The verified flag lives on ApplicationCrmData (required finance columns),
-    // so it cannot be created here — require CRM first.
-    if (!ctx.hasCrm) {
-      throw new ConflictException(
-        'KVKK onayı kaydedilemez: önce Satış/Finans (CRM) verisi kaydedilmelidir',
-      );
-    }
-
     const result = await this.dijizin.registerKvkkConsent({
       mobilePhone: ctx.phone,
       firstName: ctx.firstName,
@@ -1737,15 +1729,14 @@ export class VisaApplicationsService {
     phone: string;
     firstName: string;
     lastName: string;
-    hasCrm: boolean;
     kvkkVerified: boolean;
   }> {
+    // Authorization is the controller @Roles(SALES, ADMIN) guard — the Sales team
+    // may run KVKK/forms on any application, at any stage, with no CRM row.
     const application = await this.prisma.visaApplication.findUnique({
       where: { id },
       select: {
-        currentStage: true,
-        assignedSalesId: true,
-        crmData: { select: { dijizinKvkkVerified: true } },
+        dijizinKvkkVerified: true,
         customer: { select: { fullName: true, phone: true } },
         details: {
           where: { applicantIndex: 1 },
@@ -1758,30 +1749,8 @@ export class VisaApplicationsService {
       throw new NotFoundException(`Başvuru bulunamadı: ${id}`);
     }
 
-    if (actor.role !== Role.ADMIN) {
-      const staff = await this.prisma.staff.findUnique({
-        where: { userId: actor.userId },
-        select: { id: true, department: true },
-      });
-      if (
-        !staff ||
-        staff.department !== Department.SALES ||
-        application.assignedSalesId !== staff.id
-      ) {
-        throw new ForbiddenException(
-          'Bu Dijizin işlemini yalnızca atanan satış personeli yapabilir',
-        );
-      }
-      if (application.currentStage !== VisaStage.SALES_PROCESS) {
-        throw new ConflictException(
-          'Dijizin işlemleri yalnızca Satış İşlem aşamasında yapılabilir',
-        );
-      }
-    }
-
-    // Phone precedence mirrors the Sales UI (`crmPhone`): the application form is
-    // the most accurate source, but it is often unfilled at SALES_PROCESS, so we
-    // fall back to the registration phone captured on the customer profile.
+    // Phone precedence mirrors the Sales UI (`crmPhone`): application-form phone
+    // first, then the registration phone on the customer profile.
     const detail = application.details[0] ?? null;
     const phone =
       detail?.phone?.trim() || application.customer.phone?.trim() || '';
@@ -1802,16 +1771,15 @@ export class VisaApplicationsService {
       phone,
       firstName,
       lastName,
-      hasCrm: application.crmData !== null,
-      kvkkVerified: application.crmData?.dijizinKvkkVerified ?? false,
+      kvkkVerified: application.dijizinKvkkVerified,
     };
   }
 
-  /** Flips dijizinKvkkVerified with a DIJIZIN_KVKK_VERIFIED audit row (one tx). */
+  /** Flips VisaApplication.dijizinKvkkVerified with a DIJIZIN_KVKK_VERIFIED audit row (one tx). */
   private async persistKvkkVerified(id: string, actor: AuthenticatedUser) {
     await this.prisma.$transaction(async (tx) => {
-      await tx.applicationCrmData.update({
-        where: { applicationId: id },
+      await tx.visaApplication.update({
+        where: { id },
         data: { dijizinKvkkVerified: true },
       });
       await tx.auditLog.create({

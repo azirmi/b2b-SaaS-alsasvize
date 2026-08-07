@@ -207,7 +207,6 @@ export interface CrmData {
   paymentType: "NORMAL" | "PREPAID";
   totalAmount: number;
   upfrontPaid: number | null;
-  dijizinKvkkVerified: boolean;
   appointmentExpense?: number | null;
   hasVisaFee?: boolean;
   visaFeeAmount?: number | null;

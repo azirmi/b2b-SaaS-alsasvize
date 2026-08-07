@@ -538,8 +538,7 @@ export default async function ApplicationDetailPage({
     }
   }
 
-  const canManageDijizin =
-    stage === VisaStage.SALES_PROCESS && canEditCrm;
+  const canManageDijizin = isAdmin || isSales;
   let dijizinSnapshot: DijizinFormsSnapshot | null = null;
   let dijizinError: string | null = null;
   if (canManageDijizin) {
@@ -639,17 +638,6 @@ export default async function ApplicationDetailPage({
                     travelDate={crmTravelDate}
                     residenceCity={customerResidenceCity}
                   />
-                  {canManageDijizin ? (
-                    <>
-                      <Separator className="my-4" />
-                      <DijizinPanel
-                        applicationId={detail.id}
-                        phone={crmPhone}
-                        initialSnapshot={dijizinSnapshot}
-                        initialError={dijizinError}
-                      />
-                    </>
-                  ) : null}
                 </>
               ) : crm ? (
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -708,6 +696,17 @@ export default async function ApplicationDetailPage({
                   ) : null}
                 </dl>
               ) : null}
+            </section>
+          ) : null}
+
+          {canManageDijizin ? (
+            <section className="rounded-lg border border-border/40 bg-card p-4 shadow-sm sm:p-5">
+              <DijizinPanel
+                applicationId={detail.id}
+                phone={crmPhone}
+                initialSnapshot={dijizinSnapshot}
+                initialError={dijizinError}
+              />
             </section>
           ) : null}
 

@@ -233,6 +233,10 @@ model VisaApplication {
   // applicant details, target country and invoice totals) stored under `crm`.
   metadata Json?
 
+  // Dijizin KVKK consent confirmation. Lives here (not on CRM) so Sales can
+  // confirm it on any application at any stage, with no CRM row required.
+  dijizinKvkkVerified Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -351,7 +355,6 @@ model ApplicationCrmData {
   paymentType String // 'NORMAL' | 'PREPAID' (Ön Ödemeli)
   totalAmount Float // Total invoice amount in TL
   upfrontPaid Float? // Amount paid upfront (only for PREPAID)
-  dijizinKvkkVerified Boolean @default(false) // Dijizin KVKK OTP doğrulama durumu
   appointmentExpense Float? // Appointment cost paid by the company (gider)
   hasVisaFee Boolean @default(false)
   visaFeeAmount Float?
