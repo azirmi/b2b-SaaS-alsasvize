@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, FileText, FileUp, Paperclip, X } from "lucide-react";
 
@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { requestDocumentUpload } from "@/lib/actions/documents";
 import { FileType } from "@/lib/enums";
 import { FILE_TYPE_LABEL } from "@/lib/status";
+import { withUploadLabelPrefix } from "@/lib/upload-label";
 import { cn } from "@/lib/utils";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
-const UPLOAD_LABEL_PREFIX = "__uplabel_";
 const ACCEPT_SET = new Set([
   "image/jpeg",
   "image/png",
@@ -90,33 +90,6 @@ function humanSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function encodeUploadLabel(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const bytes = new TextEncoder().encode(trimmed);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
-function withUploadLabelPrefix(fileName: string, uploadLabel: string): string {
-  const encodedLabel = encodeUploadLabel(uploadLabel);
-  if (!encodedLabel) {
-    return fileName;
-  }
-
-  return `${UPLOAD_LABEL_PREFIX}${encodedLabel}__${fileName}`;
-}
-
 /**
  * Customer document uploader. Two hops, zero API payload: a server action mints a
  * presigned URL (and creates the Document record), then the browser PUTs the raw
@@ -169,12 +142,8 @@ export function DocumentUploader({
     options.find((option) => option.fileType === defaultType)?.id ?? options[0]?.id;
   const [selectedOptionId, setSelectedOptionId] = useState(initialOptionId);
 
-  useEffect(() => {
-    if (!options.some((option) => option.id === selectedOptionId) && options[0]) {
-      setSelectedOptionId(options[0].id);
-    }
-  }, [options, selectedOptionId]);
-
+  // `selectedOption` falls back to the first option when the stored id is no
+  // longer present, so no effect is needed to reconcile a stale selection.
   const selectedOption =
     options.find((option) => option.id === selectedOptionId) ?? options[0];
 

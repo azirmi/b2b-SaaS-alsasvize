@@ -1,16 +1,20 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, FileUp, Loader2, Paperclip, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { saveAppointmentOps } from "@/lib/actions/applications";
+import { requestDocumentUpload } from "@/lib/actions/documents";
 import { APPLICATION_TYPE_LABEL } from "@/lib/application-type";
 import { COUNTRY_RULES } from "@/lib/countries";
 import { FileType } from "@/lib/enums";
 import { maskDecimalInput, maskEnglishNoteInput } from "@/lib/input-masks";
 import { STAGE_LABEL } from "@/lib/status";
-import type { CrmActionState, LinkedActiveApplication } from "@/lib/types";
-import { DocumentUploader } from "@/components/documents/document-uploader";
+import type { LinkedActiveApplication } from "@/lib/types";
+import { withUploadLabelPrefix } from "@/lib/upload-label";
+import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +32,151 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const INITIAL: CrmActionState = {};
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10 MB
+const UPLOAD_ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
+const UPLOAD_ACCEPT_SET = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+
+function humanSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Compact inline dropzone for a single appointment document. The parent owns the
+ * selected `File` so the same submit can upload it and clear it only after the
+ * save is confirmed. Validation mirrors the storage limits.
+ */
+function AppointmentFileField({
+  id,
+  file,
+  onSelect,
+  disabled,
+}: {
+  id: string;
+  file: File | null;
+  onSelect: (file: File | null) => void;
+  disabled?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function pick(next: File | null) {
+    setError(null);
+    if (!next) {
+      onSelect(null);
+      return;
+    }
+    if (!UPLOAD_ACCEPT_SET.has(next.type)) {
+      setError("Desteklenmeyen dosya türü. JPG, PNG, WebP veya PDF yükleyin.");
+      return;
+    }
+    if (next.size > MAX_UPLOAD_SIZE) {
+      setError("Dosya 10 MB sınırını aşıyor.");
+      return;
+    }
+    onSelect(next);
+  }
+
+  function clear() {
+    pick(null);
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        onClick={() => {
+          if (!disabled) inputRef.current?.click();
+        }}
+        onKeyDown={(event) => {
+          if (disabled) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
+        onDragOver={(event) => {
+          if (disabled) return;
+          event.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={(event) => {
+          if (disabled) return;
+          event.preventDefault();
+          setDragActive(false);
+          const dropped = event.dataTransfer.files?.[0];
+          if (dropped) pick(dropped);
+        }}
+        className={cn(
+          "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-6 py-6 text-center transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          disabled
+            ? "cursor-not-allowed opacity-60"
+            : "cursor-pointer hover:bg-muted/50",
+          dragActive ? "border-foreground/40 bg-muted" : "border-border",
+        )}
+      >
+        <FileUp className="h-5 w-5 text-muted-foreground" aria-hidden />
+        {file ? (
+          <div className="flex flex-wrap items-center justify-center gap-2 text-sm">
+            <Paperclip className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            <span className="font-medium">{file.name}</span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {humanSize(file.size)}
+            </span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                clear();
+              }}
+              className="text-muted-foreground transition-colors hover:text-foreground"
+              aria-label="Dosyayı kaldır"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm">
+              <span className="font-medium">Dosyayı buraya sürükleyin</span> veya
+              seçmek için tıklayın
+            </p>
+            <p className="text-xs text-muted-foreground">
+              JPG, PNG, WebP veya PDF · en fazla 10 MB
+            </p>
+          </>
+        )}
+        <input
+          ref={inputRef}
+          id={id}
+          type="file"
+          accept={UPLOAD_ACCEPT}
+          className="hidden"
+          disabled={disabled}
+          onChange={(event) => pick(event.target.files?.[0] ?? null)}
+        />
+      </div>
+      {error ? (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function addDaysIso(isoDate: string, days: number): string {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -117,8 +265,11 @@ export function AppointmentOpsForm({
   appointmentConfirmationDocuments?: Array<{ id: string; createdAt: string }>;
   visaFeeReceiptDocuments?: Array<{ id: string; createdAt: string }>;
 }) {
-  const action = saveAppointmentOps.bind(null, applicationId);
-  const [state, formAction, pending] = useActionState(action, INITIAL);
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmationFile, setConfirmationFile] = useState<File | null>(null);
+  const [visaFeeFile, setVisaFeeFile] = useState<File | null>(null);
+  const [fileResetKey, setFileResetKey] = useState(0);
 
   const countryRule = COUNTRY_RULES[targetCountry] ?? null;
   const allowedCities = countryRule?.cities ?? [];
@@ -168,29 +319,139 @@ export function AppointmentOpsForm({
     });
   }
 
+  async function uploadDocument(
+    file: File,
+    fileType: FileType,
+    label: string,
+  ): Promise<string> {
+    const ticket = await requestDocumentUpload(
+      applicationId,
+      fileType,
+      withUploadLabelPrefix(file.name, label),
+    );
+    if (!ticket.ok) {
+      throw new Error(ticket.error);
+    }
+    const response = await fetch(ticket.uploadUrl, {
+      method: "PUT",
+      body: file,
+    });
+    if (!response.ok) {
+      throw new Error(
+        "Dosya depolama alanına yüklenemedi. Lütfen tekrar deneyin.",
+      );
+    }
+    return ticket.documentId;
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submitting) {
+      return;
+    }
+
+    if (!countryRule) {
+      toast.error("Seçilen ülke için kural tanımı bulunamadı.");
+      return;
+    }
+    if (!appointmentCity || !appointmentDate || !travelDate) {
+      toast.error(
+        "Randevu şehri, randevu tarihi ve seyahat tarihi zorunludur.",
+      );
+      return;
+    }
+    if (travelDateInvalid) {
+      toast.error(
+        `Seyahat tarihi en erken ${formatIsoDateForUi(minTravelDate)} olmalıdır.`,
+      );
+      return;
+    }
+    if (!note.trim()) {
+      toast.error("Randevu notu zorunludur.");
+      return;
+    }
+    if (!confirmationFile && !appointmentConfirmationDocumentId) {
+      toast.error(
+        "Randevu onay belgesi için bir dosya seçin veya yüklenmiş bir belge seçin.",
+      );
+      return;
+    }
+    if (hasVisaFee) {
+      if (!visaFeeAmount || Number(visaFeeAmount) <= 0) {
+        toast.error("Vize harcı için geçerli bir tutar girin.");
+        return;
+      }
+      if (!visaFeeFile && !visaFeeReceiptDocumentId) {
+        toast.error(
+          "Vize harcı dekontu için bir dosya seçin veya yüklenmiş bir belge seçin.",
+        );
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    try {
+      let confirmationId = appointmentConfirmationDocumentId;
+      if (confirmationFile) {
+        confirmationId = await uploadDocument(
+          confirmationFile,
+          FileType.APPOINTMENT_CONFIRMATION,
+          "Randevu Onayı",
+        );
+      }
+
+      let visaFeeId = visaFeeReceiptDocumentId;
+      if (hasVisaFee && visaFeeFile) {
+        visaFeeId = await uploadDocument(
+          visaFeeFile,
+          FileType.VISA_FEE_RECEIPT,
+          "Vize Harcı Dekontu",
+        );
+      }
+
+      const formData = new FormData();
+      formData.set("appointmentCity", appointmentCity);
+      formData.set("appointmentDate", appointmentDate);
+      formData.set("travelDate", travelDate);
+      formData.set("note", note);
+      formData.set("appointmentExpense", appointmentExpense);
+      formData.set("hasVisaFee", hasVisaFee ? "true" : "false");
+      formData.set("appointmentConfirmationDocumentId", confirmationId);
+      if (hasVisaFee) {
+        formData.set("visaFeeAmount", visaFeeAmount);
+        formData.set("visaFeeReceiptDocumentId", visaFeeId);
+      }
+      for (const linkedId of selectedLinkedIds) {
+        formData.append("linkedApplicationIds", linkedId);
+      }
+
+      const result = await saveAppointmentOps(applicationId, {}, formData);
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success(
+        "Randevu işlemleri kaydedildi. Randevu takvimde görünecek.",
+      );
+      setConfirmationFile(null);
+      setVisaFeeFile(null);
+      setFileResetKey((key) => key + 1);
+      router.refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Randevu işlemleri kaydedilemedi. Lütfen tekrar deneyin.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <form action={formAction} className="space-y-4">
-        {selectedLinkedIds.map((linkedId) => (
-          <input
-            key={linkedId}
-            type="hidden"
-            name="linkedApplicationIds"
-            value={linkedId}
-          />
-        ))}
-        <input
-          type="hidden"
-          name="appointmentConfirmationDocumentId"
-          value={appointmentConfirmationDocumentId}
-        />
-        <input type="hidden" name="hasVisaFee" value={hasVisaFee ? "true" : "false"} />
-        <input
-          type="hidden"
-          name="visaFeeReceiptDocumentId"
-          value={visaFeeReceiptDocumentId}
-        />
-
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="appointmentCity">Randevu Şehri</Label>
@@ -255,29 +516,47 @@ export function AppointmentOpsForm({
           )}
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="appointmentConfirmationDocumentSelect">
-            Randevu Onay Belgesi
-          </Label>
-          <Select
-            value={appointmentConfirmationDocumentId}
-            onValueChange={setAppointmentConfirmationDocumentId}
-          >
-            <SelectTrigger id="appointmentConfirmationDocumentSelect" className="w-full">
-              <SelectValue placeholder="Randevu onay belgesi seçin" />
-            </SelectTrigger>
-            <SelectContent>
-              {appointmentConfirmationDocuments.map((document) => (
-                <SelectItem key={document.id} value={document.id}>
-                  {formatDateTimeLabel(document.createdAt)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {appointmentConfirmationDocuments.length === 0 ? (
-            <p className="text-xs text-red-600 dark:text-red-400">
-              Kaydetmeden önce en az bir randevu onay belgesi yükleyin.
-            </p>
+        <div className="space-y-2 rounded-lg border border-border/40 bg-muted/30 p-3.5">
+          <Label htmlFor="appointmentConfirmationFile">Randevu Onay Belgesi</Label>
+          <p className="text-xs text-muted-foreground">
+            Randevu onay belgesini (PDF veya görsel) seçin. Kaydet’e bastığınızda
+            dosya yüklenir ve randevu bilgileriyle birlikte tek adımda kaydedilir.
+          </p>
+          <AppointmentFileField
+            key={`confirmation-${fileResetKey}`}
+            id="appointmentConfirmationFile"
+            file={confirmationFile}
+            onSelect={setConfirmationFile}
+            disabled={submitting}
+          />
+          {appointmentConfirmationDocuments.length > 0 ? (
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="appointmentConfirmationDocumentSelect"
+                className="text-xs text-muted-foreground"
+              >
+                veya daha önce yüklenmiş bir belgeyi kullanın
+              </Label>
+              <Select
+                value={appointmentConfirmationDocumentId}
+                onValueChange={setAppointmentConfirmationDocumentId}
+                disabled={submitting || confirmationFile !== null}
+              >
+                <SelectTrigger
+                  id="appointmentConfirmationDocumentSelect"
+                  className="w-full"
+                >
+                  <SelectValue placeholder="Randevu onay belgesi seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {appointmentConfirmationDocuments.map((document) => (
+                    <SelectItem key={document.id} value={document.id}>
+                      {formatDateTimeLabel(document.createdAt)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
         </div>
 
@@ -345,26 +624,31 @@ export function AppointmentOpsForm({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="visaFeeReceiptDocumentSelect">Vize Harcı Dekontu</Label>
-                <Select
-                  value={visaFeeReceiptDocumentId}
-                  onValueChange={setVisaFeeReceiptDocumentId}
-                >
-                  <SelectTrigger id="visaFeeReceiptDocumentSelect" className="w-full">
-                    <SelectValue placeholder="Vize harcı dekontu seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {visaFeeReceiptDocuments.map((document) => (
-                      <SelectItem key={document.id} value={document.id}>
-                        {formatDateTimeLabel(document.createdAt)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {visaFeeReceiptDocuments.length === 0 ? (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    Kaydetmeden önce en az bir vize harcı dekontu yükleyin.
-                  </p>
+                <Label htmlFor="visaFeeReceiptFile">Vize Harcı Dekontu</Label>
+                <AppointmentFileField
+                  key={`visa-fee-${fileResetKey}`}
+                  id="visaFeeReceiptFile"
+                  file={visaFeeFile}
+                  onSelect={setVisaFeeFile}
+                  disabled={submitting}
+                />
+                {visaFeeReceiptDocuments.length > 0 ? (
+                  <Select
+                    value={visaFeeReceiptDocumentId}
+                    onValueChange={setVisaFeeReceiptDocumentId}
+                    disabled={submitting || visaFeeFile !== null}
+                  >
+                    <SelectTrigger id="visaFeeReceiptDocumentSelect" className="w-full">
+                      <SelectValue placeholder="veya yüklenmiş dekontu seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {visaFeeReceiptDocuments.map((document) => (
+                        <SelectItem key={document.id} value={document.id}>
+                          {formatDateTimeLabel(document.createdAt)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : null}
               </div>
             </div>
@@ -434,60 +718,41 @@ export function AppointmentOpsForm({
           />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             type="submit"
             size="sm"
             disabled={
-              pending ||
+              submitting ||
               travelDateInvalid ||
               !countryRule ||
-              !appointmentConfirmationDocumentId ||
+              !appointmentCity ||
+              !appointmentDate ||
+              !travelDate ||
               !note.trim() ||
+              (!confirmationFile && !appointmentConfirmationDocumentId) ||
               (hasVisaFee &&
                 (!visaFeeAmount ||
                   Number(visaFeeAmount) <= 0 ||
-                  !visaFeeReceiptDocumentId))
+                  (!visaFeeFile && !visaFeeReceiptDocumentId)))
             }
           >
-            {pending ? "Kaydediliyor…" : "Randevu işlemlerini kaydet"}
+            {submitting ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                Kaydediliyor…
+              </>
+            ) : (
+              "Randevu işlemlerini kaydet"
+            )}
           </Button>
-          {state.error ? (
-            <span role="alert" className="text-xs text-red-600 dark:text-red-400">
-              {state.error}
-            </span>
-          ) : null}
-          {state.ok ? (
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">
-              Kaydedildi.
+          {submitting ? (
+            <span className="text-xs text-muted-foreground">
+              Belge yükleniyor ve randevu bilgileri kaydediliyor…
             </span>
           ) : null}
         </div>
       </form>
-
-      <div className="space-y-2">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          Randevu Onay Belgesi Yükleme
-        </p>
-        <DocumentUploader
-          applicationId={applicationId}
-          defaultType={FileType.APPOINTMENT_CONFIRMATION}
-          allowedTypes={[FileType.APPOINTMENT_CONFIRMATION]}
-        />
-      </div>
-
-      {hasVisaFee ? (
-        <div className="space-y-2">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Vize Harcı Dekontu Yükleme
-          </p>
-          <DocumentUploader
-            applicationId={applicationId}
-            defaultType={FileType.VISA_FEE_RECEIPT}
-            allowedTypes={[FileType.VISA_FEE_RECEIPT]}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }
